@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { currentUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { mayOperateStation } from "@/lib/policy";
+export async function GET(_:Request,{params}:{params:Promise<{eventId:string;stationId:string}>}){const user=await currentUser();if(!user)return new NextResponse("Unauthorized",{status:401});if(user.mustChangePassword)return new NextResponse("Password change required",{status:403});const {eventId,stationId}=await params;const m=await db().eventMembership.findUnique({where:{eventId_userId:{eventId,userId:user.id}},include:{assignments:true}});if(!m?.active||!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===stationId)))return new NextResponse("Forbidden",{status:403});const station=await db().station.findFirst({where:{id:stationId,eventId},select:{id:true,name:true,location:true,briefing:true,facilitatorInstructions:true,scoringMode:true,fixedPoints:true,minimumPoints:true,maximumPoints:true,timeLimitMinutes:true,capacity:true,queueEnabled:true,available:true}});return station?NextResponse.json(station):new NextResponse("Not found",{status:404});}

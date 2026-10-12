@@ -1,0 +1,2 @@
+import type {AnnouncementData} from '@/lib/control';
+export function Announcements({items=[]}:{items?:AnnouncementData[]}){if(!items.length)return null;return <section className="panel announcements"><div className="eyebrow">ORGANIZER MESSAGES</div><h2>Event announcements</h2>{items.map(a=><article className="announcement" key={a.id}><h3>{a.title}</h3><p className="preserve-lines">{a.message}</p><p className="fine" suppressHydrationWarning>{new Date(a.createdAt).toLocaleString()}</p></article>)}</section>;}

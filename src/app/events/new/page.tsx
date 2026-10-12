@@ -1,0 +1,5 @@
+import { notFound } from "next/navigation";
+import { requireUser } from "@/lib/auth";
+import { Shell } from "@/components/Shell";
+import { ManagementForm } from "@/components/ManagementForm";
+export default async function NewEvent(){const user=await requireUser();if(!user.canCreateEvents)notFound();return <Shell name={user.name} title="Open an operation" role="ORGANIZER"><section className="paper-file narrow"><div className="eyebrow">EVENT FILE / NEW</div><h2>Start with the basics</h2><p>Give the operation a name. Add teams, dates and stations after creating it.</p><ManagementForm operation="createEvent" label="Create event"><label>Event name<input name="name" required maxLength={120} placeholder="Your event name"/></label><label>Timezone<input name="timezone" defaultValue="Asia/Manila" required maxLength={80} list="timezones"/><datalist id="timezones"><option value="Asia/Manila"/><option value="Asia/Singapore"/><option value="UTC"/></datalist></label><label className="check"><input name="isDemo" type="checkbox"/>Test event — clearly labeled as a demonstration</label></ManagementForm></section></Shell>;}

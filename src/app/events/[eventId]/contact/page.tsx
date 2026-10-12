@@ -1,0 +1,8 @@
+import {redirect} from 'next/navigation';
+import {currentUser,requireMembership} from '@/lib/auth';
+import {safeReturnPath} from '@/lib/race';
+import {readContact} from '@/server/contact';
+import {Shell} from '@/components/Shell';
+import {EventIdentity} from '@/components/EventIdentity';
+import {AgentContact} from '@/components/AgentContact';
+export default async function ContactPage({params,searchParams}:{params:Promise<{eventId:string}>;searchParams:Promise<{token?:string|string[];code?:string|string[]}>}){const {eventId}=await params;const q=await searchParams;const token=typeof q.token==='string'&&/^[A-Za-z0-9_-]{43}$/.test(q.token)?q.token:'';const code=typeof q.code==='string'&&/^\d{8}$/.test(q.code)?q.code:'';const returnTo=safeReturnPath(`/events/${eventId}/contact${token?`?token=${token}`:code?`?code=${code}`:''}`);const account=await currentUser();if(!account)redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);if(account.mustChangePassword)redirect(`/account/password?returnTo=${encodeURIComponent(returnTo)}`);const {user,m}=await requireMembership(eventId);if(m.role!=='PARTICIPANT')redirect(`/events/${eventId}`);return <Shell name={user.name} title="Agent Contact" role={m.role} eventId={eventId}><EventIdentity event={m.event} showState={false}/>{m.team&&m.team.eventId===eventId?<AgentContact initial={await readContact(user.id,eventId)} initialCredential={token||code}/>:<section className="panel"><h2>Team assignment needed</h2><p>Ask the organizer to assign your team before using Agent Contact.</p><a className="button" href={`/events/${eventId}`}>Return to current mission</a></section>}</Shell>;}

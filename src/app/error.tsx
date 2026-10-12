@@ -1,0 +1,2 @@
+"use client";
+export default function ErrorPage({reset}:{reset:()=>void}){return <main className="login"><section className="dossier"><div className="eyebrow">CONNECTION INTERRUPTED</div><h1>Unable to load this file</h1><p>Please try again. If this is the first startup, confirm your database configuration and migrations.</p><button onClick={reset}>Try again</button><a href="/workspace">Return to operations</a></section></main>;}

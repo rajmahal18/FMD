@@ -1,0 +1,3 @@
+import 'server-only';
+import {correctionChain} from '@/lib/control';
+export function outcomePoints(o:{basePoints:number;bonus:number;penalty:number;entries:{kind:string;amount:number;correctionId:string|null}[];corrections:{revision:number;beforePoints:number;afterPoints:number;entries:{kind:string;amount:number}[]}[]}){const original=o.basePoints+o.bonus-o.penalty;const entries=o.entries.filter(e=>!e.correctionId);if(!entries.some(e=>e.kind==='STATION'&&e.amount===o.basePoints)||entries.reduce((n,e)=>n+e.amount,0)!==original)throw new Error('Original score history needs organizer review.');return correctionChain(original,o.corrections);}

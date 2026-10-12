@@ -1,0 +1,410 @@
+generator client {
+ provider = "prisma-client"
+ output = "../src/generated/prisma"
+}
+datasource db {
+ provider = "postgresql"
+}
+enum Role {
+ ORGANIZER
+ FACILITATOR
+ PARTICIPANT
+}
+enum EventState {
+ PREPARING
+ READY
+ LIVE
+ PAUSED
+ ENDED
+ FINALIZED
+}
+model User {
+ id String @id @default(cuid())
+ email String @unique
+ name String
+ officeSection String?
+ sex String?
+ passwordHash String
+ active Boolean @default(true)
+ canCreateEvents Boolean @default(false)
+ mustChangePassword Boolean @default(false)
+ createdAt DateTime @default(now())
+ receipts ManagementReceipt[]
+ sessions Session[]
+ memberships EventMembership[]
+ audits AuditEntry[]
+ outcomes StationOutcome[]
+ corrections ScoreCorrection[]
+ announcements Announcement[]
+ routeChanges RouteChange[]
+ resultRevisions ResultRevision[]
+}
+model Session {
+ id String @id @default(cuid())
+ tokenHash String @unique
+ userId String
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ @@index([expiresAt])
+}
+model Event {
+ id String @id @default(cuid())
+ slug String @unique
+ name String
+ timezone String @default("Asia/Manila")
+ state EventState @default(PREPARING)
+ isDemo Boolean @default(false)
+ startsOn DateTime? @db.Date
+ endsOn DateTime? @db.Date
+ codename String?
+ briefing String @default("")
+ accentColor String @default("#72D5E3")
+ archivedAt DateTime?
+ archivedReason String?
+ logoData Bytes?
+ logoMime String?
+ createdAt DateTime @default(now())
+ memberships EventMembership[]
+ teams Team[]
+ stations Station[]
+ audits AuditEntry[]
+ contactPolicy ContactPolicy?
+ contactCredentials ContactCredential[]
+ contactRecords ContactRecord[]
+ routes RoutePlan[]
+ announcements Announcement[]
+ routeChanges RouteChange[]
+ resultRevisions ResultRevision[]
+ @@index([archivedAt])
+}
+model EventMembership {
+ id String @id @default(cuid())
+ eventId String
+ userId String
+ role Role
+ active Boolean @default(true)
+ teamId String?
+ isCaptain Boolean @default(false)
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ team Team? @relation(fields:[teamId],references:[id])
+ assignments FacilitatorAssignment[]
+ contactCredentials ContactCredential[]
+ requestedContacts ContactRecord[] @relation("ContactRequester")
+ receivedContacts ContactRecord[] @relation("ContactRecipient")
+ @@unique([eventId,id])
+ @@unique([eventId,userId])
+ @@index([userId,active])
+}
+model Team {
+ id String @id @default(cuid())
+ eventId String
+ name String
+ color String @default("#72D5E3")
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ members EventMembership[]
+ visits StationVisit[]
+ @@unique([eventId,id])
+ routeChanges RouteChange[]
+ routeAssignment TeamRouteAssignment?
+ @@unique([eventId,name])
+}
+model Station {
+ id String @id @default(cuid())
+ eventId String
+ name String
+ location String
+ briefing String
+ codename String?
+ facilitatorInstructions String @default("")
+ configured Boolean @default(false)
+ available Boolean @default(true)
+ scoringMode ScoringMode @default(FIXED)
+ fixedPoints Int @default(100)
+ minimumPoints Int @default(0)
+ maximumPoints Int @default(100)
+ timeLimitMinutes Int?
+ capacity Int?
+ queueEnabled Boolean @default(false)
+ arrivalCode String?
+ allowAdjustments Boolean @default(false)
+ maximumAdjustment Int @default(1000)
+ @@unique([eventId,arrivalCode])
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ assignments FacilitatorAssignment[]
+ visits StationVisit[]
+ @@unique([eventId,id])
+}
+model FacilitatorAssignment {
+ id String @id @default(cuid())
+ membershipId String
+ stationId String
+ membership EventMembership @relation(fields:[membershipId],references:[id],onDelete:Cascade)
+ station Station @relation(fields:[stationId],references:[id],onDelete:Cascade)
+ @@unique([membershipId,stationId])
+}
+model LoginAttempt {
+ key String @id
+ count Int
+ expiresAt DateTime
+}
+model AuditEntry {
+ id String @id @default(cuid())
+ eventId String?
+ actorId String?
+ targetUserId String?
+ action String
+ targetId String?
+ detailsJson Json?
+ createdAt DateTime @default(now())
+ actor User? @relation(fields:[actorId],references:[id])
+ event Event? @relation(fields:[eventId],references:[id])
+}
+
+model ManagementReceipt {
+ id String @id @default(cuid())
+ actorId String
+ requestKey String
+ requestHash String
+ operation String
+ responseJson Json
+ createdAt DateTime @default(now())
+ actor User @relation(fields:[actorId],references:[id],onDelete:Cascade)
+ @@unique([actorId,requestKey])
+}
+
+enum ScoringMode {
+ FIXED
+ MANUAL
+}
+enum RouteMode {
+ FIXED
+ CIRCULAR
+ FREE
+}
+model RoutePlan {
+ id String @id @default(cuid())
+ eventId String
+ name String
+ mode RouteMode
+ stationIds Json
+ revision Int @default(1)
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ assignments TeamRouteAssignment[]
+ @@unique([eventId,name])
+}
+model TeamRouteAssignment {
+ id String @id @default(cuid())
+ teamId String @unique
+ routeId String
+ routeRevision Int
+ startStationId String?
+ mode RouteMode
+ stationIds Json
+ assignedAt DateTime @default(now())
+ team Team @relation(fields:[teamId],references:[id],onDelete:Cascade)
+ route RoutePlan @relation(fields:[routeId],references:[id],onDelete:Restrict)
+}
+
+enum VisitState {
+ QUEUED
+ ARRIVED
+ ACTIVE
+ AWAITING_CONFIRMATION
+ COMPLETED
+ CANCELLED
+}
+model StationVisit {
+ id String @id @default(cuid())
+ eventId String
+ teamId String
+ stationId String
+ state VisitState
+ queuedAt DateTime?
+ startedAt DateTime?
+ confirmedAt DateTime?
+ finishedAt DateTime?
+ outcome StationOutcome?
+ @@unique([eventId,id,teamId,stationId])
+ updatedAt DateTime @updatedAt
+ team Team @relation(fields:[eventId,teamId],references:[eventId,id],onDelete:Cascade)
+ station Station @relation(fields:[eventId,stationId],references:[eventId,id],onDelete:Cascade)
+ @@unique([teamId,stationId])
+ @@index([stationId,state,queuedAt])
+}
+
+enum ScoreKind {
+ STATION
+ BONUS
+ PENALTY
+ REVERSAL
+ REPLACEMENT
+}
+model StationOutcome {
+ id String @id @default(cuid())
+ eventId String
+ teamId String
+ stationId String
+ visitId String @unique
+ actorId String
+ successful Boolean
+ basePoints Int
+ bonus Int @default(0)
+ penalty Int @default(0)
+ reason String @default("")
+ durationSeconds Int?
+ confirmedAt DateTime @default(now())
+ resultHash String
+ confirmationJson Json
+ visit StationVisit @relation(fields:[eventId,visitId,teamId,stationId],references:[eventId,id,teamId,stationId],onDelete:Restrict)
+ actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+ entries ScoreLedgerEntry[]
+ corrections ScoreCorrection[]
+ @@unique([eventId,visitId,teamId,stationId])
+ @@unique([teamId,stationId])
+ @@unique([eventId,id,teamId,stationId])
+ @@index([eventId,stationId,confirmedAt])
+}
+model ScoreLedgerEntry {
+ id String @id @default(cuid())
+ eventId String
+ teamId String
+ stationId String
+ outcomeId String
+ correctionId String?
+ correction ScoreCorrection? @relation(fields:[outcomeId,correctionId],references:[outcomeId,id],onDelete:Restrict)
+ kind ScoreKind
+ amount Int
+ createdAt DateTime @default(now())
+ outcome StationOutcome @relation(fields:[eventId,outcomeId,teamId,stationId],references:[eventId,id,teamId,stationId],onDelete:Restrict)
+ @@unique([correctionId,kind])
+ @@index([eventId,teamId])
+}
+
+model ScoreCorrection {
+ id String @id @default(cuid())
+ outcomeId String
+ actorId String
+ revision Int
+ beforePoints Int
+ afterPoints Int
+ reason String
+ createdAt DateTime @default(now())
+ outcome StationOutcome @relation(fields:[outcomeId],references:[id],onDelete:Restrict)
+ actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+ entries ScoreLedgerEntry[]
+ @@unique([outcomeId,revision])
+ @@unique([outcomeId,id])
+}
+model Announcement {
+ id String @id @default(cuid())
+ eventId String
+ actorId String
+ title String
+ message String
+ createdAt DateTime @default(now())
+ withdrawnAt DateTime?
+ event Event @relation(fields:[eventId],references:[id],onDelete:Restrict)
+ actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+ @@index([eventId,createdAt])
+}
+model RouteChange {
+ team Team @relation(fields:[eventId,teamId],references:[eventId,id],onDelete:Restrict)
+ id String @id @default(cuid())
+ eventId String
+ teamId String
+ actorId String
+ beforeJson Json
+ afterJson Json
+ reason String
+ createdAt DateTime @default(now())
+ event Event @relation(fields:[eventId],references:[id],onDelete:Restrict)
+ actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+ @@index([eventId,teamId,createdAt])
+}
+
+enum ContactMode {
+ INTERACTION
+ COMMENDATION
+}
+enum ContactVisibility {
+ PRIVATE
+ SELF
+ PUBLIC
+}
+enum ContactState {
+ PENDING
+ ACCEPTED
+ DECLINED
+ EXPIRED
+}
+model ContactPolicy {
+ id String @id @default(cuid())
+ eventId String @unique
+ revision Int @default(1)
+ mode ContactMode
+ sameTeamAllowed Boolean
+ outgoingLimit Int?
+ mutualConfirmation Boolean
+ reciprocityAllowed Boolean
+ visibility ContactVisibility
+ tieRule String
+ enabled Boolean
+ opensAt DateTime
+ closesAt DateTime
+ event Event @relation(fields:[eventId],references:[id],onDelete:Restrict)
+}
+model ContactCredential {
+ id String @id @default(cuid())
+ eventId String
+ issuerMembershipId String
+ tokenHash String
+ codeHash String
+ expiresAt DateTime
+ revokedAt DateTime?
+ createdAt DateTime @default(now())
+ event Event @relation(fields:[eventId],references:[id],onDelete:Restrict)
+ issuer EventMembership @relation(fields:[eventId,issuerMembershipId],references:[eventId,id],onDelete:Restrict)
+ requests ContactRecord[]
+ @@unique([eventId,tokenHash])
+ @@unique([eventId,codeHash])
+ @@unique([eventId,id,issuerMembershipId])
+ @@index([eventId,issuerMembershipId,expiresAt])
+}
+model ContactRecord {
+ id String @id @default(cuid())
+ eventId String
+ mode ContactMode
+ pairKey String
+ requesterMembershipId String
+ recipientMembershipId String
+ credentialId String
+ state ContactState
+ expiresAt DateTime
+ acceptedAt DateTime?
+ updatedAt DateTime @updatedAt
+ createdAt DateTime @default(now())
+ event Event @relation(fields:[eventId],references:[id],onDelete:Restrict)
+ requester EventMembership @relation("ContactRequester",fields:[eventId,requesterMembershipId],references:[eventId,id],onDelete:Restrict)
+ recipient EventMembership @relation("ContactRecipient",fields:[eventId,recipientMembershipId],references:[eventId,id],onDelete:Restrict)
+ credential ContactCredential @relation(fields:[eventId,credentialId,recipientMembershipId],references:[eventId,id,issuerMembershipId],onDelete:Restrict)
+ @@unique([eventId,pairKey])
+ @@index([eventId,state,recipientMembershipId])
+}
+
+model ResultRevision {
+ id String @id @default(cuid())
+ eventId String
+ revision Int
+ actorId String
+ reason String
+ teamStandingsJson Json
+ awardStandingsJson Json?
+ summaryJson Json
+ createdAt DateTime @default(now())
+ event Event @relation(fields:[eventId],references:[id],onDelete:Restrict)
+ actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+ @@unique([eventId,revision])
+ @@index([eventId,createdAt])
+}

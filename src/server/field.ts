@@ -1,0 +1,19 @@
+import "server-only";
+import {activeAnnouncements} from "./announcements";
+import {db} from "@/lib/db";
+import {InputError} from "@/lib/validation";
+import {mayOperateStation} from "@/lib/policy";
+import {nextDestination,type FieldData} from "@/lib/race";
+import {outcomePoints} from "./outcome-points";
+import {teamTotal} from "./score";
+export async function readField(actorId:string,eventId:string,stationId?:string):Promise<FieldData>{
+ return db().$transaction(async tx=>{const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:true,event:true,assignments:true}});if(!m?.active||!m.user.active)throw new InputError("Event access is no longer available.",404);if(m.user.mustChangePassword||m.role==="PARTICIPANT")throw new InputError("Station-handler access is required.",403);
+ const stations=await tx.station.findMany({where:{eventId,...(m.role==="FACILITATOR"?{id:{in:m.assignments.map(a=>a.stationId)}}:{})},select:{id:true,name:true,location:true},orderBy:{name:"asc"}});const chosen=stationId||stations[0]?.id;
+ if(chosen&&!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===chosen)))throw new InputError("You are not assigned to this station.",403);
+ const station=chosen?await tx.station.findFirst({where:{id:chosen,eventId},select:{id:true,name:true,location:true,facilitatorInstructions:true,timeLimitMinutes:true,capacity:true,queueEnabled:true,available:true,scoringMode:true,fixedPoints:true,minimumPoints:true,maximumPoints:true,allowAdjustments:true,maximumAdjustment:true}}):null;if(chosen&&!station)throw new InputError("Station not found in this event.",404);
+ const visits=station?await tx.stationVisit.findMany({where:{eventId,stationId:station.id,state:{in:["QUEUED","ARRIVED","ACTIVE","AWAITING_CONFIRMATION"]}},include:{team:{include:{routeAssignment:{include:{route:true}}}}},orderBy:[{queuedAt:"asc"},{id:"asc"}]}):[];const queue=visits.filter(v=>v.state==="QUEUED");const publicVisits:FieldData['visits']=[];
+ for(const v of visits){const route=v.team.routeAssignment;const completed=await tx.stationOutcome.findMany({where:{eventId,teamId:v.teamId},select:{stationId:true}});const complete=new Set([...completed.map(o=>o.stationId),v.stationId]);const ids=route?.stationIds as string[]|undefined;const routeStations=ids?await tx.station.findMany({where:{eventId,id:{in:ids}},select:{id:true,name:true,available:true}}):[];publicVisits.push({id:v.id,teamName:v.team.name,teamId:v.teamId,state:v.state,queuedAt:v.queuedAt?.toISOString()??null,startedAt:v.startedAt?.toISOString()??null,finishedAt:v.finishedAt?.toISOString()??null,queuePosition:v.state==="QUEUED"?queue.findIndex(q=>q.id===v.id)+1:null,teamTotal:await teamTotal(tx,eventId,v.teamId),nextDestination:route&&route.route.eventId===eventId&&ids?nextDestination(route.mode,ids,complete,routeStations):"Ask the organizer to review this route"});}
+ const outcomes=station?await tx.stationOutcome.findMany({where:{eventId,stationId:station.id},include:{entries:true,corrections:{include:{entries:true,actor:{select:{name:true}}},orderBy:{revision:"asc"}},actor:{select:{name:true}},visit:{include:{team:{select:{name:true}}}}},orderBy:{confirmedAt:"desc"},take:20}):[];
+ return {eventId,eventState:m.event.state,announcements:await activeAnnouncements(tx,eventId),actorId,stations,station,visits:publicVisits,history:outcomes.map(o=>({effectivePoints:outcomePoints(o),corrections:o.corrections.map(c=>({revision:c.revision,before:c.beforePoints,after:c.afterPoints,reason:c.reason,actor:c.actor.name})),id:o.id,teamName:o.visit.team.name,actorName:o.actor.name,successful:o.successful,basePoints:o.basePoints,bonus:o.bonus,penalty:o.penalty,reason:o.reason,durationSeconds:o.durationSeconds,confirmedAt:o.confirmedAt.toISOString()})),checkedAt:new Date().toISOString()};
+ },{isolationLevel:"RepeatableRead",timeout:15000});
+}

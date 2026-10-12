@@ -1,0 +1,26 @@
+import {routeProgress,type RouteMode} from "./routes";
+export const arrivalAlphabet="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export function stationCredential(value:string,eventId:string,origin:string){
+ let code=value.trim();if(code.length>1024)throw new Error("Station code is too long.");
+ if(/^https?:/i.test(code)){let url:URL;try{url=new URL(code);}catch{throw new Error("Use a valid station QR or code.");}if(url.origin!==new URL(origin).origin||url.pathname!==`/events/${eventId}/check-in`||url.searchParams.getAll("code").length!==1)throw new Error("This QR belongs to another event or website.");code=url.searchParams.get("code")??"";}
+ code=code.replace(/[\s-]/g,"").toUpperCase();if(code.length!==8||[...code].some(c=>!arrivalAlphabet.includes(c)))throw new Error("Enter the eight-character station code from the sign.");return code;
+}
+export function safeReturnPath(value:unknown){if(typeof value!=="string"||value.length>300||/[\r\n]/.test(value))return "";return /^\/events\/[A-Za-z0-9_-]{1,120}\/(?:check-in(?:\?code=[A-HJ-NP-Z2-9]{8})?|contact(?:\?(?:token=[A-Za-z0-9_-]{43}|code=\d{8}))?)$/.test(value)?value:"";}
+export type ScoringPolicy={scoringMode:"FIXED"|"MANUAL";fixedPoints:number;minimumPoints:number;maximumPoints:number;allowAdjustments:boolean;maximumAdjustment:number};
+export type ResultInput={successful:boolean;points?:number;bonus?:number;penalty?:number;reason?:string};
+export function resultPoints(policy:ScoringPolicy,input:ResultInput){
+ const whole=(value:number|undefined,label:string)=>{if(value!==undefined&&(!Number.isSafeInteger(value)||value<0||value>100000))throw new Error(`${label} must be a whole number from 0 to 100000.`);return value??0;};
+ const entered=whole(input.points,"Points");let basePoints=input.successful?(policy.scoringMode==="FIXED"?policy.fixedPoints:entered):0;
+ if(policy.scoringMode==="MANUAL"&&input.successful&&(input.points===undefined||basePoints<policy.minimumPoints||basePoints>policy.maximumPoints))throw new Error(`Enter points from ${policy.minimumPoints} to ${policy.maximumPoints}.`);
+ if((policy.scoringMode==="FIXED"||!input.successful)&&input.points!==undefined&&entered!==basePoints)throw new Error("Base points follow the station’s result rule.");
+ const bonus=whole(input.bonus,"Bonus");const penalty=whole(input.penalty,"Penalty");const reason=(input.reason??"").trim();if(reason.length>500)throw new Error("Keep the reason under 500 characters.");
+ if((bonus||penalty)&&!policy.allowAdjustments)throw new Error("Bonuses and penalties are disabled at this station.");
+ if(bonus>policy.maximumAdjustment||penalty>policy.maximumAdjustment)throw new Error(`Each adjustment must be at most ${policy.maximumAdjustment}.`);
+ if((bonus||penalty)&&!reason)throw new Error("Give a reason for the bonus or penalty.");
+ return {successful:input.successful,basePoints,bonus,penalty,reason,total:basePoints+bonus-penalty};
+}
+export function nextDestination(mode:RouteMode,ids:string[],completed:ReadonlySet<string>,stations:{id:string;name:string;available:boolean}[]){const p=routeProgress(mode,ids,completed,new Set(stations.filter(s=>!s.available).map(s=>s.id)));return p.complete?"Operation complete":mode==="FREE"?p.unlocked.length?"Choose your next available station":"Wait for an unavailable station to reopen":stations.find(s=>s.id===(p.unlocked[0]??p.paused[0]))?.name??"Ask the organizer for your next station";}
+export type RaceCommand={operation:"startEvent"|"checkIn"|"leaveQueue"|"admitTeam"|"startChallenge"|"finishChallenge"|"confirmResult";requestKey:string;credential?:string;visitId?:string;successful?:boolean;points?:number;bonus?:number;penalty?:number;reason?:string};
+export type RaceResult={message:string;replayed?:boolean;teamName?:string;stationName?:string;state?:string;basePoints?:number;bonus?:number;penalty?:number;resultPoints?:number;teamTotal?:number;nextDestination?:string;confirmedAt?:string;redirect?:string};
+export type ArrivalPreview={teamName:string;stationId:string;stationName:string;location:string;admission:"ADMIT"|"WAIT"|"FULL";existingState:string|null};
+export type FieldData={announcements?:import("./control").AnnouncementData[];eventId:string;eventState:string;actorId:string;stations:{id:string;name:string;location:string}[];station:({id:string;name:string;location:string;facilitatorInstructions:string;timeLimitMinutes:number|null;capacity:number|null;queueEnabled:boolean;available:boolean}&ScoringPolicy)|null;visits:{id:string;teamName:string;teamId:string;state:string;queuedAt:string|null;startedAt:string|null;finishedAt:string|null;queuePosition:number|null;teamTotal:number;nextDestination:string}[];history:{effectivePoints:number;corrections:{revision:number;before:number;after:number;reason:string;actor:string}[];id:string;teamName:string;actorName:string;successful:boolean;basePoints:number;bonus:number;penalty:number;reason:string;durationSeconds:number|null;confirmedAt:string}[];checkedAt:string};

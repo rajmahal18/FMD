@@ -1,0 +1,149 @@
+/* Spy Chase poster palette, with light blue workspaces and cyan accents. */
+@media screen {
+  :root {
+    color-scheme: light;
+    --ink: #061633;
+    --panel: #d5e8f5;
+    --ice: #b4e7f3;
+    --paper: #b9d6ea;
+    --rail: #a7cce5;
+    --field: #e5f1f8;
+    --cyan: #26dbe5;
+    --turquoise: #43e5eb;
+    --blue: #1785f5;
+    --text: #102744;
+    --muted: #344f69;
+    --line: #86abc7;
+    --border: var(--line);
+    --border-dark: var(--line);
+    --accent-text: #07518c;
+    --success-text: #216447;
+    --warning-text: #795013;
+    --danger-text: #8a2835;
+  }
+
+  body { background: var(--paper); color: var(--text); }
+  ::selection { background: var(--ice); color: var(--ink); }
+  h1, h2, h3 { color: var(--text); text-shadow: none; }
+  .content header h1 { color: var(--accent-text); }
+  .shell { grid-template-columns: 210px minmax(0, 1fr); }
+  .content { min-width: 0; }
+  .shell aside {
+    background: var(--rail);
+    border-right-color: var(--line);
+  }
+  .wordmark { color: var(--ink); }
+  .rail-label, .classification, footer { color: var(--muted); }
+  .eyebrow, .step-index, .dossier .eyebrow { color: var(--accent-text); }
+  .content header {
+    border-bottom: 2px solid var(--blue);
+    padding-bottom: 18px;
+  }
+  .content header > .tag {
+    background: var(--rail);
+    border-color: #648ba9;
+    color: var(--accent-text);
+  }
+  .shell-links .nav { border: 1px solid transparent; }
+  .shell-links .nav:hover { background: var(--paper); border-color: var(--line); }
+  .shell-links .nav.active {
+    background: var(--turquoise);
+    color: var(--ink);
+    border-color: #28718f;
+    box-shadow: inset 3px 0 0 var(--blue);
+  }
+  .account-link { color: var(--accent-text); }
+  .text-action { color: var(--accent-text); }
+
+  button, .button { border-color: #28718f; box-shadow: none; }
+  button:hover, .button:hover { background: var(--ice); }
+  .secondary, .dark-outline { color: var(--text); border-color: #648ba9; }
+  .secondary:hover, .dark-outline:hover { background: #c3dff1; }
+  button:disabled { cursor: default; }
+  a:focus-visible, button:focus-visible, input:focus-visible,
+  select:focus-visible, textarea:focus-visible, summary:focus-visible {
+    outline-color: var(--accent-text);
+  }
+  .management-form :is(input, textarea, select), .dossier input,
+  .control-columns select, .control-choice select, .station-choice select {
+    background: var(--field);
+    color: var(--text);
+    border-color: #648ba9;
+  }
+  input::placeholder, textarea::placeholder { color: #526b7b; opacity: 1; }
+
+  .panel, .event-card, .next-step {
+    background: var(--panel);
+    box-shadow: none;
+  }
+  .event-card { border-top-color: var(--blue); }
+  .event-card:hover { border-color: var(--accent-text); }
+  .event-card strong { color: var(--accent-text); }
+  .team-file { border-left-color: var(--blue); }
+  .stats b, .control-total, .standing-row b, .standing-rank,
+  .contact-count, .contact-count strong { color: var(--accent-text); }
+  .stats span, .list-row span, .standing-row small { color: var(--muted); }
+  .tag { background: #c4ddf0; }
+  .mission-tabs a { background: var(--panel); }
+  .mission-tabs a:hover { background: var(--ice); border-color: #28718f; }
+  .dossier, .mission { background: var(--ice); }
+  .paper-file, .participant-card, .result-review { background: var(--panel); }
+  .paper-file { box-shadow: inset 0 -1px 0 var(--line); }
+  .mission-complete { border-top-color: #39815f; }
+  .activity-feed { scrollbar-color: #648ba9 var(--panel); }
+
+  .notice {
+    background: #f9e9cb;
+    color: #583400;
+    border-left-color: #9a691d;
+  }
+  .demo, .status-wait, .pending-note { color: var(--warning-text); }
+  .connection-error { color: var(--warning-text) !important; }
+  .status-good { color: var(--success-text); }
+  .danger-text { color: var(--danger-text); }
+  .danger-form button { color: var(--danger-text); border-color: var(--danger-text); }
+  .danger-form button:hover { background: #f8dedf; }
+  .danger-zone { border-color: #b57981; }
+  .danger-zone .danger { background: #ffa4a8; color: var(--ink); }
+  .control-alert { color: #583400; background: #f9e9cb; border-color: #b28a4a; }
+  .challenge-clock { color: var(--accent-text) !important; }
+  .challenge-clock strong { color: var(--warning-text); }
+  .award-winner { background: #d7efe5; color: #174331; border-color: #39815f; }
+  .rehearsal-test, .rehearsal-item { background: var(--panel); }
+  .lifecycle-counts > div { background: #c4ddf0; }
+
+  /* Preserve the dossier's gold insignia on a light reading surface. */
+  .agent-dossier-shell {
+    background: var(--panel);
+    background-image: none;
+    border-color: #b5a477;
+  }
+  .agent-dossier-top, .agent-dossier-bottom {
+    background: #e7dfc9;
+    color: #695321;
+    border-color: #c5b58c;
+  }
+  .agent-monogram { background: #c4ddf0; color: #695321; border-color: #b5a477; }
+  .agent-crosshair, .agent-callsign, .agent-gender, .agent-insignia,
+  .agent-dossier-shell .eyebrow { color: #695321; }
+  .agent-biography h2, .agent-biography dd { color: var(--text); }
+  .agent-biography dt { color: var(--muted); }
+  .agent-divider { background: #c5b58c; }
+
+  .entry {
+    background: var(--paper);
+    background-image:
+      repeating-linear-gradient(0deg, transparent 0 59px, #10243a06 60px),
+      repeating-linear-gradient(90deg, transparent 0 59px, #10243a06 60px);
+  }
+  .hero h1 { color: var(--accent-text); text-shadow: none; }
+  .hero h1 span { color: var(--ink); }
+  .classification { border-color: var(--line); }
+
+  @media (max-width: 760px) {
+    .shell { display: block; }
+    .shell aside { border-right: 0; border-bottom-color: var(--line); }
+    .shell-links { max-width: 100%; }
+    .content header { padding-bottom: 12px; }
+  }
+}

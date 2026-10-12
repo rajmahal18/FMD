@@ -1,0 +1,9 @@
+import 'server-only';
+import {currentUser} from '@/lib/auth';
+import {isSameOrigin} from '@/lib/policy';
+import {InputError} from '@/lib/validation';
+import {jsonRequest,privateHeaders} from './json-request';
+import {readContact,issueContact,previewContact,contactCommand} from './contact';
+import {readContactPolicy,contactPolicyAction} from './contact-policy';
+const headers={...privateHeaders,'Referrer-Policy':'no-referrer'};
+export async function contactHttp(request:Request,eventId:string,kind:'read'|'issue'|'preview'|'command'|'policyRead'|'policyPreview'|'policyCommand'){if(request.method!=='GET'&&(!process.env.APP_ORIGIN||!isSameOrigin(request.headers.get('origin'),process.env.APP_ORIGIN)))return Response.json({error:'Refresh and retry from the event website.'},{status:403,headers});const user=await currentUser();if(!user)return Response.json({error:'Your session ended. Sign in again.'},{status:401,headers});try{let result;if(kind==='read')result=await readContact(user.id,eventId);else if(kind==='policyRead')result=await readContactPolicy(user.id,eventId);else{const value=await jsonRequest(request);if(kind==='issue'){if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length)throw new InputError('Invalid credential request.');result=await issueContact(user.id,eventId);}else if(kind==='preview')result=await previewContact(user.id,eventId,value);else if(kind==='command')result=await contactCommand(user.id,eventId,value);else result=await contactPolicyAction(user.id,eventId,value,kind==='policyCommand');}return Response.json(result,{headers});}catch(e){return Response.json({error:e instanceof InputError?e.message:request.method==='GET'?'Unable to refresh Agent Contact.':'Confirmation is uncertain. Retry a saved request; refresh to issue a new credential if needed.'},{status:e instanceof InputError?e.status:503,headers});}}

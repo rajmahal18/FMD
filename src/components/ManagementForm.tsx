@@ -1,0 +1,12 @@
+"use client";
+import { useRef,useState,useTransition } from "react";
+import { useRouter } from "next/navigation";
+type Result={message?:string;error?:string;redirect?:string;temporaryPassword?:string;email?:string};
+export function ManagementForm({operation,eventId,children,label="Save",confirm,reset=false,className="",onSuccess}:{operation:string;eventId?:string;children:React.ReactNode;label?:string;confirm?:string;reset?:boolean;className?:string;onSuccess?:string}){
+ const router=useRouter();const key=useRef<string>("");const [busy,setBusy]=useState(false);const [result,setResult]=useState<Result|null>(null);const [refreshing,startRefresh]=useTransition();
+ return <form action="/api/management" method="post" className={`management-form ${className}`} onSubmit={async e=>{e.preventDefault();if(busy||refreshing)return;if(result?.temporaryPassword&&!window.confirm("Have you saved the temporary password privately? It will not be displayed again."))return;if(confirm&&!window.confirm(confirm))return;
+ const form=e.currentTarget;const data=new FormData(form);data.set("operation",operation);if(eventId)data.set("eventId",eventId);key.current||=crypto.randomUUID();data.set("requestKey",key.current);setBusy(true);setResult(null);
+ try{const response=await fetch("/api/management",{method:"POST",body:data});const next:Result=await response.json();setResult(next);if(response.ok){key.current="";if(reset)form.reset();if(next.redirect){router.push(next.redirect);}else{startRefresh(()=>router.refresh());}}else if(response.status===401){router.push("/login");}}
+ catch{setResult({error:"Connection lost. Your input is kept. Retry to check whether it was saved."});}finally{setBusy(false);}
+ }}><fieldset disabled={busy||refreshing}>{children}<div className="form-actions"><button type="submit">{busy?"Saving…":refreshing?"Updating…":label}</button></div></fieldset>{result&&<div role={result.error?"alert":"status"} className={`feedback ${result.error?"error-feedback":"success-feedback"}`}><strong>{result.error??result.message}</strong>{result.temporaryPassword&&<div className="credentials"><p>Email: {result.email}</p><label>Temporary password<input readOnly value={result.temporaryPassword} onFocus={e=>e.currentTarget.select()} autoComplete="off"/></label><p>Shown once. Share privately. They must change it at first sign-in.</p><button type="button" className="secondary" onClick={()=>setResult(null)}>I saved the credentials</button></div>}{!result.error&&onSuccess&&<p>{onSuccess}</p>}</div>}</form>;
+}

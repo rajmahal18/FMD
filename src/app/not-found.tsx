@@ -1,0 +1,1 @@
+export default function NotFound(){return <main className="login"><section className="dossier"><div className="eyebrow">ACCESS RESTRICTED</div><h1>File unavailable</h1><p>This operation does not exist or is outside your event access.</p><a className="button" href="/workspace">Return to operations</a></section></main>;}
