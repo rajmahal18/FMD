@@ -33,7 +33,7 @@ export function ParticipantMission({initial}:{initial:MissionData}){
  return <div className="participant-layout"><div className="mission-main">
  <Announcements items={data.announcements}/><PendingRaceRequests eventId={data.eventId} actorId={data.agent.id} onSuccess={()=>void refresh()}/>
  <div className="agent-strip"><strong>{data.team?.name??"No team assigned"}</strong><span className="tag">{data.agent.isCaptain?"Team captain":"Team member"}</span></div>
- <section id="current-mission" className={`mission participant-card ${isFinished?"mission-complete":""}`} aria-labelledby="mission-state">
+ <section id="current-mission" data-status={view.status} className={`mission participant-card ${isFinished?"mission-complete":""}`} aria-labelledby="mission-state">
  <h2 id="mission-state">{state.title}</h2>
  {showStation&&<div className="destination"><h3>{current.name}</h3><div className="destination-location"><strong>{current.location||"Ask the organizer for the location"}</strong></div></div>}
  <p className="next-action">{state.instruction}</p>

@@ -174,3 +174,31 @@ body:has(.player-shell){background:radial-gradient(ellipse at top left,#12314a 0
 .player-ranks-options a:hover,.player-ranks-options a[aria-current=page]{background:#1c3c52;color:#bdeaf0}
 .player-shell .player-account-menu .nav{justify-content:flex-start;min-height:44px;color:#10243a;padding:10px 8px;border:0;font-size:14px}
 .player-shell .player-account-menu .nav:hover,.player-shell .player-account-menu .nav.active{background:#eaf4f5;color:#10243a}
+
+/* Contrast follows task priority: status, destination, instruction, action. */
+.player-shell .player-account>summary{display:flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0;border:1px solid #57738a;border-radius:50%;background:#142e43;color:#bdeaf0;list-style:none}
+.player-shell .player-account>summary::-webkit-details-marker{display:none}
+.player-shell .player-account>summary::marker{content:''}
+.player-shell .player-account[open]>summary,.player-shell .player-account>summary:hover{background:#bdeaf0;color:#071426;border-color:#72d5e3}
+.player-shell .mission #mission-state{display:table;max-width:100%;margin:0 0 18px;padding:8px 12px;background:#f5cb83;color:#30230d;border-left:3px solid #d8b96d;border-radius:3px;font:600 15px/1.4 'Source Sans 3',Arial,sans-serif}
+.player-shell .mission:is([data-status=HEAD_TO_STATION],[data-status=ACTIVE]) #mission-state{background:#bdeaf0;color:#071426;border-left-color:#72d5e3}
+.player-shell .mission[data-status=COMPLETE] #mission-state{background:#83d6b2;color:#102e22;border-left-color:#54a682}
+.player-shell .mission[data-status=REVIEW_REQUIRED] #mission-state{background:#ffa4a8;color:#431a20;border-left-color:#db727a}
+.player-shell .destination{border-left:3px solid #72d5e3;background:#19364b;padding:14px 16px;margin:16px 0}
+.player-shell .destination h3{color:#fff;margin-bottom:8px}
+.player-shell .destination-location strong{color:#d4edf1;font-weight:600}
+.player-shell .mission .next-action{color:#edf5f8;font-size:17px;line-height:1.55}
+.player-shell .mission-arrival{background:#bdeaf0;border-color:#bdeaf0;color:#071426;font-weight:700;box-shadow:0 4px 0 #357c89}
+.player-shell .mission-arrival:hover{background:#d6f6fa}
+.player-shell .mission-directions>summary{color:#bdeaf0;text-decoration:underline;text-underline-offset:4px}
+.player-shell .player-bottom-item.active:not(.player-mission-link){background:#17364b;color:#d6f6fa;box-shadow:inset 0 3px #72d5e3}
+.player-bottom-nav{background:#0a192b}
+.player-shell :is(a,button,input,select,textarea,summary){scroll-margin-block:100px}
+@media(max-width:600px){.player-shell .destination{padding:12px}.player-shell .mission #mission-state{font-size:15px}}
+
+/* Consistent selected-page marker across all three bottom destinations. */
+.player-shell .player-bottom-item{position:relative}
+.player-shell .player-bottom-item.active,.player-shell .player-bottom-item.active:not(.player-mission-link){background:#bdeaf0;color:#071426;box-shadow:inset 0 3px #72d5e3;font-weight:700}
+.player-shell .player-bottom-item.active::after{content:'';position:absolute;bottom:4px;left:calc(50% - 16px);width:32px;height:4px;border-radius:3px;background:#126576;pointer-events:none}
+.player-shell .player-bottom-item.active:hover{background:#d6f6fa;color:#071426}
+.player-shell .player-mission-link.active .player-mission-icon{background:#071426;color:#bdeaf0;border-color:#72d5e3}
