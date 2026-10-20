@@ -46,5 +46,5 @@ visual-direction.svg shows a mobile mission dossier and desktop Mission Control.
 
 ## Visual acceptance in every phase
 
-Player screens use a minimalist variant: plain paper background, navy text, muted teal accents, compact icon navigation and flat sections. Do not use decorative HUDs, animated security badges or dossier artwork in player pages. Keep one prominent primary action for the current task; fold route/team details and secondary instructions below it. Contact separates showing a QR from scanning a code. Organizer/facilitator visuals retain their existing design.
+Player screens retain the shared detective/agent identity: navy surfaces, icy cyan primary actions, shield branding, dossier headings and restrained station codenames. Simplify information hierarchy and controls without replacing the theme with a plain light interface. Keep one prominent primary action for the current task; fold route/team details and secondary instructions below it. Contact separates showing a QR from scanning a code. Organizer/facilitator visuals retain their existing design.
 Check 320/390/768/1440px, keyboard focus, long names, no-data/loading/error/offline states, outdoor readability and reduced motion. Every new screen follows tokens and shared components. No phase may introduce an unrelated generic dashboard style.

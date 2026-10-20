@@ -1,4 +1,4 @@
-/* Player-only workspace: flat surfaces and a single, clear action hierarchy. */
+/* Player workspace: clear controls within the shared spy theme. */
 body:has(.player-shell){background:#f5f8fa}
 body:has(.player-shell)::before,body:has(.player-shell)::after{display:none}
 .player-shell{--ink:#10243a;--panel:#fff;--ice:#eaf4f5;--paper:#f5f8fa;--cyan:#126576;--text:#10243a;--muted:#526576;--line:#d5e0e5;position:relative;z-index:1;min-height:100vh;min-height:100svh;background:var(--paper);color:var(--text);font-family:'Source Sans 3',Arial,sans-serif;overflow-wrap:anywhere}
@@ -102,3 +102,49 @@ body:has(.player-shell)::before,body:has(.player-shell)::after{display:none}
 .player-profile dt{color:#526576}
 .player-profile dd{margin:0;font-weight:600}
 @media(max-width:600px){.player-content{padding:20px 16px 36px}.player-topbar{padding:8px 16px}.player-shell .nav{padding:10px 12px;font-size:14px;gap:6px}.player-shell .destination h3{font-size:26px}.player-shell .mission-arrival{max-width:none}.player-shell .agent-strip{align-items:flex-start}.player-profile dl>div{grid-template-columns:100px minmax(0,1fr);gap:12px}.player-shell .sync-status{flex-direction:row;align-items:center}.player-shell .standing-value{grid-column:2}}
+/* Preserve the detective identity while keeping player controls focused. */
+body:has(.player-shell){background:radial-gradient(ellipse at top left,#12314a 0,transparent 55%),#071426}
+.player-shell{--ink:#071426;--panel:#10243a;--ice:#bdeaf0;--paper:#071426;--cyan:#72d5e3;--text:#f2f7fa;--muted:#b0c2d1;--line:#385166;background:transparent}
+.player-topbar{background:#0a192b;border-bottom:1px solid var(--line)}
+.player-brand{display:flex;align-items:center;gap:10px;font:600 22px Rajdhani,Arial,sans-serif;letter-spacing:.04em;color:var(--ice)}
+.player-brand img{width:38px;height:38px;object-fit:contain}
+.player-navigation.shell-links{background:#0c1c2e;border-bottom-color:var(--line)}
+.player-shell .nav{color:var(--muted)}
+.player-shell .nav.active{background:#bdeaf0;color:#071426;border-bottom-color:#72d5e3}
+.player-shell .nav:hover{background:#18344a;color:#f2f7fa}
+.player-shell .nav.active:hover{background:#bdeaf0;color:#071426}
+.player-page-heading{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:20px}
+.player-page-heading .eyebrow{display:block;font:12px 'IBM Plex Mono',monospace;color:var(--cyan);margin-bottom:6px}
+.player-page-heading h1{font:600 30px/1.15 Rajdhani,Arial,sans-serif;color:var(--ice);margin:0}
+.player-shell :is(h2,h3,h4){color:var(--ice);font-family:Rajdhani,Arial,sans-serif}
+.player-shell :is(button,.button){color:#071426;background:#72d5e3;border-color:#72d5e3;font-weight:600}
+.player-shell :is(button,.button):hover{color:#071426;background:#bdeaf0}
+.player-shell :is(button.secondary,.button.secondary){color:#bdeaf0;background:transparent;border-color:#57738a}
+.player-shell :is(button.secondary,.button.secondary):hover{background:#18344a;color:#f2f7fa}
+.player-shell .tag{background:#142e43;color:#bdeaf0;border-color:#385166}
+.player-shell .event-identity{margin-bottom:16px}
+.player-shell .event-identity img{display:block;max-height:40px;width:auto}
+.player-shell .event-identity strong,.player-shell .agent-strip strong{color:var(--ice)}
+.player-shell .mission{position:relative;background:#10243a;color:var(--text);border:1px solid #385166;border-top:4px solid #72d5e3;border-radius:6px;padding:24px}
+.player-shell .mission h2{color:var(--cyan);font-family:'IBM Plex Mono',monospace;font-size:15px}
+.player-shell .mission p{color:var(--muted)}
+.player-shell .destination h3{font-family:Rajdhani,Arial,sans-serif;color:#f2f7fa;font-size:34px}
+.player-shell .destination-location strong{color:var(--muted)}
+.player-shell .station-codename{display:block;color:var(--cyan);font:12px 'IBM Plex Mono',monospace;letter-spacing:.05em}
+.player-shell .mission-progress{border-top:1px solid var(--line);padding-top:16px}
+.player-shell .mission-progress label{color:var(--muted)}
+.player-shell .mission-arrival{box-shadow:0 3px 0 #357c89;min-height:56px}
+.player-shell details>summary{color:#bdeaf0}
+.player-shell .player-account>summary{color:#fff}
+.player-shell .contact-mode-tabs button{background:transparent;color:#bdeaf0;border-color:#57738a}
+.player-shell .contact-mode-tabs button[aria-pressed=true]{background:#bdeaf0;color:#071426;border-color:#72d5e3}
+.player-shell .contact-credential{background:#fff;color:#10243a}
+.player-shell .contact-credential :is(h2,h3,p,small){color:#10243a}
+.player-shell :is(.result-review,.arrival-review) :is(h2,h3,h4,p){color:#10243a}
+.player-shell .text-action,.player-shell .standing-row b,.player-shell .standing-rank,.player-shell .contact-count strong,.player-shell .event-card strong{color:var(--cyan)}
+.player-shell .event-card{border-left:3px solid #72d5e3;padding-left:16px;margin-bottom:16px}
+.player-profile{border-top:3px solid #d8b96d;padding-top:16px}
+.player-profile dt{color:var(--muted)}
+.player-profile h2{color:#e1c27a}
+.player-shell .demo{color:#f5cb83}
+@media(max-width:600px){.player-shell .mission{padding:20px 16px}.player-shell .destination h3{font-size:29px}.player-page-heading h1{font-size:28px}}
