@@ -76,7 +76,7 @@ try{
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
    await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(url);if(setup)await evaluate(setup);
-   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.shell-links')?getComputedStyle(document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".shell-links");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav")&&!e.closest(".player-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav")&&!e.closest(".player-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
    if(await evaluate("!!document.querySelector('.player-bottom-nav')")){
     await evaluate("window.scrollTo(0,document.documentElement.scrollHeight)");
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
@@ -94,7 +94,7 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alert]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
@@ -208,7 +208,7 @@ try{
 
   if(role!=='organizer'){await check(role+'-overall-published','/events/'+publishedId+'/overall');assert((await evaluate(`document.body.textContent`)).includes('Final overall standings'));await check(role+'-overall-sealed','/events/'+event.id+'/overall');assert((await evaluate(`document.body.textContent`)).includes('Overall results are not published yet'));}
   if(role==='organizer'){
-   await check('overall','/events/'+roster.id+'/overall');
+   await check('overall','/events/'+roster.id+'/ranking-settings');
 
    assert((await evaluate(`document.querySelector('.overall-weight-status').textContent`)).includes('Total is 100%'));
    assert.equal(await evaluate(`document.querySelector('#overall-standings h2').textContent`),'Partial totals');
@@ -221,6 +221,20 @@ try{
    for(let i=0;i<30;i++){if(await evaluate(`document.body.textContent.includes('Draft saved.')`))break;await new Promise(r=>setTimeout(r,100));}
    assert.equal((await pg.query('SELECT config FROM "OverallRanking" WHERE "eventId"=$1',[roster.id])).rows[0].config.raceRule,'POINTS_TIME');
    console.log('PASS: browser weight feedback, unranked partial totals and explicit race rule saving.');
+   await check('overall-operations','/events/'+roster.id+'/overall');
+   assert.equal(await evaluate("!!document.querySelector('.overall-inputs input[type=number]')"),false);
+   assert.equal(await evaluate("[...document.querySelectorAll('button')].some(b=>b.textContent==='Add activity')"),false);
+   await check('contact-settings','/events/'+roster.id+'/contact-settings');
+   assert.equal(await evaluate("document.querySelector('.organizer-mode-switch .selected').textContent"),'Event setup');
+   assert.equal(await evaluate("!!document.querySelector('input[name=opensAt]')"),true);
+   await check('contact-operations','/events/'+roster.id+'/contact-policy');
+   assert.equal(await evaluate("!!document.querySelector('input[name=opensAt]')"),false);
+   assert.equal(await evaluate("document.querySelector('.organizer-mode-switch .selected').textContent"),'Live operations');
+   await check('prepare-checks','/events/'+roster.id+'/setup');
+   assert.equal(await evaluate("[...document.querySelectorAll('button')].some(b=>b.textContent==='Start operation')"),false);
+   await check('prepare-operations','/events/'+roster.id);
+   assert.equal(await evaluate("[...document.querySelectorAll('button')].some(b=>b.textContent==='Start operation')"),true);
+   console.log('PASS: organizer setup and operations separate rules, placement entry, contact configuration and race start controls.');
    await check('race-results','/events/'+roster.id+'/results');
    await check('people','/events/'+roster.id+'/people');
    await check('setup','/events/'+event.id+'/setup');

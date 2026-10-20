@@ -18,7 +18,7 @@ export function Shell({name,title,role,children,eventId}:{name:string;title:stri
         </div>
       </Link>
       <div className="rail-label">FIELD NETWORK</div>
-      <nav className="shell-links" aria-label="Event navigation">
+      <nav className={`shell-links${role==="ORGANIZER"&&eventId?" organizer-shell-links":""}`} aria-label="Event navigation">
         {role==="ORGANIZER"&&eventId?<OrganizerNav eventId={eventId}/>:eventId?<NavigationLink href={`/events/${eventId}`} activePaths={[`/events/${eventId}/${role==="FACILITATOR"?"field":"check-in"}`]}>{role==="FACILITATOR"?"Assigned stations":"Current mission"}</NavigationLink>:null}
         {role==="PARTICIPANT"&&eventId&&<>
           <NavigationLink href={`/events/${eventId}/agents/me`} section={`/events/${eventId}/agents/`}>My agent dossier</NavigationLink>

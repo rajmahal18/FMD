@@ -4,7 +4,7 @@ import {Shell} from '@/components/Shell';
 import {OverallRanking} from '@/components/OverallRanking';
 export default async function OverallPage({params}:{params:Promise<{eventId:string}>}){
  const {eventId}=await params;const {user,m}=await requireMembership(eventId);
- return <Shell name={user.name} title="Team Building Overall Ranking" role={m.role} eventId={eventId}>{m.role==='ORGANIZER'?<><p>Combine Amazing Race results with placements from other team building activities. Teams come from Teams &amp; agents.</p><OverallRanking eventId={eventId} initial={await readOverall(user.id,eventId)} archived={!!m.event.archivedAt}/></>:<PublishedOverall data={await readPublishedOverall(user.id,eventId)}/>}</Shell>;
+ return <Shell name={user.name} title="Team Building Overall Ranking" role={m.role} eventId={eventId}>{m.role==='ORGANIZER'?<><p>Enter activity placements, review standings and publish overall results. Activity weights and credit rules are in Event setup.</p><OverallRanking eventId={eventId} initial={await readOverall(user.id,eventId)} archived={!!m.event.archivedAt}/></>:<PublishedOverall data={await readPublishedOverall(user.id,eventId)}/>}</Shell>;
 }
 function PublishedOverall({data}:{data:Awaited<ReturnType<typeof readPublishedOverall>>}){
  if(!data.published)return <section><h2>Overall results are not published yet</h2><p>The organizer must review and finalize all activity results before overall standings appear here.</p></section>;

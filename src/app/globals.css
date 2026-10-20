@@ -256,3 +256,13 @@ button:hover,.button:hover{background:linear-gradient(135deg,#b7f7ff,#63e6ff);tr
   .content-body{background:none!important;box-shadow:none!important}
   .station-sign{background:#fff!important;color:#071426!important;box-shadow:none!important;backdrop-filter:none!important}
 }
+
+/* Organizer setup and event-day workspaces share the existing spy shell. */
+.organizer-navigation{min-width:0}
+.organizer-mode-switch{display:grid;grid-template-columns:1fr;gap:4px;border:1px solid #385166;border-radius:5px;padding:4px;margin-bottom:18px;background:#071426}
+.organizer-mode-switch a{display:flex;align-items:center;min-height:44px;padding:10px 12px;font-weight:600;font-size:14px;color:#b0c2d1;border-radius:3px;white-space:normal}
+.organizer-mode-switch a.selected{background:#bdeaf0;color:#071426;box-shadow:inset 3px 0 #72d5e3}
+.organizer-mode-switch a:hover{background:#19364b;color:#f2f7fa}
+.organizer-mode-switch a.selected:hover{background:#d6f6fa;color:#071426}
+.organizer-section-links{display:flex;flex-direction:column;gap:4px;min-width:0}
+@media(max-width:760px){.shell-links.organizer-shell-links{display:block;overflow:visible;white-space:normal}.organizer-mode-switch{grid-template-columns:1fr 1fr;margin-bottom:8px}.organizer-mode-switch a{justify-content:center}.organizer-section-links{flex-direction:row;overflow-x:auto;max-width:100%;white-space:nowrap;padding-bottom:4px}.organizer-section-links .nav{flex:none}}
