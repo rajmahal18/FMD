@@ -8,7 +8,7 @@ export default async function Login({searchParams}:{searchParams:Promise<{error?
       <div className="login-brand-panel">
         <a className="wordmark" href="/">SC / FIELD NETWORK</a>
         <div className="login-brand-copy">
-          <img className="login-emblem" src="/theme/spy-shield-emblem.png" alt="" width={108} height={108}/>
+          <img className="login-emblem" src="/theme/app-logo.png" alt="" width={108} height={108}/>
           <div>
             <span className="eyebrow">ENCRYPTED ACCESS / 10</span>
             <h2>Operation Spy Chase</h2>

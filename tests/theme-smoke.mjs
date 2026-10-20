@@ -76,7 +76,12 @@ try{
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
    await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(url);if(setup)await evaluate(setup);
-   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.shell-links')?getComputedStyle(document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".shell-links");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.shell-links')?getComputedStyle(document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".shell-links");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav")&&!e.closest(".player-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   if(await evaluate("!!document.querySelector('.player-bottom-nav')")){
+    await evaluate("window.scrollTo(0,document.documentElement.scrollHeight)");
+    assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
+    await evaluate("window.scrollTo(0,0)");
+   }
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -100,11 +105,18 @@ try{
     await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(base);
     const destinations=role==='agent'?[base+'/agents/me',base+'/contact',base+'/results',base+'/overall',base]:[base+'/results',base+'/overall',base];
     for(const href of destinations){
-     await evaluate(`document.querySelector('.shell-links a[href="${href}"]').click()`);
+     if(role==='agent'){
+      if(href.endsWith('/agents/me'))await evaluate("document.querySelector('.player-account').open=true");
+      if(href.endsWith('/results')||href.endsWith('/overall'))await evaluate("document.querySelector('.player-ranks button').click()");
+      await evaluate(`document.querySelector('a[href="${href}"]').click()`);
+     }else await evaluate(`document.querySelector('.shell-links a[href="${href}"]').click()`);
      for(let i=0;i<40;i++){if(await evaluate(`location.pathname===${JSON.stringify(href)}`))break;await new Promise(r=>setTimeout(r,50));}
      await new Promise(r=>setTimeout(r,100));
      const active=await evaluate(`[...document.querySelectorAll('.shell-links .nav.active')].map(a=>({href:a.getAttribute('href'),current:a.getAttribute('aria-current'),visible:getComputedStyle(a).display!=='none'}))`);
-     assert.deepEqual(active,[{href,current:'page',visible:true}],role+' '+width+' '+href);
+     if(role==='agent'){
+      if(href.endsWith('/results')||href.endsWith('/overall'))assert(await evaluate("document.querySelector('.player-ranks button').classList.contains('active')"));
+      else assert(await evaluate(`!!document.querySelector('a[href="${href}"][aria-current=page]')`));
+     }else assert.deepEqual(active,[{href,current:'page',visible:true}],role+' '+width+' '+href);
      assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'));
     }
     if(role==='facilitator'){await visit(base+'/field');assert.deepEqual(await evaluate(`[...document.querySelectorAll('.shell-links .nav.active')].map(a=>a.getAttribute('href'))`),[base]);}
@@ -143,7 +155,23 @@ try{
     assert.equal(await evaluate(`document.querySelector('input[name=credential]').getBoundingClientRect().width>0`),true);
 
     await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});await visit('/events/'+event.id);
-    for(const suffix of ['/agents/me','/contact','/results','/overall','']){const href='/events/'+event.id+suffix;await evaluate(`document.querySelector('.shell-links a[href="${href}"]').click()`);for(let i=0;i<40;i++){if(await evaluate(`location.pathname===${JSON.stringify(href)}`))break;await new Promise(r=>setTimeout(r,50));}await new Promise(r=>setTimeout(r,100));assert.deepEqual(await evaluate(`[...document.querySelectorAll('.shell-links .nav.active')].map(a=>a.getAttribute('href'))`),[href]);}
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.player-bottom-nav')).position"),'fixed');
+    assert.equal(await evaluate("document.querySelectorAll('.player-bottom-inner>.player-bottom-item').length"),2);
+    for(const suffix of ['/agents/me','/contact','/results','/overall','']){
+     const href='/events/'+event.id+suffix;
+     if(suffix==='/agents/me')await evaluate("document.querySelector('.player-account').open=true");
+     if(suffix==='/results'||suffix==='/overall')await evaluate("document.querySelector('.player-ranks button').click()");
+     await evaluate(`document.querySelector('a[href="${href}"]').click()`);
+     for(let i=0;i<40;i++){if(await evaluate('location.pathname==='+JSON.stringify(href)))break;await new Promise(r=>setTimeout(r,50));}
+     await new Promise(r=>setTimeout(r,100));
+     if(suffix!=='/results'&&suffix!=='/overall')assert.equal(await evaluate(`!!document.querySelector('a[href="${href}"][aria-current=page]')`),true);
+     else assert.equal(await evaluate("document.querySelector('.player-ranks button').classList.contains('active')"),true);
+     assert.equal(await evaluate("!!document.querySelector('.player-ranks-options')"),false);
+    }
+    await evaluate("document.querySelector('.player-ranks button').click()");
+    assert.equal(await evaluate("document.querySelector('.player-ranks-options').querySelectorAll('a').length"),2);
+    await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape'});
+    assert.equal(await evaluate("document.querySelector('.player-ranks button').getAttribute('aria-expanded')"),'false');
     await visit('/workspace');assert.deepEqual(await evaluate(`[...document.querySelectorAll('.shell-links .nav.active')].map(a=>a.getAttribute('href'))`),['/workspace']);
     console.log('PASS: themed player mission, prominent captain check-in, profile, contact, results, manual code access and client navigation.');
    }

@@ -50,3 +50,5 @@ Player screens retain the shared detective/agent identity: navy surfaces, icy cy
 Check 320/390/768/1440px, keyboard focus, long names, no-data/loading/error/offline states, outdoor readability and reduced motion. Every new screen follows tokens and shared components. No phase may introduce an unrelated generic dashboard style.
 
 Participant identity pages retain the full agent dossier, monogram, callsign and insignia. Decorative identity details can be elaborate; navigation and operational controls must use familiar labels, strong contrast and a clear primary action. Keep decoration separate from forms, QR modules and instructions. Preserve reduced-motion support and mobile readability.
+
+Player event navigation uses a fixed bottom dock: Contact, an emphasized central Mission link, and Ranks with Race results and Overall ranking. My profile is in the top Account menu. Reserve bottom space including the device safe area so page content remains reachable. Ranks closes after navigation, outside click or Escape and indicates the active ranking section.

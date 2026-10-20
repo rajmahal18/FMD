@@ -11,7 +11,7 @@ export function Shell({name,title,role,children,eventId}:{name:string;title:stri
     <aside>
       <div className="sidebar-aura" aria-hidden="true"/>
       <Link prefetch={false} className="brand-lockup" href="/workspace">
-        <img className="brand-emblem" src="/theme/spy-shield-emblem.png" alt="" width={52} height={52}/>
+        <img className="brand-emblem" src="/theme/app-logo.png" alt="" width={52} height={52}/>
         <div className="brand-copy">
           <span className="wordmark">SC / HQ</span>
           <small>Operation Spy Chase</small>

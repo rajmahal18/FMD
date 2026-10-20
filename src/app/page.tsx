@@ -5,7 +5,7 @@ export default function Home(){
     <div className="entry-backdrop" aria-hidden="true"/>
     <div className="classification classification-lockup">
       <span>OPERATION: CLASSIFIED / FIELD NETWORK</span>
-      <img className="inline-emblem" src="/theme/spy-shield-emblem.png" alt="" width={42} height={42}/>
+      <img className="inline-emblem" src="/theme/app-logo.png" alt="" width={42} height={42}/>
     </div>
     <div className="entry-content">
       <div className="hero">
