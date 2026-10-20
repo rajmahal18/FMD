@@ -148,3 +148,11 @@ body:has(.player-shell){background:radial-gradient(ellipse at top left,#12314a 0
 .player-profile h2{color:#e1c27a}
 .player-shell .demo{color:#f5cb83}
 @media(max-width:600px){.player-shell .mission{padding:20px 16px}.player-shell .destination h3{font-size:29px}.player-page-heading h1{font-size:28px}}
+
+/* Agent identity may be decorative; the next action stays plainly labeled. */
+.player-shell .agent-dossier-shell{margin-top:20px}
+.player-shell .agent-dossier-shell .eyebrow{display:block;color:#d9bb75}
+.player-shell .agent-biography h2{color:#f5efdb;font:700 clamp(25px,3vw,42px)/1.15 Rajdhani,sans-serif}
+.player-shell .dossier-mission-action{min-height:48px;min-width:180px}
+.player-shell .agent-dossier-top,.player-shell .agent-dossier-bottom{letter-spacing:.08em}
+@media(max-width:500px){.player-shell .agent-dossier-main{padding:20px 16px}.player-shell .agent-dossier-top,.player-shell .agent-dossier-bottom{font-size:11px}.player-shell .dossier-mission-action{width:100%}}

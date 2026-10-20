@@ -117,7 +117,7 @@ try{
   if(role==='agent'){
    assert.equal(await evaluate(`!!document.querySelector('.player-shell')&&!document.querySelector('.content-hud-layer')`),true);
    await check('player-profile','/events/'+event.id+'/agents/me');
-   assert.equal(await evaluate(`!!document.querySelector('.player-profile')&&!document.querySelector('.agent-dossier-shell')`),true);
+   assert.equal(await evaluate(`!!document.querySelector('.agent-dossier-shell')&&!!document.querySelector('.dossier-mission-action')`),true);
    await check('player-contact','/events/'+event.id+'/contact');
    if(process.env.PLAYER_BROWSER_ONLY){
     assert.equal(await evaluate(`[...document.querySelectorAll('button')].filter(b=>b.textContent==='Show my QR/code').length`),1);
@@ -145,7 +145,7 @@ try{
     await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});await visit('/events/'+event.id);
     for(const suffix of ['/agents/me','/contact','/results','/overall','']){const href='/events/'+event.id+suffix;await evaluate(`document.querySelector('.shell-links a[href="${href}"]').click()`);for(let i=0;i<40;i++){if(await evaluate(`location.pathname===${JSON.stringify(href)}`))break;await new Promise(r=>setTimeout(r,50));}await new Promise(r=>setTimeout(r,100));assert.deepEqual(await evaluate(`[...document.querySelectorAll('.shell-links .nav.active')].map(a=>a.getAttribute('href'))`),[href]);}
     await visit('/workspace');assert.deepEqual(await evaluate(`[...document.querySelectorAll('.shell-links .nav.active')].map(a=>a.getAttribute('href'))`),['/workspace']);
-    console.log('PASS: minimalist player mission, prominent captain check-in, profile, contact, results, manual code access and client navigation.');
+    console.log('PASS: themed player mission, prominent captain check-in, profile, contact, results, manual code access and client navigation.');
    }
   }
 
