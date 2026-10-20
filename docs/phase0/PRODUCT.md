@@ -68,3 +68,7 @@ Participant: sign-in/join, agent identity, current station, scan/code, route his
 Facilitator: assigned station selector, waiting/active teams, result confirmation, recent outcomes, correction request.
 
 Acceptance scenarios: create a small event without technical keys; run different starting routes; complete an offline physical challenge and record it once; double-tap safely; correct points with traceable history; pause/end safely; deny an unassigned facilitator; explain expired/invalid QR; recover a dropped response without duplicates; hide award results; separate interaction-pair uniqueness from directed commendations.
+
+## Individual voting awards
+
+Organizers may create separate voting awards such as Showstealer. Voter eligibility (participants, roles, teams or selected individuals), candidates, own opening/closing window, maximum distinct choices, self-voting and same-team voting are configurable event data. Each voter submits one final ballot; every selected candidate receives one equal-weight vote. Review is required before submission. Voting stays separate from all race and Agent Contact scoring. Its schedule can extend beyond the race; parent pause/archive blocks submissions. Totals stay organizer-only until final publication. Rules lock after the first ballot, ties share placement, and publication saves an immutable result snapshot. Preserve active identity/event/role checks, idempotent atomic ballot recording and audit/retention behavior. See ../VOTING_EVENTS.md.

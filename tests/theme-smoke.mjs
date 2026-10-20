@@ -72,6 +72,7 @@ try{
  await cmd('Security.setIgnoreCertificateErrors',{ignore:true});
  const evaluate=async expression=>{const r=await cmd('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.text);return r.result.value;};
  const visit=async url=>{await cmd('Page.navigate',{url:origin+url});await new Promise(r=>setTimeout(r,450));await evaluate('document.fonts.ready.then(()=>true)');};
+ let votingPollId,votingOrganizerCookie;
  const checks=[];
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
@@ -94,11 +95,62 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alert]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
+
+  if(process.env.VOTING_BROWSER_ONLY){
+   const voteUrl='/events/'+event.id+'/voting',setupUrl='/events/'+event.id+'/voting-settings';
+   if(role==='organizer'){
+    votingOrganizerCookie=cookie;
+    await check('voting-setup-empty',setupUrl);
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Create voting event').click()");
+    await evaluate("document.querySelector('.voting-editor input[maxlength]').focus()");await cmd('Input.insertText',{text:'Showstealer'});
+    await evaluate(`(()=>{const inputs=document.querySelectorAll('.voting-editor input[type="datetime-local"]');for(let i=0;i<2;i++){const d=new Date(Date.now()+(i?3600000:-60000));const value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(inputs[i],value);inputs[i].dispatchEvent(new Event('input',{bubbles:true}));inputs[i].dispatchEvent(new Event('change',{bubbles:true}));}})()`);
+    await evaluate("document.querySelectorAll('.voting-candidate-setup input[type=checkbox]').forEach(e=>e.click())");
+    await evaluate("document.querySelector('.voting-editor button[type=submit]').click()");
+    assert(await evaluate("document.body.textContent.includes('Review voting configuration')"),await evaluate('document.body.innerText'));
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Save voting event').click()");
+    for(let i=0;i<50;i++){const rows=(await pg.query('SELECT id FROM "VotingEvent" WHERE "eventId"=$1',[event.id])).rows;if(rows.length){votingPollId=rows[0].id;break;}await new Promise(r=>setTimeout(r,100));}
+    assert(votingPollId,await evaluate('document.body.innerText'));
+    await check('voting-controls',voteUrl);await evaluate('window.confirm=()=>true');
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Enable voting').click()");
+    for(let i=0;i<50;i++){if((await pg.query('SELECT enabled FROM "VotingEvent" WHERE id=$1',[votingPollId])).rows[0].enabled)break;await new Promise(r=>setTimeout(r,100));}
+    assert.equal((await pg.query('SELECT enabled FROM "VotingEvent" WHERE id=$1',[votingPollId])).rows[0].enabled,true);
+    await check('voting-roster-setup','/events/'+roster.id+'/voting-settings',"(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Create voting event').click();await new Promise(r=>setTimeout(r,100));[...document.querySelectorAll('button')].find(b=>b.textContent==='Select all participants').click();})()");
+    assert((await evaluate('document.body.textContent')).includes('93 candidates selected'));
+   }else if(role==='agent'){
+    await visit('/events/'+event.id);assert(await evaluate("!!document.querySelector('.voting-notice a')"));
+    await check('voting-player-ballot',voteUrl);
+    assert.equal(await evaluate("!!document.querySelector('.voting-results')"),false);
+    await check('voting-ballot-review',voteUrl,"document.querySelector('.voting-candidate input').click();document.querySelector('.voting-ballot button[type=submit]').click()");
+
+    const changedCandidate=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event.id,'FACILITATOR'])).rows[0].id;
+    await pg.query('UPDATE "EventMembership" SET active=false WHERE id=$1',[changedCandidate]);
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Refresh voting events').click()");
+    for(let i=0;i<40;i++){if(await evaluate("document.body.textContent.includes('The candidate list changed.')"))break;await new Promise(r=>setTimeout(r,100));}
+    assert(await evaluate("document.body.textContent.includes('The candidate list changed.')"));
+    assert.equal(await evaluate("document.querySelectorAll('.voting-candidate input:checked').length"),0);
+    await pg.query('UPDATE "EventMembership" SET active=true WHERE id=$1',[changedCandidate]);
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Refresh voting events').click()");
+    await new Promise(r=>setTimeout(r,300));
+    await evaluate("document.querySelector('.voting-candidate input').click()");
+    await evaluate("document.querySelector('.voting-ballot button[type=submit]').click()");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Submit final ballot').click()");
+    for(let i=0;i<50;i++){if((await pg.query('SELECT COUNT(*)::int AS n FROM "VotingBallot" WHERE "votingEventId"=$1',[votingPollId])).rows[0].n===1)break;await new Promise(r=>setTimeout(r,100));}
+    await check('voting-player-receipt',voteUrl);assert(await evaluate("document.body.textContent.includes('Your ballot is recorded')"));
+    assert.equal(await evaluate("!!document.querySelector('.voting-results')"),false);
+   }else{
+    await check('voting-ineligible-facilitator',voteUrl);assert.equal(await evaluate("!!document.querySelector('.voting-ballot')"),false);
+    const votePost=async(body)=>{const r=await fetch(appOrigin+'/api/events/'+event.id+'/voting',{method:'POST',headers:{cookie:votingOrganizerCookie,origin,'content-type':'application/json'},body:JSON.stringify({...body,requestKey:crypto.randomUUID()})});const j=await r.json();assert.equal(r.status,200,JSON.stringify(j));};
+    await votePost({operation:'setEnabled',id:votingPollId,revision:2,enabled:false});await votePost({operation:'publish',id:votingPollId,revision:3});
+    await check('voting-published-results',voteUrl);assert(await evaluate("document.body.textContent.includes('Final voting results')"));
+    assert.equal(await evaluate("document.querySelectorAll('.voting-results li').length"),3);
+   }
+   console.log('PASS: '+role+' voting UI, eligibility, privacy and responsive controls.');continue;
+  }
   if(process.env.NAV_BROWSER_ONLY){
    const base='/events/'+event.id;
    for(const width of [320,1440]){
@@ -126,6 +178,12 @@ try{
    continue;
   }
   await check(role,'/events/'+event.id);
+  if(role==='organizer'&&process.env.LIVE_OPERATIONS_BROWSER_ONLY){
+   assert.equal(await evaluate("document.querySelector('#organizer-tools').open"),false);
+   assert.equal(await evaluate("document.querySelector('.event-controls').open"),false);
+   assert(await evaluate("!!document.querySelector('.operations-primary')"));
+   continue;
+  }
   if(role==='agent'){
    assert.equal(await evaluate(`!!document.querySelector('.player-shell')&&!document.querySelector('.content-hud-layer')`),true);
    await check('player-profile','/events/'+event.id+'/agents/me');
@@ -180,7 +238,7 @@ try{
   if(role==='facilitator'){
    const fieldUrl='/events/'+event.id+'/field';
    await check('time-penalty-field',fieldUrl);
-   await check('time-penalty-config',fieldUrl,`document.querySelector('.time-penalty-editor').open=true`);
+   await check('time-penalty-config',fieldUrl,`document.querySelector('.field-tools').open=true;document.querySelector('.time-penalty-editor').open=true`);
    await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Add violation button').click()`);
    await evaluate(`const inputs=document.querySelectorAll('.penalty-preset input[type=number]');inputs[2].focus();inputs[2].select()`);await cmd('Input.insertText',{text:'5'});
    await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Review violation buttons').click()`);
@@ -206,6 +264,7 @@ try{
    console.log('PASS: real facilitator browser configures multiple timer buttons, applies +10/+30, voids an accidental tap with history and confirms adjusted station time.');
   }
 
+  if(process.env.LIVE_OPERATIONS_BROWSER_ONLY)continue;
   if(role!=='organizer'){await check(role+'-overall-published','/events/'+publishedId+'/overall');assert((await evaluate(`document.body.textContent`)).includes('Final overall standings'));await check(role+'-overall-sealed','/events/'+event.id+'/overall');assert((await evaluate(`document.body.textContent`)).includes('Overall results are not published yet'));}
   if(role==='organizer'){
    await check('overall','/events/'+roster.id+'/ranking-settings');
@@ -258,5 +317,6 @@ try{
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');
  assert(checks.every(c=>!c.nav||c.width>760||c.nav==='row'),'Mobile navigation must stay in scrollable tabs');
  assert(checks.filter(c=>c.label==='sign').every(c=>c.qr==='rgb(255, 255, 255)'),'QR sign must remain white');
- await send('Browser.close');
+ // The finally block terminates the owned headless browser after all assertions.
+
 }finally{browser?.kill();app?.kill();proxy?.closeAllConnections();proxy?.close();await socket.stop();await pg.close();}

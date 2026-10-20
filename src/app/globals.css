@@ -266,3 +266,57 @@ button:hover,.button:hover{background:linear-gradient(135deg,#b7f7ff,#63e6ff);tr
 .organizer-mode-switch a.selected:hover{background:#d6f6fa;color:#071426}
 .organizer-section-links{display:flex;flex-direction:column;gap:4px;min-width:0}
 @media(max-width:760px){.shell-links.organizer-shell-links{display:block;overflow:visible;white-space:normal}.organizer-mode-switch{grid-template-columns:1fr 1fr;margin-bottom:8px}.organizer-mode-switch a{justify-content:center}.organizer-section-links{flex-direction:row;overflow-x:auto;max-width:100%;white-space:nowrap;padding-bottom:4px}.organizer-section-links .nav{flex:none}}
+
+/* Event-day work: strong actions, compact context and folded support tools. */
+.facilitator-shell .content>header{padding:16px;margin-bottom:16px}
+.facilitator-shell .content>header h1{font-size:28px;margin:4px 0}
+.facilitator-shell .content>header .access-pill{display:none}
+.facilitator-shell .event-identity{padding:12px 16px;margin-bottom:16px;min-height:0}
+.facilitator-shell .event-identity img{width:36px;height:36px}
+.facilitator-shell .event-identity .fine{display:none}
+.field-workspace .field-header{padding:18px 20px;margin-bottom:20px;border-top:3px solid #72d5e3}
+.field-workspace .field-header h2{margin:4px 0;font-size:28px}
+.field-workspace .field-capacity{padding:10px 0;margin-top:8px;gap:12px;flex-wrap:wrap}
+.field-workspace .field-columns{grid-template-columns:minmax(0,1fr);gap:0}
+.field-workspace .field-columns>.panel:first-child{border:0;background:none;box-shadow:none;padding:0}
+.field-workspace .field-columns>.panel>h2{font-size:24px;margin:8px 0 16px}
+.field-workspace .station-team{padding:20px;margin-bottom:20px;border:1px solid #385166;border-left:4px solid #72d5e3;background:#10243a;border-radius:5px}
+.field-workspace .station-team h3{font:600 26px Rajdhani,Arial,sans-serif;color:#f2f7fa;margin:0}
+.field-workspace .station-team .tag{background:#bdeaf0;color:#071426;border-color:#bdeaf0;font:600 14px 'Source Sans 3',Arial,sans-serif}
+.field-workspace .station-team[data-visit-state=AWAITING_CONFIRMATION]{border-left-color:#f5cb83}
+.field-workspace .station-team[data-visit-state=AWAITING_CONFIRMATION] .tag{background:#f5cb83;border-color:#f5cb83;color:#30230d}
+.field-workspace .field-next-step{font-size:16px;color:#d4edf1;line-height:1.5;margin:12px 0 18px}
+.field-workspace .station-team>.race-action>button,.field-workspace .station-team>button{min-height:54px;font-size:17px;font-weight:700;width:100%;justify-content:center}
+.field-workspace .station-timer{background:#071426;border:1px solid #385166;border-radius:4px;padding:16px;margin:16px 0}
+.field-workspace .station-timer .challenge-clock{color:#bdeaf0!important;font:14px 'Source Sans 3',Arial,sans-serif;margin:0}
+.field-workspace .station-timer .challenge-clock strong{color:#f5cb83;font:600 34px/1.25 'IBM Plex Mono',monospace;margin-top:6px}
+.field-workspace .station-timer p{margin:8px 0 0}
+.field-workspace .time-penalty-controls h4{margin:16px 0 8px;font-size:17px;color:#f5cb83}
+.field-workspace .time-penalty-actions button{background:#3c3020;border-color:#bfa36f;color:#ffe0a7;min-height:48px;font-weight:600}
+.field-workspace .time-penalty-actions button:hover{background:#56432a}
+.field-workspace .result-review{border-top:3px solid #72d5e3}
+.field-workspace .result-review button{min-height:50px;justify-content:center}
+.field-workspace .field-tools,.field-workspace .field-queue{background:#0d2033;border:1px solid #385166;padding:8px 16px;box-shadow:none}
+.field-workspace .field-tools>summary,.field-workspace .field-queue>summary{color:#bdeaf0;font-size:17px}
+.field-workspace .sync-status{margin-bottom:20px}
+.operations-board .operations-primary{margin:0 0 20px;min-height:50px;justify-content:center}
+.operations-board .control-stage{padding:16px 20px;margin-bottom:16px}
+.operations-board .control-stage h2{margin:4px 0 8px}
+.operations-board .control-stage .eyebrow{display:none}
+.operations-board .control-teams{display:block;margin-top:12px}
+.operations-board .control-team{padding:16px 12px;margin-bottom:0;border:0;border-top:1px solid #385166;border-left:3px solid;box-shadow:none;background:none;border-radius:0}
+.operations-board .control-team h3{font-size:23px;margin:0 0 8px}
+.operations-board .event-controls,.operations-board .organizer-tools{padding:8px 16px}
+.operations-board .organizer-tools>.panel{background:none;box-shadow:none;border:0;border-top:1px solid #385166;border-radius:0;padding:16px 0}
+@media(max-width:600px){.field-workspace .field-header{padding:16px}.field-workspace .station-team{padding:16px 12px}.field-workspace .station-team .field-heading{align-items:flex-start;gap:8px}.field-workspace .station-team .field-heading h3{flex:1;min-width:0}.field-workspace .station-timer .challenge-clock strong{font-size:28px}.operations-board .operations-primary{width:100%}.operations-board .control-columns{display:block}}
+
+/* Facilitators land on their station, without a duplicate dashboard heading. */
+.facilitator-shell .content>header{display:none}
+.staff-account{position:relative;margin-top:auto;z-index:5}
+.staff-account>summary{display:flex;align-items:center;justify-content:center;width:44px;height:44px;list-style:none;border:1px solid #57738a;border-radius:50%;background:#142e43;color:#bdeaf0;cursor:pointer;padding:0}
+.staff-account>summary::-webkit-details-marker{display:none}
+.staff-account>summary::marker{content:''}
+.staff-account[open]>summary{background:#bdeaf0;color:#071426}
+.staff-account-menu{position:absolute;bottom:calc(100% + 8px);left:0;display:grid;gap:8px;min-width:190px;max-width:calc(100vw - 32px);padding:16px;border:1px solid #57738a;border-radius:4px;background:#10243a;box-shadow:0 8px 24px #0008}
+.staff-account-menu>a{display:flex;align-items:center;min-height:44px}
+@media(max-width:760px){.facilitator-shell aside{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:8px 16px}.facilitator-shell .brand-lockup{margin:0;grid-column:1}.facilitator-shell .brand-emblem{width:36px;height:36px}.facilitator-shell .brand-copy .wordmark{font-size:18px}.facilitator-shell .shell-links{grid-column:1/-1;grid-row:2}.facilitator-shell .staff-account{grid-column:2;grid-row:1;margin:0}.staff-account-menu{top:calc(100% + 8px);bottom:auto;left:auto;right:0}.facilitator-shell .content{padding-top:16px}}

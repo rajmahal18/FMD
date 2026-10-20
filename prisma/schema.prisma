@@ -64,6 +64,7 @@ model Event {
  accentColor String @default("#72D5E3")
  archivedAt DateTime?
  overallRanking OverallRanking?
+ votingEvents VotingEvent[]
  archivedReason String?
  logoData Bytes?
  logoMime String?
@@ -101,12 +102,55 @@ model EventMembership {
  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
  team Team? @relation(fields:[teamId],references:[id])
  assignments FacilitatorAssignment[]
+ ballots VotingBallot[]
+ receivedVotes VotingChoice[]
  contactCredentials ContactCredential[]
  requestedContacts ContactRecord[] @relation("ContactRequester")
  receivedContacts ContactRecord[] @relation("ContactRecipient")
  @@unique([eventId,id])
  @@unique([eventId,userId])
  @@index([userId,active])
+}
+
+model VotingEvent {
+ id String @id @default(cuid())
+ eventId String
+ name String
+ instructions String @default("")
+ config Json
+ opensAt DateTime
+ closesAt DateTime
+ enabled Boolean @default(false)
+ publishedAt DateTime?
+ publishedResults Json?
+ revision Int @default(1)
+ createdAt DateTime @default(now())
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ ballots VotingBallot[]
+ @@unique([eventId,id])
+ @@index([eventId,createdAt])
+}
+
+model VotingBallot {
+ id String @id @default(cuid())
+ eventId String
+ votingEventId String
+ voterMembershipId String
+ createdAt DateTime @default(now())
+ votingEvent VotingEvent @relation(fields:[eventId,votingEventId],references:[eventId,id],onDelete:Restrict)
+ voter EventMembership @relation(fields:[eventId,voterMembershipId],references:[eventId,id],onDelete:Restrict)
+ choices VotingChoice[]
+ @@unique([votingEventId,voterMembershipId])
+ @@unique([eventId,id])
+}
+
+model VotingChoice {
+ eventId String
+ ballotId String
+ candidateMembershipId String
+ ballot VotingBallot @relation(fields:[eventId,ballotId],references:[eventId,id],onDelete:Cascade)
+ candidate EventMembership @relation(fields:[eventId,candidateMembershipId],references:[eventId,id],onDelete:Restrict)
+ @@id([ballotId,candidateMembershipId])
 }
 model Team {
  id String @id @default(cuid())
