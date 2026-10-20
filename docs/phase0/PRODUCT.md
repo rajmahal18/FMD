@@ -31,7 +31,9 @@ Primary verification is authenticated facilitator approval. Static station QR is
 
 UI states: Head to station → Waiting (optional) → Challenge in progress → Awaiting confirmation → Completed. Availability such as Station paused is distinct from visit progress. A completed team sees Operation complete rather than No active task.
 
-Default scoring policy for an event: configured fixed points on successful completion. Optional alternative: facilitator enters a result within organizer-defined bounds. Timing can be recorded without affecting ranking. Lower-time ranking is only enabled with an explicit rule. Bonuses/penalties require reason and preview of resulting total. No implicit score dimensions exposed to users.
+Current Amazing Race policy: new configurations rank the lowest sum of confirmed station elapsed times plus recorded time penalties. Travel and queueing are excluded. Assigned facilitators and organizers configure station-specific violation buttons and record penalties during active challenges. Each penalty is attributed; mistaken entries may be voided with a reason before station confirmation. Raw time and penalty totals are preserved separately. Existing events retain their explicit ranking rule; no live event is silently converted.
+
+Default scoring policy for a legacy points-based event: configured fixed points on successful completion. Optional alternative: facilitator enters a result within organizer-defined bounds. Timing can be recorded without affecting ranking. Lower-time ranking is only enabled with an explicit rule. Bonuses/penalties require reason and preview of resulting total. No implicit score dimensions exposed to users.
 
 Team total = confirmed station points + confirmed bonuses − confirmed penalties. One canonical calculation drives participant totals, Mission Control and standings. Retries do not sum points automatically; choose the attempt policy before starting. Default is one accepted outcome per team per station. Corrections append reversals/replacements with attribution; no destructive edits to history.
 

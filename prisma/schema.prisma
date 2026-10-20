@@ -38,6 +38,8 @@ model User {
  announcements Announcement[]
  routeChanges RouteChange[]
  resultRevisions ResultRevision[]
+ timePenalties TimePenaltyEntry[] @relation("PenaltyActor")
+ voidedTimePenalties TimePenaltyEntry[] @relation("PenaltyVoidActor")
 }
 model Session {
  id String @id @default(cuid())
@@ -61,6 +63,7 @@ model Event {
  briefing String @default("")
  accentColor String @default("#72D5E3")
  archivedAt DateTime?
+ overallRanking OverallRanking?
  archivedReason String?
  logoData Bytes?
  logoMime String?
@@ -77,6 +80,14 @@ model Event {
  routeChanges RouteChange[]
  resultRevisions ResultRevision[]
  @@index([archivedAt])
+}
+
+model OverallRanking {
+ eventId String @id
+ revision Int @default(1)
+ config Json
+ finalized Json?
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
 }
 model EventMembership {
  id String @id @default(cuid())
@@ -130,6 +141,8 @@ model Station {
  arrivalCode String?
  allowAdjustments Boolean @default(false)
  maximumAdjustment Int @default(1000)
+ timePenaltyButtons Json @default("[]")
+ timePenaltyRevision Int @default(0)
  @@unique([eventId,arrivalCode])
  event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
  assignments FacilitatorAssignment[]
@@ -226,6 +239,7 @@ model StationVisit {
  confirmedAt DateTime?
  finishedAt DateTime?
  outcome StationOutcome?
+ timePenalties TimePenaltyEntry[]
  @@unique([eventId,id,teamId,stationId])
  updatedAt DateTime @updatedAt
  team Team @relation(fields:[eventId,teamId],references:[eventId,id],onDelete:Cascade)
@@ -254,6 +268,7 @@ model StationOutcome {
  penalty Int @default(0)
  reason String @default("")
  durationSeconds Int?
+ timePenaltySeconds Int @default(0)
  confirmedAt DateTime @default(now())
  resultHash String
  confirmationJson Json
@@ -265,6 +280,26 @@ model StationOutcome {
  @@unique([teamId,stationId])
  @@unique([eventId,id,teamId,stationId])
  @@index([eventId,stationId,confirmedAt])
+}
+
+model TimePenaltyEntry {
+ id String @id @default(cuid())
+ eventId String
+ teamId String
+ stationId String
+ visitId String
+ actorId String
+ buttonId String
+ label String
+ seconds Int
+ createdAt DateTime @default(now())
+ voidedAt DateTime?
+ voidedById String?
+ voidReason String?
+ visit StationVisit @relation(fields:[eventId,visitId,teamId,stationId],references:[eventId,id,teamId,stationId],onDelete:Cascade)
+ actor User @relation("PenaltyActor",fields:[actorId],references:[id],onDelete:Restrict)
+ voidedBy User? @relation("PenaltyVoidActor",fields:[voidedById],references:[id],onDelete:Restrict)
+ @@index([eventId,visitId])
 }
 model ScoreLedgerEntry {
  id String @id @default(cuid())

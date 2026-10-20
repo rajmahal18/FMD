@@ -1,8 +1,11 @@
 import {SignOutForm} from "./RaceAction";
 import Link from "next/link";
 import { OrganizerNav } from "./OrganizerNav";
+import {NavigationLink} from "./NavigationLink";
+import {PlayerShell} from "./PlayerShell";
 
 export function Shell({name,title,role,children,eventId}:{name:string;title:string;role:string;children:React.ReactNode;eventId?:string}){
+  if(role==="PARTICIPANT"||role==="AGENT")return <PlayerShell name={name} title={title} eventId={eventId}>{children}</PlayerShell>;
   const roleLabel=role.replaceAll("_"," ");
   return <div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":""}`}>
     <aside>
@@ -16,14 +19,15 @@ export function Shell({name,title,role,children,eventId}:{name:string;title:stri
       </Link>
       <div className="rail-label">FIELD NETWORK</div>
       <nav className="shell-links" aria-label="Event navigation">
-        {role==="ORGANIZER"&&eventId?<OrganizerNav eventId={eventId}/>:eventId?<Link prefetch={false} className="nav active" href={`/events/${eventId}`}>{role==="FACILITATOR"?"Assigned stations":"Current mission"}</Link>:null}
+        {role==="ORGANIZER"&&eventId?<OrganizerNav eventId={eventId}/>:eventId?<NavigationLink href={`/events/${eventId}`} activePaths={[`/events/${eventId}/${role==="FACILITATOR"?"field":"check-in"}`]}>{role==="FACILITATOR"?"Assigned stations":"Current mission"}</NavigationLink>:null}
         {role==="PARTICIPANT"&&eventId&&<>
-          <Link prefetch={false} className="nav" href={`/events/${eventId}/agents/me`}>My agent dossier</Link>
-          <Link prefetch={false} className="nav" href={`/events/${eventId}/contact`}>Agent Contact</Link>
-          <Link prefetch={false} className="nav" href={`/events/${eventId}/results`}>Final results</Link>
+          <NavigationLink href={`/events/${eventId}/agents/me`} section={`/events/${eventId}/agents/`}>My agent dossier</NavigationLink>
+          <NavigationLink href={`/events/${eventId}/contact`}>Agent Contact</NavigationLink>
+          <NavigationLink href={`/events/${eventId}/results`}>Amazing Race Results</NavigationLink>
         </>}
-        {role==="FACILITATOR"&&eventId&&<Link prefetch={false} className="nav" href={`/events/${eventId}/results`}>Final results</Link>}
-        <Link prefetch={false} className="nav" href="/workspace">My events</Link>
+        {role==="FACILITATOR"&&eventId&&<NavigationLink href={`/events/${eventId}/results`}>Final results</NavigationLink>}
+        {eventId&&role!=="ORGANIZER"&&<NavigationLink href={`/events/${eventId}/overall`}>Team Building Overall Ranking</NavigationLink>}
+        <NavigationLink href="/workspace">My events</NavigationLink>
       </nav>
       <div className="sidebar-intel-strip" aria-hidden="true">
         <img src="/theme/spy-icon-grid.png" alt="" width={280} height={210}/>

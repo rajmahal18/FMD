@@ -52,6 +52,7 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
    }
    case "deleteDraftEvent":{
     const event=await tx.event.findUniqueOrThrow({where:{id:eventId}});
+    if(await tx.auditEntry.count({where:{eventId,action:'OVERALL_FINALIZE'}}))throw new InputError("This event has finalized overall result history. Archive it instead of deleting it.",409);
     if(await tx.contactPolicy.count({where:{eventId}}))throw new InputError("This event has a configured contact policy. Its records need an explicit retention workflow.",409);
     if(await tx.announcement.count({where:{eventId}}))throw new InputError("This event has announcement history. It cannot be deleted as an empty draft.",409);
     if(await tx.stationOutcome.count({where:{eventId}}))throw new InputError("This event has confirmed outcomes. Its history cannot be deleted as a draft.",409);

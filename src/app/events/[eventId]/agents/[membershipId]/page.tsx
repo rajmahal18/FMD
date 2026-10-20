@@ -25,6 +25,7 @@ export default async function AgentDossier({params}:{params:Promise<{eventId:str
  const agent=await db().eventMembership.findFirst({where:{id:membershipId,eventId,active:true,role:"PARTICIPANT"},include:{user:{select:{name:true,sex:true,officeSection:true}},team:{select:{name:true,color:true}}}});
  if(!agent)notFound();
  const unit=agent.team?.name??"Unassigned";
+ if(m.role==="PARTICIPANT")return <Shell name={user.name} role={m.role} eventId={eventId} title="My profile"><section className="player-profile"><h2>{agent.user.name}</h2><dl><div><dt>Team</dt><dd>{unit}</dd></div><div><dt>Office / Section</dt><dd>{agent.user.officeSection??"Not recorded"}</dd></div>{agent.user.sex&&<div><dt>Sex</dt><dd>{agent.user.sex}</dd></div>}</dl><p>Ask the organizer if your details need correcting.</p><Link prefetch={false} href={`/events/${eventId}`} className="button">Go to mission</Link></section></Shell>;
  const callsign=`${unit.replace(/\D/g,"").padStart(2,"0")}-${agent.id.slice(-5).toUpperCase()}`;
  return <Shell name={user.name} role={m.role} eventId={eventId} title="Agent dossier">
   <div className="agent-dossier-shell">
@@ -37,6 +38,6 @@ export default async function AgentDossier({params}:{params:Promise<{eventId:str
    <div className="agent-dossier-bottom"><span>OUTRUN / OUTSMART / OUTLAST</span><span>PERSONNEL RECORD · PRIVATE</span></div>
   </div>
   <p className="fine">This record is visible to you and authorized event staff. Profile markers reflect event-provided roster data; no photo or sensitive background profile is required.</p>
-  <Link href={m.role==="PARTICIPANT"?`/events/${eventId}`:`/events/${eventId}/people`} className="secondary button">← Back to operation</Link>
+  <Link href={`/events/${eventId}/people`} className="secondary button">← Back to operation</Link>
  </Shell>;
 }

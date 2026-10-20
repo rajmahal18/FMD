@@ -1,4 +1,6 @@
 import "server-only";
+import {configurePenaltyButtons,recordTimePenalty,penaltyTotal} from "./time-penalties";
+import {getRaceRule} from "./race-ranking";
 import {Prisma,type Station} from "@/generated/prisma/client";
 import {db} from "@/lib/db";
 import {InputError} from "@/lib/validation";
@@ -12,12 +14,16 @@ const inflight=["QUEUED","ARRIVED","ACTIVE","AWAITING_CONFIRMATION"] as const;
 const occupied=["ARRIVED","ACTIVE","AWAITING_CONFIRMATION"] as const;
 export function parseRace(value:unknown):RaceCommand{
  if(!value||typeof value!=="object"||Array.isArray(value))throw new InputError("Invalid race request.");const v=value as Record<string,unknown>;
- const fields:Record<string,string[]>={startEvent:[],checkIn:["credential"],leaveQueue:["visitId"],admitTeam:["visitId"],startChallenge:["visitId"],finishChallenge:["visitId"],confirmResult:["visitId","successful","points","bonus","penalty","reason"]};
+ const fields:Record<string,string[]>={configureTimePenalties:["stationId","penaltyButtons","penaltyRevision"],addTimePenalty:["visitId","penaltyButtonId","expectedSeconds","expectedLabel"],voidTimePenalty:["visitId","penaltyEntryId","reason"],startEvent:[],checkIn:["credential"],leaveQueue:["visitId"],admitTeam:["visitId"],startChallenge:["visitId"],finishChallenge:["visitId"],confirmResult:["visitId","successful","points","bonus","penalty","reason","expectedPenaltySeconds"]};
  if(typeof v.operation!=="string"||!fields[v.operation]||Object.keys(v).some(k=>!["operation","requestKey",...fields[v.operation as string]].includes(k)))throw new InputError("Invalid race action.");
  if(typeof v.requestKey!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v.requestKey))throw new InputError("Refresh the action and try again.");
  if(v.operation==="checkIn"&&(typeof v.credential!=="string"||!v.credential.trim()||v.credential.length>1024))throw new InputError("Enter a station code or scan its QR.");
- if(!["checkIn","startEvent"].includes(v.operation)&&(typeof v.visitId!=="string"||!v.visitId||v.visitId.length>120))throw new InputError("Choose a team visit from this event.");
+ if(!["checkIn","startEvent","configureTimePenalties"].includes(v.operation)&&(typeof v.visitId!=="string"||!v.visitId||v.visitId.length>120))throw new InputError("Choose a team visit from this event.");
  if(v.operation==="confirmResult"){if(typeof v.successful!=="boolean")throw new InputError("Choose the challenge result.");for(const key of ["points","bonus","penalty"]){if(v[key]!==undefined&&(typeof v[key]!=="number"||!Number.isSafeInteger(v[key])||(v[key] as number)<0||(v[key] as number)>100000))throw new InputError("Points and adjustments must be whole numbers from 0 to 100000.");}if(v.reason!==undefined&&(typeof v.reason!=="string"||v.reason.length>500))throw new InputError("Keep the adjustment reason under 500 characters.");}
+ if(v.operation==="configureTimePenalties"&&(typeof v.stationId!=="string"||!v.stationId||v.stationId.length>120||!Number.isSafeInteger(v.penaltyRevision)||(v.penaltyRevision as number)<0))throw new InputError("Choose a station and refresh its violation buttons.");
+ if(v.operation==="addTimePenalty"&&(typeof v.penaltyButtonId!=="string"||!v.penaltyButtonId||v.penaltyButtonId.length>80||!Number.isInteger(v.expectedSeconds)||(v.expectedSeconds as number)<1||(v.expectedSeconds as number)>3600||typeof v.expectedLabel!=="string"||!v.expectedLabel||v.expectedLabel.length>80))throw new InputError("Choose a configured violation button.");
+ if(v.operation==="voidTimePenalty"&&(typeof v.penaltyEntryId!=="string"||!v.penaltyEntryId||v.penaltyEntryId.length>120||typeof v.reason!=="string"||v.reason.trim().length<5||v.reason.length>500))throw new InputError("Choose a recorded penalty and provide a 5 to 500 character void reason.");
+ if(v.expectedPenaltySeconds!==undefined&&(!Number.isSafeInteger(v.expectedPenaltySeconds)||(v.expectedPenaltySeconds as number)<0||(v.expectedPenaltySeconds as number)>86400))throw new InputError("Refresh the station time review.");
  return v as RaceCommand;
 }
 async function arrivalBudget(actorId:string,eventId:string){
@@ -62,31 +68,39 @@ export async function raceCommand(actorId:string,eventId:string,body:unknown):Pr
  return db().$transaction(async tx=>{
   const m=await context(tx,actorId,eventId);let team:Awaited<ReturnType<typeof captain>>|undefined;
   if(command.operation==="startEvent"){if(m.role!=="ORGANIZER")throw new InputError("Organizer access is required to start the operation.",403);}else if(["checkIn","leaveQueue"].includes(command.operation))team=await captain(tx,m,eventId);
+  if(command.operation==="configureTimePenalties"&&!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===command.stationId)))throw new InputError("You are not assigned to this station.",403);
   const visit=command.visitId?await tx.stationVisit.findFirst({where:{id:command.visitId,eventId},include:{station:true,team:true,outcome:true}}):null;
   if(command.visitId){if(!visit)throw new InputError("Team visit not found in this event.",404);if(command.operation==="leaveQueue"){if(visit.teamId!==team!.id)throw new InputError("You can only leave your own team’s queue.",403);}else if(!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===visit.stationId)))throw new InputError("You are not assigned to this station.",403);}
   const receipt=await tx.managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}});if(receipt){if(receipt.operation!==operation||receipt.requestHash!==requestHash)throw new InputError("This request key was already used with different details. Refresh before retrying.",409);return {...receipt.responseJson as RaceResult,replayed:true};}
   let result:RaceResult;let targetId=visit?.id;let details:Prisma.InputJsonValue={};
-  if(command.operation==="startEvent"){
+  if(command.operation==="configureTimePenalties"){
+   result=await configurePenaltyButtons(tx,eventId,m,command);targetId=command.stationId;details={stationId:command.stationId!,penaltyButtons:command.penaltyButtons as unknown as Prisma.InputJsonValue,previousRevision:command.penaltyRevision!,summary:result.message};
+  }else if(command.operation==="startEvent"){
    if(!["PREPARING","READY"].includes(m.event.state))throw new InputError("This operation has already started or is closed.",409);const ready=await readiness(tx,eventId);if(ready.issues.length)throw new InputError(`Preparation is incomplete: ${ready.issues[0].message}`,409);await tx.event.update({where:{id:eventId},data:{state:"LIVE"}});targetId=eventId;details={teamCount:ready.teamCount,stationCount:ready.stationCount};result={message:"Operation started. Captain check-in and station handling are live.",state:"LIVE",redirect:`/events/${eventId}`};
   }else if(command.operation==="confirmResult"){
-   if(!visit)throw new InputError("Choose a team visit.");let points:ReturnType<typeof resultPoints>;try{points=resultPoints(visit.station,{successful:command.successful!,points:command.points,bonus:command.bonus,penalty:command.penalty,reason:command.reason});}catch(e){throw new InputError((e as Error).message);}
+   if(!visit)throw new InputError("Choose a team visit.");const rule=await getRaceRule(tx,eventId);const timeOnly=rule==='TIME';if(timeOnly&&(command.successful!==true||command.points!==undefined||command.bonus||command.penalty))throw new InputError("This race ranks station times. Use time penalty buttons for violations.");let points:ReturnType<typeof resultPoints>;try{points=resultPoints(visit.station,timeOnly?{successful:true,...(visit.station.scoringMode==="MANUAL"?{points:visit.station.minimumPoints}:{})}:{successful:command.successful!,points:command.points,bonus:command.bonus,penalty:command.penalty,reason:command.reason});}catch(e){throw new InputError((e as Error).message);}
    const resultHash=tokenHash(JSON.stringify({visitId:visit.id,...points}));
    if(visit.outcome){if(visit.outcome.resultHash!==resultHash)throw new InputError("This visit already has a different confirmed result. Refresh its history; no points were changed.",409);result={...visit.outcome.confirmationJson as RaceResult,replayed:true};}
    else{
     requireLive(m.event.state);if(!visit.station.available)throw new InputError("This station is unavailable. Ask the organizer to review it.",409);if(visit.state!=="AWAITING_CONFIRMATION")throw new InputError("Finish this physical challenge before confirming its result.",409);
     const route=await tx.teamRouteAssignment.findUnique({where:{teamId:visit.teamId},include:{route:true}});if(!route||route.route.eventId!==eventId||!(route.stationIds as string[]).includes(visit.stationId))throw new InputError("This team’s route needs organizer review.",409);
-    const now=new Date();const durationSeconds=visit.startedAt?Math.max(0,Math.floor(((visit.finishedAt??now).getTime()-visit.startedAt.getTime())/1000)):null;
-    const outcome=await tx.stationOutcome.create({data:{eventId,teamId:visit.teamId,stationId:visit.stationId,visitId:visit.id,actorId,successful:points.successful,basePoints:points.basePoints,bonus:points.bonus,penalty:points.penalty,reason:points.reason,durationSeconds,confirmedAt:now,resultHash,confirmationJson:{}}});
+    const timePenaltySeconds=await penaltyTotal(tx,visit.id);if(timeOnly&&command.expectedPenaltySeconds===undefined)throw new InputError("Review the current station time and penalties before confirming.",409);if(command.expectedPenaltySeconds!==undefined&&command.expectedPenaltySeconds!==timePenaltySeconds)throw new InputError("Time penalties changed after review. Refresh and review the station time again.",409);
+    const now=new Date();const durationSeconds=visit.startedAt?Math.max(0,Math.floor(((visit.finishedAt??now).getTime()-visit.startedAt.getTime())/1000)):null;if(timeOnly&&(durationSeconds===null||!visit.finishedAt))throw new InputError("A recorded challenge start and finish are required for station timing.",409);
+    const outcome=await tx.stationOutcome.create({data:{eventId,teamId:visit.teamId,stationId:visit.stationId,visitId:visit.id,actorId,successful:points.successful,basePoints:points.basePoints,bonus:points.bonus,penalty:points.penalty,reason:points.reason,durationSeconds,timePenaltySeconds,confirmedAt:now,resultHash,confirmationJson:{}}});
     const entries:{kind:"STATION"|"BONUS"|"PENALTY";amount:number}[]=[{kind:"STATION",amount:points.basePoints}];if(points.bonus)entries.push({kind:"BONUS",amount:points.bonus});if(points.penalty)entries.push({kind:"PENALTY",amount:-points.penalty});
     for(const entry of entries)await tx.scoreLedgerEntry.create({data:{eventId,teamId:visit.teamId,stationId:visit.stationId,outcomeId:outcome.id,...entry}});
     await tx.stationVisit.update({where:{id:visit.id},data:{state:"COMPLETED",confirmedAt:now}});
     const completed=await tx.stationOutcome.findMany({where:{eventId,teamId:visit.teamId},select:{stationId:true}});const stations=await tx.station.findMany({where:{eventId,id:{in:route.stationIds as string[]}},select:{id:true,name:true,available:true}});
-    result={message:"Result confirmed. Points and route progress were saved together.",teamName:visit.team.name,stationName:visit.station.name,state:"COMPLETED",basePoints:points.basePoints,bonus:points.bonus,penalty:points.penalty,resultPoints:points.total,teamTotal:await teamTotal(tx,eventId,visit.teamId),nextDestination:nextDestination(route.mode,route.stationIds as string[],new Set(completed.map(o=>o.stationId)),stations),confirmedAt:now.toISOString()};
+    result={raceRule:rule,durationSeconds,timePenaltySeconds,adjustedDurationSeconds:durationSeconds===null?null:durationSeconds+timePenaltySeconds,message:timeOnly?"Station time confirmed. Route progress was saved together.":"Result confirmed. Points and route progress were saved together.",teamName:visit.team.name,stationName:visit.station.name,state:"COMPLETED",basePoints:points.basePoints,bonus:points.bonus,penalty:points.penalty,resultPoints:points.total,teamTotal:await teamTotal(tx,eventId,visit.teamId),nextDestination:nextDestination(route.mode,route.stationIds as string[],new Set(completed.map(o=>o.stationId)),stations),confirmedAt:now.toISOString()};
     await tx.stationOutcome.update({where:{id:outcome.id},data:{confirmationJson:result as Prisma.InputJsonValue}});await promoteQueue(tx,visit.station,actorId);targetId=outcome.id;details={visitId:visit.id,teamId:visit.teamId,stationId:visit.stationId,...points};
    }
   }else{
    requireLive(m.event.state);
    switch(command.operation){
+    case "addTimePenalty":case "voidTimePenalty":{
+     result=await recordTimePenalty(tx,actorId,visit!,command);result.teamName=visit!.team.name;result.stationName=visit!.station.name;
+     details={teamId:visit!.teamId,stationId:visit!.stationId,buttonId:command.penaltyButtonId??null,seconds:command.expectedSeconds??null,label:command.expectedLabel??null,penaltyEntryId:command.penaltyEntryId??null,reason:command.reason??null,timePenaltySeconds:result.timePenaltySeconds!,summary:result.message};break;
+    }
     case "checkIn":{
      const {station,existing}=await resolveArrival(tx,eventId,team!.id,command.credential!);await promoteQueue(tx,station,actorId);
      const current=existing?await tx.stationVisit.findUnique({where:{id:existing.id}}):null;

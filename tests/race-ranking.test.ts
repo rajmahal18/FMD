@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {rankRace,type RaceTeam} from '../src/lib/race-ranking';
+const teams:RaceTeam[]=[{id:'a',name:'Alpha',points:100,complete:true,challengeSeconds:120,completedAt:2000},{id:'b',name:'Bravo',points:100,complete:true,challengeSeconds:90,completedAt:3000},{id:'c',name:'Charlie',points:80,complete:true,challengeSeconds:60,completedAt:1000}];
+test('default points ranking preserves existing ties without implicit time tiebreak',()=>{assert.deepEqual(rankRace(teams).map(t=>[t.id,t.rank]),[['a',1],['b',1],['c',3]]);});
+test('points then time breaks points ties only when explicitly selected',()=>{assert.deepEqual(rankRace(teams,'POINTS_TIME').map(t=>t.id),['b','a','c']);});
+test('pure speed ranking ignores points and ranks adjusted station times ascending',()=>{const rows=rankRace(teams,'TIME');assert.deepEqual(rows.map(t=>t.id),['c','b','a']);assert.equal(rows[0].value,60);});
+test('time penalties can change the winner while equal adjusted times share rank',()=>{const rows=rankRace(teams.map(t=>({...t,challengeSeconds:t.id==='c'?100:t.id==='b'?100:120})),'TIME');assert.deepEqual(rows.map(t=>t.rank),[1,1,3]);assert(rows.every(t=>!t.pending));});
+test('incomplete routes and missing timing never win a time-based race',()=>{const rows=rankRace([...teams,{id:'d',name:'Delta',points:1000,complete:false,challengeSeconds:0,completedAt:0},{id:'e',name:'Echo',points:1000,complete:true,challengeSeconds:null,completedAt:4000}],'POINTS_TIME');assert.equal(rows[0].id,'b');assert(rows.slice(-2).every(t=>t.pending&&t.rank===0));});
+test('equal results stay tied under the selected rule with skipped ranks',()=>{const rows=rankRace(teams.map(t=>({...t,points:100,challengeSeconds:t.id==='c'?120:90})),'POINTS_TIME');assert.deepEqual(rows.map(t=>t.rank),[1,1,3]);});
