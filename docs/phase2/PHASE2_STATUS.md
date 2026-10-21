@@ -24,3 +24,6 @@ No email delivery, public signup or mailbox verification. Password recovery rema
 
 ## Phase 3 handoff
 Extend the existing Station model with participant/facilitator briefing, configured scoring policy and availability; build route plans with per-team preview and assignment. Support fixed/circular/free modes, not a generic activity AST. Validate event ownership and use event locks consistently. Preserve the partial captain index and append migration history. Implement real preflight requirements before exposing a Start action in later phases.
+## Team roster update
+
+Teams & agents is available to active organizers and facilitators in the same event. Facilitators get a read-only participant directory and existing player dossier links; roster mutations remain organizer-only. Each team has a tab with compact participant rows, plus Unassigned when needed and organizer-only Event staff. Add controls are folded below the roster; existing assignment, captain, role, removal and team editing forms remain available while Preparing and unarchived. Tabs support arrow/Home/End keyboard navigation and contained horizontal scrolling on mobile. No schema changes.

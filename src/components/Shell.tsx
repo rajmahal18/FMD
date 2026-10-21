@@ -29,6 +29,7 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
           <NavigationLink href={`/events/${eventId}/contact`}>Agent Contact</NavigationLink>
           <NavigationLink href={`/events/${eventId}/results`}>Amazing Race Results</NavigationLink>
         </>}
+        {role==="FACILITATOR"&&eventId&&<NavigationLink href={`/events/${eventId}/people`}>Teams & agents</NavigationLink>}
         {role==="FACILITATOR"&&eventId&&<NavigationLink href={`/events/${eventId}/voting`}>Voting events</NavigationLink>}
         {role==="FACILITATOR"&&eventId&&<NavigationLink href={`/events/${eventId}/results`}>Final results</NavigationLink>}
         {eventId&&role!=="ORGANIZER"&&<NavigationLink href={`/events/${eventId}/overall`}>Team Building Overall Ranking</NavigationLink>}

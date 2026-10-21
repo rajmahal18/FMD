@@ -53,6 +53,8 @@ try{
  await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"startedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['timer-browser-visit',event.id,timerTeam,'demo-cipher-room','ACTIVE']);
 
  if(process.env.PLAYER_BROWSER_ONLY)await pg.query('INSERT INTO "ContactPolicy" (id,"eventId",mode,"sameTeamAllowed","mutualConfirmation","reciprocityAllowed",visibility,"tieRule",enabled,"opensAt","closesAt") VALUES ($1,$2,$3,true,true,true,$4,$5,true,$6,$7)',['player-ui-contact-policy',event.id,'INTERACTION','SELF','SHARED',new Date(Date.now()-60000).toISOString(),new Date(Date.now()+7200000).toISOString()]);
+
+ if(process.env.ROSTER_BROWSER_ONLY)await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) SELECT $1,$2,id,$3 FROM "User" WHERE email=$4',['roster-browser-faci',roster.id,'FACILITATOR','facilitator@example.test']);
  console.log('PASS: roster rerun preserves 93 passwords and links organizer.');
  app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','3188'],{env,stdio:['ignore',fs.openSync(path.join(out,'server.log'),'w'),'ignore']});
  for(let i=0;i<50;i++){try{if((await fetch(appOrigin)).ok)break;}catch{}await new Promise(r=>setTimeout(r,200));}
@@ -77,7 +79,7 @@ try{
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
    await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(url);if(setup)await evaluate(setup);
-   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav")&&!e.closest(".player-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav")&&!e.closest(".player-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
    if(await evaluate("!!document.querySelector('.player-bottom-nav')")){
     await evaluate("window.scrollTo(0,document.documentElement.scrollHeight)");
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
@@ -95,13 +97,36 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alert]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
 
 
+
+  if(process.env.ROSTER_BROWSER_ONLY){
+   const peopleUrl='/events/'+roster.id+'/people';await check('roster-'+role,peopleUrl);
+   assert.equal(await evaluate("document.querySelectorAll('[role=tab]').length"),role==='organizer'?6:5);
+   assert.equal(await evaluate("document.querySelector('[role=tabpanel]:not([hidden])').querySelectorAll('.roster-row').length"),19);
+   await evaluate("document.querySelectorAll('[role=tab]')[2].click()");
+   assert.equal(await evaluate("document.querySelector('[role=tabpanel]:not([hidden])').querySelectorAll('.roster-row').length"),18);
+   assert.equal(await evaluate("[...document.querySelectorAll('[role=tabpanel]')].filter(e=>!e.hidden).length"),1);
+   await evaluate("document.querySelectorAll('[role=tab]')[2].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))");
+   assert(await evaluate("document.querySelectorAll('[role=tab]')[3].getAttribute('aria-selected')==='true'"));
+   if(role==='facilitator'){
+    assert.equal(await evaluate("document.querySelectorAll('.roster-edit,.roster-add').length"),0);
+    assert(await evaluate("!![...document.querySelectorAll('a')].find(a=>a.textContent==='Teams & agents')"));
+    await evaluate("document.querySelector('[role=tabpanel]:not([hidden]) .roster-name').click()");await new Promise(r=>setTimeout(r,500));
+    assert(await evaluate("!!document.querySelector('.agent-dossier-shell')"),'Facilitator can open a player dossier');
+   }else{
+    await evaluate("document.querySelector('[role=tabpanel]:not([hidden]) .roster-edit').open=true");
+    assert(await evaluate("!!document.querySelector('[role=tabpanel]:not([hidden]) input[name=membershipId]')"),'Organizer assignment form retained');
+    await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});
+    assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Expanded assignment form overflow');
+   }
+   console.log('PASS: '+role+' team tabs, participant grouping, keyboard navigation, roster permissions and mobile layout.');continue;
+  }
   if(process.env.RESET_BROWSER_ONLY){
    const resetUrl='/events/'+roster.id+'/lifecycle';
    await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',roster.id]);
