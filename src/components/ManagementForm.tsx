@@ -1,4 +1,6 @@
 "use client";
+import {ErrorNotice} from '@/components/ErrorNotice';
+
 import { useRef,useState,useTransition } from "react";
 import { useRouter } from "next/navigation";
 type Result={message?:string;error?:string;redirect?:string;temporaryPassword?:string;email?:string};
@@ -8,5 +10,5 @@ export function ManagementForm({operation,eventId,children,label="Save",confirm,
  const form=e.currentTarget;const data=new FormData(form);data.set("operation",operation);if(eventId)data.set("eventId",eventId);key.current||=crypto.randomUUID();data.set("requestKey",key.current);setBusy(true);setResult(null);
  try{const response=await fetch("/api/management",{method:"POST",body:data});const next:Result=await response.json();setResult(next);if(response.ok){key.current="";if(reset)form.reset();if(next.redirect){router.push(next.redirect);}else{startRefresh(()=>router.refresh());}}else if(response.status===401){router.push("/login");}}
  catch{setResult({error:"Connection lost. Your input is kept. Retry to check whether it was saved."});}finally{setBusy(false);}
- }}><fieldset disabled={busy||refreshing}>{children}<div className="form-actions"><button type="submit">{busy?"Saving…":refreshing?"Updating…":label}</button></div></fieldset>{result&&<div role={result.error?"alert":"status"} className={`feedback ${result.error?"error-feedback":"success-feedback"}`}><strong>{result.error??result.message}</strong>{result.temporaryPassword&&<div className="credentials"><p>Email: {result.email}</p><label>Temporary password<input readOnly value={result.temporaryPassword} onFocus={e=>e.currentTarget.select()} autoComplete="off"/></label><p>Shown once. Share privately. They must change it at first sign-in.</p><button type="button" className="secondary" onClick={()=>setResult(null)}>I saved the credentials</button></div>}{!result.error&&onSuccess&&<p>{onSuccess}</p>}</div>}</form>;
+ }}><fieldset disabled={busy||refreshing}>{children}<div className="form-actions"><button type="submit">{busy?"Saving…":refreshing?"Updating…":label}</button></div></fieldset>{result?.error&&<ErrorNotice>{result.error}</ErrorNotice>}{result&&!result.error&&<div role="status" className={`feedback ${result.error?"error-feedback":"success-feedback"}`}><strong>{result.error??result.message}</strong>{result.temporaryPassword&&<div className="credentials"><p>Email: {result.email}</p><label>Temporary password<input readOnly value={result.temporaryPassword} onFocus={e=>e.currentTarget.select()} autoComplete="off"/></label><p>Shown once. Share privately. They must change it at first sign-in.</p><button type="button" className="secondary" onClick={()=>setResult(null)}>I saved the credentials</button></div>}{!result.error&&onSuccess&&<p>{onSuccess}</p>}</div>}</form>;
 }

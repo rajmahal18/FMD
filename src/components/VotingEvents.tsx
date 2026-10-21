@@ -1,4 +1,7 @@
 'use client';
+import {RecordTabs} from './RecordTabs';
+import {ErrorNotice} from '@/components/ErrorNotice';
+
 import Link from 'next/link';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {timeoutSignal} from '@/lib/timeout-signal';
@@ -27,13 +30,13 @@ export function VotingEvents({initial,mode}:{initial:VotingData;mode:'setup'|'op
  const act=(body:Record<string,unknown>)=>void send({...body,operation:String(body.operation),requestKey:crypto.randomUUID()});
  return <div className="voting-workspace">
   {mode==='setup'?<p>Configure awards, voters, candidates and schedules. Enable voting and publish results in Live operations.</p>:data.organizer?<p>Enable voting within its schedule, review turnout, then close and publish results.</p>:<p>Choose your candidates and review your ballot before submitting. Each voting event allows one final ballot per person.</p>}
-  {error&&<p className="feedback error-feedback" role="alert">{error}</p>}{notice&&<p className="feedback success-feedback" role="status">{notice}</p>}
+  {error&&<ErrorNotice>{error}</ErrorNotice>}{notice&&<p className="feedback success-feedback" role="status">{notice}</p>}
   {pending&&<section className="voting-pending" role="status"><h2>Submission needs confirmation</h2><p>A saved request is waiting for confirmation. Retry sends the same request and does not add another vote.</p><button disabled={busy} onClick={()=>void send(pending)}>{busy?'Checking…':'Retry saved request'}</button><button className="secondary" disabled={busy} onClick={()=>void refresh().catch(e=>setError(e.message))}>Refresh recorded status</button></section>}
   {data.archived&&<p className="notice">Archived event. Voting and configuration are read-only.</p>}
   {mode==='setup'&&data.organizer&&!editing&&<button disabled={busy||!!pending||data.archived} onClick={()=>setEditing('new')}>Create voting event</button>}
   {editing&&<VotingEditor key={editing==='new'?'new':editing.id} data={data} poll={editing==='new'?null:editing} disabled={busy||!!pending||data.archived} onCancel={()=>setEditing(null)} onSave={input=>act({operation:editing==='new'?'create':'update',...(editing==='new'?{}:{id:editing.id,revision:editing.revision}),input})}/>}
   {!data.polls.length&&!editing&&<p>No voting events configured.</p>}
-  {data.polls.map(p=><section className="voting-event" key={p.id}>
+  <RecordTabs label="Voting events" items={data.polls.map(p=>({id:p.id,name:p.name,badge:p.status,content:<section className="voting-event">
    <div className="voting-event-heading"><h2>{p.name}</h2><span className={`tag voting-state${p.status==='Open'?' voting-open':''}`}>{p.status}</span></div>
    {p.instructions&&<p className="preserve-lines">{p.instructions}</p>}
    <p className="voting-schedule"><time>{schedule(p.opensAt,data.timezone)}</time> – <time>{schedule(p.closesAt,data.timezone)}</time><br/>{data.timezone}</p>
@@ -44,10 +47,10 @@ export function VotingEvents({initial,mode}:{initial:VotingData;mode:'setup'|'op
    </>:<>
     {data.organizer&&<div className="voting-management"><p><strong>{p.ballotCount} ballots recorded</strong></p>{!p.publishedAt&&<div className="voting-actions"><button disabled={busy||!!pending||data.archived||(!p.enabled&&new Date(p.closesAt)<=new Date(data.checkedAt))} onClick={()=>{if(window.confirm(`${p.enabled?'Close':'Enable'} voting for ${p.name}? Recorded ballots will be preserved.`))act({operation:'setEnabled',id:p.id,revision:p.revision,enabled:!p.enabled});}}>{p.enabled?'Close voting':'Enable voting'}</button><button className="secondary" disabled={busy||!!pending||data.archived||(p.enabled&&new Date(data.checkedAt)<new Date(p.closesAt))} onClick={()=>{if(window.confirm(`Publish final results for ${p.name}? Voting and configuration will be locked.`))act({operation:'publish',id:p.id,revision:p.revision});}}>Publish final results</button></div>}</div>}
     {p.ownChoices?<div className="voting-receipt"><strong>Your ballot is recorded</strong><p>{p.ownChoices.map(id=>data.people.find(a=>a.id===id)?.name??'Event member').join(', ')}</p><p className="fine">This ballot is final.</p></div>:p.status==='Open'&&p.eligible?<Ballot key={p.id+':'+p.revision} poll={p} people={data.people} disabled={busy||!!pending||data.archived} onSubmit={choices=>act({operation:'cast',id:p.id,choices})}/>:!p.publishedAt&&<p>{!p.eligible?'You are not included in this voting event’s voter rules.':p.status==='Scheduled'?'Voting will open at the scheduled time.':p.status==='Paused'?'Voting is paused with the event.':'Voting is currently closed.'}</p>}
-    {p.results&&<details className="voting-results" open={!!p.publishedAt}><summary>{p.publishedAt?'Final voting results':'Organizer results preview'}</summary>{!p.ballotCount?<p>No ballots recorded.</p>:<><p>Equal vote counts share rank. Candidates without votes have no placement.</p><ol>{p.results.map(r=><li key={r.id}><span className="voting-rank">{r.rank===null?'—':`#${r.rank}`}</span><strong>{r.name}</strong><span>{r.votes} vote{r.votes===1?'':'s'}</span></li>)}</ol></>}</details>}
+    {p.results&&<details className="voting-results" open={!!p.publishedAt}><summary>{p.publishedAt?'Final voting results':'Organizer results preview'}</summary>{!p.ballotCount?<p>No ballots recorded.</p>:<><p>Equal vote counts share rank. Candidates without votes have no placement.</p><ol className="bounded-records" tabIndex={0} aria-label="Candidate voting results">{p.results.map(r=><li key={r.id}><span className="voting-rank">{r.rank===null?'—':`#${r.rank}`}</span><strong>{r.name}</strong><span>{r.votes} vote{r.votes===1?'':'s'}</span></li>)}</ol></>}</details>}
     {!p.results&&!data.organizer&&<p className="fine">Vote totals are hidden until the organizer publishes final results.</p>}
    </>}
-  </section>)}
+  </section>}))} empty="No voting events configured."/>
   <div className="voting-footer"><button className="secondary" disabled={busy} onClick={()=>void refresh().catch(e=>setError(e.message))}>Refresh voting events</button>{data.organizer&&<Link href={`/events/${data.eventId}/${mode==='setup'?'voting':'voting-settings'}`} className="text-action">{mode==='setup'?'Open voting controls':'Open voting setup'}</Link>}</div>
  </div>;
 }
@@ -76,5 +79,5 @@ function VotingEditor({data,poll,disabled,onCancel,onSave}:{data:VotingData;poll
   <fieldset className="voting-candidate-setup"><legend>Candidates</legend><div className="voting-actions"><button type="button" className="secondary" onClick={()=>patch({candidateIds:active.filter(p=>p.role==='PARTICIPANT').map(p=>p.id)})}>Select all participants</button><button type="button" className="secondary" onClick={()=>patch({candidateIds:[]})}>Clear candidates</button></div><label>Find a person<input type="search" value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="voting-roster">{active.filter(p=>(p.name+' '+(p.teamName??'')).toLowerCase().includes(search.toLowerCase())).map(p=><label className="check" key={p.id}><input type="checkbox" checked={config.candidateIds.includes(p.id)} onChange={e=>toggle('candidateIds',p.id,e.target.checked)}/>{p.name}{p.teamName&&` · ${p.teamName}`}</label>)}</div><p>{config.candidateIds.length} candidates selected</p></fieldset>
   <label>Maximum choices per voter<input type="number" min={1} max={Math.max(1,Math.min(config.candidateIds.length,50))} required value={config.maxChoices} onChange={e=>patch({maxChoices:Number(e.target.value)})}/></label><label className="check"><input type="checkbox" checked={config.allowSelf} onChange={e=>patch({allowSelf:e.target.checked})}/>Allow voting for yourself</label><label className="check"><input type="checkbox" checked={config.allowSameTeam} onChange={e=>patch({allowSameTeam:e.target.checked})}/>Allow voting for candidates on the same team</label>
   <p>One final ballot per voter. Each selected candidate receives one vote. Results remain hidden until the organizer publishes them. Rules lock after the first ballot.</p><div className="voting-actions"><button type="submit">Review voting event</button><button type="button" className="secondary" onClick={onCancel}>Cancel</button></div>
- </fieldset>{error&&<p className="feedback error-feedback" role="alert">{error}</p>}</form></section>;
+ </fieldset>{error&&<ErrorNotice>{error}</ErrorNotice>}</form></section>;
 }

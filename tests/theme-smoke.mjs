@@ -55,6 +55,19 @@ try{
  if(process.env.PLAYER_BROWSER_ONLY)await pg.query('INSERT INTO "ContactPolicy" (id,"eventId",mode,"sameTeamAllowed","mutualConfirmation","reciprocityAllowed",visibility,"tieRule",enabled,"opensAt","closesAt") VALUES ($1,$2,$3,true,true,true,$4,$5,true,$6,$7)',['player-ui-contact-policy',event.id,'INTERACTION','SELF','SHARED',new Date(Date.now()-60000).toISOString(),new Date(Date.now()+7200000).toISOString()]);
 
  if(process.env.ROSTER_BROWSER_ONLY)await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) SELECT $1,$2,id,$3 FROM "User" WHERE email=$4',['roster-browser-faci',roster.id,'FACILITATOR','facilitator@example.test']);
+
+ if(process.env.LISTS_BROWSER_ONLY){
+  for(let i=0;i<7;i++){
+   await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured) VALUES ($1,$2,$3,$4,$5,$6,true)',['list-station-'+i,roster.id,'Station '+(i+1)+(i===0?' with a long physical challenge name':''),'Hall '+(i+1),'Complete the physical station game.','Confirm the team result.']);
+   await pg.query('INSERT INTO "User" (id,name,email,"passwordHash") SELECT $1,$2,$3,"passwordHash" FROM "User" WHERE email=$4',['list-user-'+i,'Facilitator '+(i+1),'list-faci-'+i+'@example.test','facilitator@example.test']);
+   await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) VALUES ($1,$2,$3,$4)',['list-member-'+i,roster.id,'list-user-'+i,'FACILITATOR']);
+   await pg.query('INSERT INTO "FacilitatorAssignment" (id,"membershipId","stationId") VALUES ($1,$2,$3)',['list-staff-'+i,'list-member-'+i,'list-station-'+i]);
+  }
+  for(let i=0;i<3;i++)await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['list-route-'+i,roster.id,'Route '+(i+1),'FIXED',JSON.stringify(['list-station-0','list-station-1'])]);
+  const teamRows=(await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 ORDER BY name',[roster.id])).rows;
+  for(const t of teamRows)await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['list-team-route-'+t.id,t.id,'list-route-0','FIXED',JSON.stringify(['list-station-0','list-station-1'])]);
+  for(let i=0;i<3;i++)await pg.query('INSERT INTO "VotingEvent" (id,"eventId",name,config,"opensAt","closesAt") VALUES ($1,$2,$3,$4,$5,$6)',['list-vote-'+i,roster.id,'Voting award '+(i+1),JSON.stringify({voterMode:'PARTICIPANTS',voterRoles:[],voterMembershipIds:[],voterTeamIds:[],candidateIds:[],maxChoices:1,allowSelf:false,allowSameTeam:true}),new Date(Date.now()+3600000).toISOString(),new Date(Date.now()+7200000).toISOString()]);
+ }
  console.log('PASS: roster rerun preserves 93 passwords and links organizer.');
  app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','3188'],{env,stdio:['ignore',fs.openSync(path.join(out,'server.log'),'w'),'ignore']});
  for(let i=0;i<50;i++){try{if((await fetch(appOrigin)).ok)break;}catch{}await new Promise(r=>setTimeout(r,200));}
@@ -79,7 +92,7 @@ try{
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
    await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(url);if(setup)await evaluate(setup);
-   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav")&&!e.closest(".player-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open]")&&!e.closest(".error-modal"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav")&&!e.closest(".player-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
    if(await evaluate("!!document.querySelector('.player-bottom-nav')")){
     await evaluate("window.scrollTo(0,document.documentElement.scrollHeight)");
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
@@ -94,10 +107,10 @@ try{
  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('input[name=email]')).outlineStyle`),'none','Keyboard focus must remain visible');
  await evaluate(`document.querySelector('input[name=email]').value='organizer@example.test';document.querySelector('input[name=password]').value='${env.SEED_PASSWORD}';document.querySelector('form').requestSubmit()`);
  for(let i=0;i<30;i++){if(await evaluate(`location.pathname==='/workspace'`))break;await new Promise(r=>setTimeout(r,200));}
- const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alert]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
+ const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
@@ -105,6 +118,80 @@ try{
 
 
 
+
+
+  if(process.env.LISTS_BROWSER_ONLY){
+   const clickTab=async(label,name)=>evaluate("(()=>{const list=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==="+JSON.stringify(label)+"&&e.getClientRects().length);const tab=[...list.children].find(e=>e.textContent.startsWith("+JSON.stringify(name)+"));tab.click();})()");
+   const visibleForm=label=>"[...document.forms].find(f=>f.getClientRects().length&&[...f.querySelectorAll('button')].some(b=>b.textContent==="+JSON.stringify(label)+"))";
+   await check('list-stations','/events/'+roster.id+'/stations');
+   assert.equal(await evaluate("[...document.querySelectorAll('form')].filter(f=>f.getClientRects().length&&f.textContent.includes('Save station rules')).length"),1);
+   await evaluate("const f="+visibleForm('Save station rules')+";f.querySelector('input[name=location]').value='Unsaved station location'");
+   await clickTab('Stations','Station 2');await clickTab('Stations','Station 1');
+   assert.equal(await evaluate(visibleForm('Save station rules')+".querySelector('input[name=location]').value"),'Unsaved station location');
+   await evaluate(visibleForm('Save station rules')+'.requestSubmit()');
+   for(let i=0;i<40;i++){if((await pg.query('SELECT location FROM "Station" WHERE id=$1',['list-station-0'])).rows[0].location==='Unsaved station location')break;await new Promise(r=>setTimeout(r,150));}
+   assert.equal((await pg.query('SELECT location FROM "Station" WHERE id=$1',['list-station-0'])).rows[0].location,'Unsaved station location');
+   await evaluate("const x=document.querySelector('.record-search input');x.focus()");await cmd('Input.insertText',{text:'Station 7'});
+   assert.equal(await evaluate("document.querySelectorAll('.record-tabs [role=tab]').length"),1);
+   await evaluate("document.querySelector('.record-search input').focus()");await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:'a',code:'KeyA',modifiers:2,windowsVirtualKeyCode:65});await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'a',code:'KeyA',modifiers:2,windowsVirtualKeyCode:65});await cmd('Input.insertText',{text:'No matching station'});
+   assert(await evaluate("document.body.textContent.includes('No matching records')"));
+   await check('list-routes','/events/'+roster.id+'/routes');await clickTab('Route sections','Team routes');await clickTab('Teams','Team 2');
+   assert.equal(await evaluate("[...document.querySelectorAll('.route-preview')].filter(e=>e.getClientRects().length).length"),1);
+   await evaluate("const d=[...document.querySelectorAll('.record-add')].find(e=>e.getClientRects().length);d.open=true");
+   assert.equal(await evaluate(visibleForm('Assign route')+".querySelector('select[name=teamId]').selectedOptions[0].textContent"),'Team 2');
+   await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Expanded route form overflow');
+   await evaluate("const f="+visibleForm('Assign route')+";const x=f.querySelector('select[name=routeId]');x.value='list-route-1';x.dispatchEvent(new Event('change',{bubbles:true}))");
+   await evaluate(visibleForm('Assign route')+'.requestSubmit()');
+   for(let i=0;i<40;i++){if((await pg.query('SELECT a."routeId" FROM "TeamRouteAssignment" a JOIN "Team" t ON t.id=a."teamId" WHERE t."eventId"=$1 AND t.name=$2',[roster.id,'Team 2'])).rows[0].routeId==='list-route-1')break;await new Promise(r=>setTimeout(r,150));}
+   assert.equal((await pg.query('SELECT a."routeId" FROM "TeamRouteAssignment" a JOIN "Team" t ON t.id=a."teamId" WHERE t."eventId"=$1 AND t.name=$2',[roster.id,'Team 2'])).rows[0].routeId,'list-route-1');
+   assert.equal((await pg.query('SELECT a."routeId" FROM "TeamRouteAssignment" a JOIN "Team" t ON t.id=a."teamId" WHERE t."eventId"=$1 AND t.name=$2',[roster.id,'Team 1'])).rows[0].routeId,'list-route-0');
+
+   await check('list-facilitators','/events/'+roster.id+'/staff');await clickTab('Staffing sections','By facilitator');await clickTab('Facilitators','Facilitator 2');
+   assert.equal(await evaluate("[...document.forms].filter(f=>f.getClientRects().length&&f.textContent.includes('Save station access')).length"),1);
+   await evaluate("const f="+visibleForm('Save station access')+";f.querySelector('input[name=stationId]').checked=true;f.requestSubmit()");
+   for(let i=0;i<40;i++){if((await pg.query('SELECT count(*)::int AS n FROM "FacilitatorAssignment" WHERE "membershipId"=$1',['list-member-1'])).rows[0].n===2)break;await new Promise(r=>setTimeout(r,150));}
+   assert.equal((await pg.query('SELECT count(*)::int AS n FROM "FacilitatorAssignment" WHERE "membershipId"=$1',['list-member-1'])).rows[0].n,2);
+
+   await check('list-activities','/events/'+roster.id+'/ranking-settings');await clickTab('Activities','Sports');
+   await evaluate("[...document.querySelectorAll('input[maxlength]')].find(e=>e.getClientRects().length).focus()");await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:'a',code:'KeyA',modifiers:2,windowsVirtualKeyCode:65});await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'a',code:'KeyA',modifiers:2,windowsVirtualKeyCode:65});await cmd('Input.insertText',{text:'Edited sports name'});
+   await clickTab('Activities','Spy Chase');await clickTab('Activities','Edited sports name');
+   assert.equal(await evaluate("[...document.querySelectorAll('input[maxlength]')].find(e=>e.getClientRects().length).value"),'Edited sports name');
+
+   await evaluate("[...document.querySelectorAll('button')].find(b=>b.getClientRects().length&&b.textContent==='Save draft').click()");
+   for(let i=0;i<40;i++){if((await pg.query('SELECT config FROM "OverallRanking" WHERE "eventId"=$1',[roster.id])).rows[0].config.events[1].name==='Edited sports name')break;await new Promise(r=>setTimeout(r,150));}
+   assert.equal((await pg.query('SELECT config FROM "OverallRanking" WHERE "eventId"=$1',[roster.id])).rows[0].config.events[1].name,'Edited sports name');
+   await clickTab('Overall ranking sections','Team standings');assert.equal(await evaluate("[...document.querySelectorAll('.overall-standing')].filter(e=>e.getClientRects().length).length"),5);
+   await check('list-voting','/events/'+roster.id+'/voting-settings');await clickTab('Voting events','Voting award 2');
+   assert.equal(await evaluate("[...document.querySelectorAll('.voting-event')].filter(e=>e.getClientRects().length).length"),1);
+   console.log('PASS: station/route/facilitator/activity/voting tabs, preserved unsaved edits, actual station save, search/empty state, team-scoped assignment and responsive lists.');continue;
+  }
+  if(process.env.ERROR_BROWSER_ONLY){
+   await check('error-modal-login','/login?error=rate');
+   assert(await evaluate("document.activeElement===document.querySelector('.error-modal button')"),'Error modal receives focus');
+   await evaluate("document.querySelector('input[name=email]').focus()");
+   assert(await evaluate("document.activeElement===document.querySelector('.error-modal button')"),'Background is inert');
+   await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+   await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await new Promise(r=>setTimeout(r,150));
+   assert(!(await evaluate("document.querySelector('.error-modal').open")),'Escape dismisses the error');
+   await visit('/events/'+roster.id+'/people');
+   await evaluate("document.querySelector('.roster-add').open=true;const form=[...document.forms].find(f=>f.querySelector('input[name=operation]')?.value==='addTeam'||[...f.querySelectorAll('button')].some(b=>b.textContent==='Add team'));form.querySelector('input[name=name]').focus();form.querySelector('input[name=name]').value='Team 1';form.requestSubmit()");
+   for(let i=0;i<40;i++){if(await evaluate("document.querySelector('.error-modal').open"))break;await new Promise(r=>setTimeout(r,150));}
+   assert(await evaluate("document.querySelector('.error-modal').open"),'Management errors open a modal');
+   for(const width of [320,390,768,1440]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});assert(await evaluate("(()=>{const r=document.querySelector('.error-modal').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&document.documentElement.scrollWidth<=innerWidth})()"),'Modal fits the viewport');}
+   await evaluate("document.querySelector('.error-modal button').click()");await new Promise(r=>setTimeout(r,150));
+   assert(!(await evaluate("document.querySelector('.error-modal').open")));
+   assert(await evaluate("[...document.forms].find(f=>[...f.querySelectorAll('button')].some(b=>b.textContent==='Add team')).querySelector('input[name=name]').value==='Team 1'"),'Error dismissal preserves input');
+   assert(await evaluate("document.activeElement?.getAttribute('name')==='name'"),'Focus returns to the form');
+   // Repeating the same failed submission must open a new notice.
+   await evaluate("[...document.forms].find(f=>[...f.querySelectorAll('button')].some(b=>b.textContent==='Add team')).requestSubmit()");
+   for(let i=0;i<40;i++){if(await evaluate("document.querySelector('.error-modal').open"))break;await new Promise(r=>setTimeout(r,150));}
+   assert(await evaluate("document.querySelector('.error-modal').open"));await evaluate("document.querySelector('.error-modal button').click()");
+   await evaluate("const f=[...document.forms].find(f=>[...f.querySelectorAll('button')].some(b=>b.textContent==='Add team'));f.querySelector('input[name=name]').value='Modal validation team';f.requestSubmit()");
+   for(let i=0;i<40;i++){if((await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 AND name=$2',[roster.id,'Modal validation team'])).rows.length)break;await new Promise(r=>setTimeout(r,150));}
+   assert.equal((await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 AND name=$2',[roster.id,'Modal validation team'])).rows.length,1);
+   assert(!(await evaluate("document.querySelector('.error-modal').open")),'Successful submissions do not open an error modal');
+   console.log('PASS: login and management error modals, focus trap/restore, Escape/Close, repeated errors, retained input, successful retry and responsive sizing.');continue;
+  }
   if(process.env.ROSTER_BROWSER_ONLY){
    const peopleUrl='/events/'+roster.id+'/people';await check('roster-'+role,peopleUrl);
    assert.equal(await evaluate("document.querySelectorAll('[role=tab]').length"),role==='organizer'?6:5);

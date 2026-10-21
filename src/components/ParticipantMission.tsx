@@ -1,4 +1,6 @@
 "use client";
+import {ErrorNotice} from '@/components/ErrorNotice';
+
 import {timeoutSignal} from "@/lib/timeout-signal";
 import {formatSeconds} from "@/lib/time-penalties";
 import {Announcements} from "./Announcements";
@@ -28,7 +30,7 @@ export function ParticipantMission({initial}:{initial:MissionData}){
  catch{if(alive.current)setError("Unable to refresh. Showing your last confirmed update. Retry when your connection returns.");}finally{inFlight.current=false;if(alive.current)setBusy(false);}
  },[initial.eventId]);
  useEffect(()=>{alive.current=true;const interval=setInterval(()=>{if(document.visibilityState==="visible")void refresh();},10000);const online=()=>void refresh();const offline=()=>setError("Connection lost. Showing your last confirmed update.");const visible=()=>{if(document.visibilityState==="visible")void refresh();};window.addEventListener("online",online);window.addEventListener("offline",offline);document.addEventListener("visibilitychange",visible);if(!navigator.onLine)offline();return()=>{alive.current=false;clearInterval(interval);window.removeEventListener("online",online);window.removeEventListener("offline",offline);document.removeEventListener("visibilitychange",visible);};},[refresh]);
- if(!data)return <section className="panel"><h2>Mission access unavailable</h2><p role="alert">{error}</p><a className="button" href="/login">Sign in again</a></section>;
+ if(!data)return <section className="panel"><h2>Mission access unavailable</h2><ErrorNotice>{error}</ErrorNotice><a className="button" href="/login">Sign in again</a></section>;
  const {view,stations,stationIds}=data;const state=copy[view.status];const freeChoice=data.route?.mode==="FREE"&&!view.active&&["HEAD_TO_STATION","NOT_STARTED"].includes(view.status);const currentId=freeChoice&&view.progress.unlocked.includes(selected)?selected:view.currentId;const current=stations.find(s=>s.id===currentId);const isFinished=view.status==="COMPLETE";const showStation=current&&!['NO_TEAM','NO_ROUTE','COMPLETE','REVIEW_REQUIRED'].includes(view.status);
  return <div className="participant-layout"><div className="mission-main">
  <Announcements items={data.announcements}/><PendingRaceRequests eventId={data.eventId} actorId={data.agent.id} onSuccess={()=>void refresh()}/>
@@ -49,7 +51,7 @@ export function ParticipantMission({initial}:{initial:MissionData}){
  </>}
  {stationIds.length>0&&<div className="mission-progress"><label htmlFor="mission-progress">{view.progress.completedCount} of {stationIds.length} stations completed</label><progress id="mission-progress" max={stationIds.length} value={view.progress.completedCount}/></div>}
  </section>
- <div className="sync-status" aria-label="Mission updates"><div><p suppressHydrationWarning>Updated {time(data.checkedAt)}</p>{error&&<p role="alert" className="connection-error">{error}</p>}</div><button className="secondary" disabled={busy} onClick={()=>void refresh()}>{busy?"Refreshing...":"Refresh mission"}</button></div>
+ <div className="sync-status" aria-label="Mission updates"><div><p suppressHydrationWarning>Updated {time(data.checkedAt)}</p>{error&&<ErrorNotice>{error}</ErrorNotice>}</div><button className="secondary" disabled={busy} onClick={()=>void refresh()}>{busy?"Refreshing...":"Refresh mission"}</button></div>
  </div>
  <div className="mission-support"><details id="route-history" className="panel" open={isFinished}><summary>Route &amp; completed stations</summary><p>{data.route?`${data.route.name} | ${data.route.mode==="FREE"?"Choose your order":"Follow the assigned order"}`:"No route assigned yet"}</p><p>{data.raceRule==='TIME'?`Confirmed station time: ${data.teamTimeSeconds===null?'Timing unavailable':formatSeconds(data.teamTimeSeconds??0)}`:`Confirmed total: ${data.teamTotal} points`}</p>
  <ol className="participant-route">{stationIds.map(id=>{const station=stations.find(s=>s.id===id);const visit=data.visits.find(v=>v.stationId===id);const done=visit?.state==="COMPLETED"&&visit.confirmedAt;return <li key={id}><div><strong>{station?.name??"Station needs organizer attention"}</strong>{done&&<p suppressHydrationWarning>Confirmed at {time(visit.confirmedAt!)}</p>}{done&&data.raceRule==='TIME'&&<p>{visit.durationSeconds===null?'Timing unavailable':formatSeconds((visit.durationSeconds??0)+(visit.timePenaltySeconds??0))} total | +{visit.timePenaltySeconds??0}s penalties</p>}{done&&data.raceRule!=='TIME'&&visit.points!==undefined&&<p>{visit.points} points</p>}</div><span className="tag">{done?"Completed":view.active?.stationId===id?copy[view.active.state]?.title:!station?.available?"Unavailable":view.progress.locked.includes(id)?"Locked":"Not visited"}</span></li>;})}</ol></details>

@@ -1,3 +1,5 @@
+
+import {ErrorNotice} from '@/components/ErrorNotice';
 import {safeReturnPath} from "@/lib/race";
 
 export default async function Login({searchParams}:{searchParams:Promise<{error?:string;changed?:string;returnTo?:string}>}){
@@ -27,7 +29,7 @@ export default async function Login({searchParams}:{searchParams:Promise<{error?
         <h1>Agent access</h1>
         <p>Use the individual account issued by your organizer.</p>
         {changed&&<div className="notice" role="status">Password saved. Sign in with your new password.</div>}
-        {error&&<div className="notice" role="alert">{error==="rate"?"Too many attempts. Wait 15 minutes, then try again.":"Unable to sign in. Check your email and password."}</div>}
+        {error&&<ErrorNotice>{error==="rate"?"Too many attempts. Wait 15 minutes, then try again.":"Unable to sign in. Check your email and password."}</ErrorNotice>}
         <form action="/api/auth/login" method="post">
           {returnTo&&<input type="hidden" name="returnTo" value={returnTo}/>}
           <label>Email<input name="email" type="email" autoComplete="username" required maxLength={254}/></label>
