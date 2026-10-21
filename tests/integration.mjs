@@ -132,6 +132,77 @@ try{
  const voteResetPreview=await postJson('/api/events/'+voteEvent+'/lifecycle-preview',voteResetBody);assert.equal(voteResetPreview.status,200);assert(voteResetPreview.effects.some(x=>x.includes('3 voting ballots')));
  const resetVotes=await postJson('/api/events/'+voteEvent+'/lifecycle',{...voteResetBody,previewToken:voteResetPreview.token,requestKey:crypto.randomUUID()});assert.equal(resetVotes.status,200);
  const resetVoting=await (await get(votePath,cookies.organizer)).json();assert.equal(resetVoting.polls.length,2);assert(resetVoting.polls.every(p=>p.ballotCount===0&&!p.enabled&&p.results.every(r=>r.votes===0)&&p.publishedAt===null));
+
+ // Organizer reset works on the existing official event, preserving identities and setup.
+ await pg.query('UPDATE "Event" SET "isDemo"=false,state=$2 WHERE id=$1',[voteEvent,'LIVE']);
+ const resetBase='/api/events/'+voteEvent+'/lifecycle';
+ const resetBody={operation:'resetEventRun',confirmation:'Voting Rehearsal',reason:'Repeat the full event flow with existing people'};
+ const identityBefore=(await pg.query('SELECT * FROM "User" ORDER BY id')).rows;
+ const membersBefore=(await pg.query('SELECT * FROM "EventMembership" ORDER BY id')).rows;
+ const otherBefore=(await pg.query('SELECT * FROM "Event" WHERE id<>$1 ORDER BY id',[voteEvent])).rows;
+ await pg.query('INSERT INTO "Team" (id,"eventId",name,color) VALUES ($1,$2,$3,$4)',['reset-team',voteEvent,'Reset team','#72d5e3']);
+ await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"arrivalCode",available) VALUES ($1,$2,$3,$4,$5,$6,false)',['reset-station',voteEvent,'Reset station','Hall','Physical game','ABCDEFGH']);
+ await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['reset-route',voteEvent,'Reset route','FIXED',JSON.stringify(['reset-station'])]);
+ await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['reset-route-assignment','reset-team','reset-route','FIXED',JSON.stringify(['reset-station'])]);
+ await pg.query('INSERT INTO "FacilitatorAssignment" (id,"membershipId","stationId") VALUES ($1,$2,$3)',['reset-fac-assignment',facId,'reset-station']);
+ await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"updatedAt","startedAt","finishedAt","confirmedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW(),NOW(),NOW())',['reset-visit',voteEvent,'reset-team','reset-station','COMPLETED']);
+ const resetActor=identityBefore.find(u=>u.email==='organizer@example.test').id;
+ await pg.query('INSERT INTO "StationOutcome" (id,"eventId","teamId","stationId","visitId","actorId",successful,"basePoints","resultHash","confirmationJson") VALUES ($1,$2,$3,$4,$5,$6,true,100,$7,$8)',['reset-outcome',voteEvent,'reset-team','reset-station','reset-visit',resetActor,'reset-result','{}']);
+ await pg.query('INSERT INTO "ScoreLedgerEntry" (id,"eventId","teamId","stationId","outcomeId",kind,amount) VALUES ($1,$2,$3,$4,$5,$6,100)',['reset-ledger',voteEvent,'reset-team','reset-station','reset-outcome','STATION']);
+ await pg.query('INSERT INTO "TimePenaltyEntry" (id,"eventId","teamId","stationId","visitId","actorId","buttonId",label,seconds) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,10)',['reset-penalty',voteEvent,'reset-team','reset-station','reset-visit',resetActor,'test','Test violation']);
+ const resetConfig={raceRule:'TIME',events:[{id:'sports',name:'Sports',weight:100,source:'MANUAL',credits:[100],ranks:{'reset-team':1}}]};
+ await pg.query('INSERT INTO "OverallRanking" ("eventId",config,finalized) VALUES ($1,$2,$3)',[voteEvent,JSON.stringify(resetConfig),JSON.stringify({published:true})]);
+ assert.equal((await postJson(resetBase+'-preview',resetBody,cookies.agent)).status,403);
+ assert.equal((await postJson(resetBase+'-preview',resetBody,cookies.facilitator)).status,403);
+ assert.equal((await postJson(resetBase+'-preview',{...resetBody,confirmation:'Wrong name'})).status,400);
+ const staleReset=await postJson(resetBase+'-preview',resetBody);assert.equal(staleReset.status,200);
+ await pg.query('UPDATE "TimePenaltyEntry" SET seconds=20 WHERE id=$1',['reset-penalty']);
+ assert.equal((await postJson(resetBase,{...resetBody,previewToken:staleReset.token,requestKey:crypto.randomUUID()})).status,409);
+ const freshReset=await postJson(resetBase+'-preview',resetBody);assert.equal(freshReset.status,200);
+ const resetKey=crypto.randomUUID();const resetPayload={...resetBody,previewToken:freshReset.token,requestKey:resetKey};
+ assert.equal((await postJson(resetBase,resetPayload)).status,200);
+ assert.equal((await postJson(resetBase,resetPayload)).replayed,true);
+ assert.deepEqual((await pg.query('SELECT * FROM "User" ORDER BY id')).rows,identityBefore);
+ assert.deepEqual((await pg.query('SELECT * FROM "EventMembership" ORDER BY id')).rows,membersBefore);
+ assert.deepEqual((await pg.query('SELECT * FROM "Event" WHERE id<>$1 ORDER BY id',[voteEvent])).rows,otherBefore);
+ assert.equal((await pg.query('SELECT state FROM "Event" WHERE id=$1',[voteEvent])).rows[0].state,'PREPARING');
+ for(const table of ['StationVisit','StationOutcome','ScoreLedgerEntry','TimePenaltyEntry','VotingBallot'])assert.equal((await pg.query('SELECT count(*)::int AS n FROM "'+table+'" WHERE "eventId"=$1',[voteEvent])).rows[0].n,0);
+ assert.equal((await pg.query('SELECT "arrivalCode",available FROM "Station" WHERE id=$1',['reset-station'])).rows[0].arrivalCode,'ABCDEFGH');
+ assert.equal((await pg.query('SELECT * FROM "TeamRouteAssignment" WHERE id=$1',['reset-route-assignment'])).rows.length,1);
+ assert.equal((await pg.query('SELECT * FROM "FacilitatorAssignment" WHERE id=$1',['reset-fac-assignment'])).rows.length,1);
+ const resetOverall=(await pg.query('SELECT config,finalized FROM "OverallRanking" WHERE "eventId"=$1',[voteEvent])).rows[0];assert.equal(resetOverall.finalized,null);assert.deepEqual(resetOverall.config.events[0].ranks,{});assert.equal(resetOverall.config.events[0].weight,100);
+ const checkpoints=(await pg.query('SELECT "detailsJson" FROM "AuditEntry" WHERE "eventId"=$1 AND action=$2',[voteEvent,'EVENT_RUN_RESET_CHECKPOINT'])).rows;assert.equal(checkpoints.length,1);assert.equal(checkpoints[0].detailsJson.snapshot.penalties[0].seconds,20);assert.equal(checkpoints[0].detailsJson.snapshot.entries[0].amount,100);assert(!JSON.stringify(checkpoints).includes('passwordHash'));
+ for(const state of ['PAUSED','FINALIZED']){await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',[state,voteEvent]);const preview=await postJson(resetBase+'-preview',resetBody);assert.equal(preview.status,200);assert.equal((await postJson(resetBase,{...resetBody,previewToken:preview.token,requestKey:crypto.randomUUID()})).status,200);}
+ await pg.query('UPDATE "Event" SET "archivedAt"=NOW() WHERE id=$1',[voteEvent]);assert.equal((await postJson(resetBase+'-preview',resetBody)).status,409);await pg.query('UPDATE "Event" SET "archivedAt"=NULL WHERE id=$1',[voteEvent]);
+
+ // An old preview must remain invalid even when a new run has identical live data.
+ await pg.query('UPDATE "EventMembership" SET "teamId"=$1,"isCaptain"=true WHERE id=$2',['reset-team',voterId]);
+ await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',voteEvent]);
+ const previousRun=(await pg.query('SELECT count(*)::int AS n FROM "AuditEntry" WHERE "eventId"=$1 AND action IN ($2,$3)',[voteEvent,'LIFECYCLE_RESETEVENTRUN','LIFECYCLE_RESETTESTEVENT'])).rows[0].n;
+ const previousEnd={operation:'endEvent',reason:'End the previous event run'};
+ const previousEndPreview=await postJson('/api/events/'+voteEvent+'/control-preview',previousEnd);assert.equal(previousEndPreview.status,200);
+ const previousRaceKey=crypto.randomUUID();
+ const previousRace={operation:'configureTimePenalties',stationId:'reset-station',penaltyButtons:[],penaltyRevision:0,runRevision:previousRun,requestKey:previousRaceKey};
+ assert.equal((await postJson('/api/events/'+voteEvent+'/race',previousRace)).status,200);
+ // Re-preview after configuration so the reset itself is the only difference.
+ const sameDataEndPreview=await postJson('/api/events/'+voteEvent+'/control-preview',previousEnd);assert.equal(sameDataEndPreview.status,200);
+ const resetBoundaryPreview=await postJson(resetBase+'-preview',resetBody);assert.equal(resetBoundaryPreview.status,200);
+ assert.equal((await postJson(resetBase,{...resetBody,previewToken:resetBoundaryPreview.token,requestKey:crypto.randomUUID()})).status,200);
+ await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',voteEvent]);
+ const staleEnd=await postJson('/api/events/'+voteEvent+'/control',{...previousEnd,previewToken:sameDataEndPreview.token,requestKey:crypto.randomUUID()});assert.equal(staleEnd.status,409);
+ assert.equal((await pg.query('SELECT state FROM "Event" WHERE id=$1',[voteEvent])).rows[0].state,'LIVE');
+ // Reject both uncommitted old requests and old successful receipts before replay.
+ assert.equal((await postJson('/api/events/'+voteEvent+'/race',previousRace)).status,409);
+ assert.equal((await postJson('/api/events/'+voteEvent+'/race',{operation:'checkIn',credential:'ABCDEFGH',runRevision:previousRun,requestKey:crypto.randomUUID()},cookies.agent)).status,409);
+ assert.equal((await postJson('/api/events/'+voteEvent+'/race',{operation:'startEvent',requestKey:crypto.randomUUID()})).status,409);
+ assert.equal((await postJson('/api/events/'+voteEvent+'/contact',{operation:'acceptContact',recordId:'old-record',runRevision:previousRun,requestKey:crypto.randomUUID()},cookies.agent)).status,409);
+ const currentRace={...previousRace,runRevision:previousRun+1,penaltyRevision:1,requestKey:crypto.randomUUID()};
+ assert.equal((await postJson('/api/events/'+voteEvent+'/race',currentRace)).status,200);
+ assert.equal((await postJson('/api/events/'+voteEvent+'/race',currentRace)).replayed,true);
+ const newEndPreview=await postJson('/api/events/'+voteEvent+'/control-preview',previousEnd);assert.equal(newEndPreview.status,200);
+ assert.equal((await postJson('/api/events/'+voteEvent+'/control',{...previousEnd,previewToken:newEndPreview.token,requestKey:crypto.randomUUID()})).status,200);
+ console.log('PASS: reset run boundary rejects old control previews, pending race/contact commands, missing revisions and old receipts; fresh actions/retries succeed.');
+ console.log('PASS: official event reset from Live/Paused/Finalized, checkpoint, stale preview, replay, role checks, preserved identities/setup and event isolation.');
  console.log('PASS: voting creation permissions, eligibility, self-vote/choice limits, pause, post-race voting, idempotence, private counts, locked rules, publication and archive retention.');
  const competitionOverall=(operation,revision,config=competitionConfig,cookie=cookies.organizer)=>postJson('/api/events/'+competition+'/overall',{operation,revision,config},cookie);
  const raceResultAction=async(operation)=>{const body={operation,reason:'Review competition result revision'};const preview=await postJson('/api/events/'+competition+'/results-preview',body);if(preview.status!==200)return preview;return postJson('/api/events/'+competition+'/results',{...body,previewToken:preview.token,requestKey:crypto.randomUUID()});};

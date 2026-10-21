@@ -95,12 +95,59 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alert]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
 
+
+  if(process.env.RESET_BROWSER_ONLY){
+   const resetUrl='/events/'+roster.id+'/lifecycle';
+   await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',roster.id]);
+   const namesBefore=(await pg.query('SELECT id,name,email,"passwordHash" FROM "User" ORDER BY id')).rows;
+   const membersBefore=(await pg.query('SELECT * FROM "EventMembership" WHERE "eventId"=$1 ORDER BY id',[roster.id])).rows;
+   await check('event-reset',resetUrl);
+   assert.equal(await evaluate("!![...document.querySelectorAll('h2')].find(e=>e.textContent==='Reset event run')"),true);
+   await evaluate("document.querySelector('.danger-zone input').focus()");await cmd('Input.insertText',{text:'Repeat the dry run using the same roster'});
+   const eventName=(await pg.query('SELECT name FROM "Event" WHERE id=$1',[roster.id])).rows[0].name;
+   await evaluate("document.querySelectorAll('.danger-zone input')[1].focus()");await cmd('Input.insertText',{text:eventName});
+   await evaluate("document.querySelector('.danger-zone form').requestSubmit()");
+   for(let i=0;i<40;i++){if(await evaluate("!!document.querySelector('.lifecycle-preview')"))break;await new Promise(r=>setTimeout(r,150));}
+   assert(await evaluate("!!document.querySelector('.lifecycle-preview')"),'Reset preview must open');
+   for(const width of [320,390,768,1440]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Reset preview overflow');}
+   await evaluate("document.querySelector('.lifecycle-preview button').click()");
+   for(let i=0;i<40;i++){if(await evaluate("!!document.querySelector('[role=status]')?.textContent.includes('Event run reset')"))break;await new Promise(r=>setTimeout(r,150));}
+   assert(await evaluate("!!document.querySelector('[role=status]')?.textContent.includes('Event run reset')"),'Reset must confirm');
+   assert.equal((await pg.query('SELECT state FROM "Event" WHERE id=$1',[roster.id])).rows[0].state,'PREPARING');
+   assert.deepEqual((await pg.query('SELECT id,name,email,"passwordHash" FROM "User" ORDER BY id')).rows,namesBefore);
+   assert.deepEqual((await pg.query('SELECT * FROM "EventMembership" WHERE "eventId"=$1 ORDER BY id',[roster.id])).rows,membersBefore);
+
+   // Fresh pages carry the new run revision; an already-open page keeps the old one.
+   await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing) VALUES ($1,$2,$3,$4,$5)',['revision-browser-station',roster.id,'Revision station','Hall','Physical game']);
+   const fieldUrl='/events/'+roster.id+'/field';
+   const reviewButtons=async()=>{
+    await evaluate("document.querySelectorAll('details').forEach(d=>d.open=true)");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Add violation button').click()");
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Review violation buttons').click()");
+   };
+   const saveButtons=async()=>{
+    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Save violation buttons').click()");
+    for(let i=0;i<40;i++){if(!(await evaluate("!![...document.querySelectorAll('button')].find(b=>b.textContent==='Confirming…')")))break;await new Promise(r=>setTimeout(r,150));}
+    await new Promise(r=>setTimeout(r,400));
+   };
+   await visit(fieldUrl);await reviewButtons();await saveButtons();
+   assert.equal((await pg.query('SELECT "timePenaltyRevision" AS n FROM "Station" WHERE id=$1',['revision-browser-station'])).rows[0].n,1,'Fresh post-reset page must save');
+   await visit(fieldUrl);await reviewButtons();
+   const resetAgain=await evaluate("(async()=>{const base="+JSON.stringify('/api/events/'+roster.id+'/lifecycle')+";const body={operation:'resetEventRun',reason:'Verify old pages are rejected after another reset',confirmation:"+JSON.stringify(eventName)+"};const p=await fetch(base+'-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const preview=await p.json();const r=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,previewToken:preview.token,requestKey:crypto.randomUUID()})});return r.status;})()");assert.equal(resetAgain,200);
+   await saveButtons();
+   assert(await evaluate("document.body.textContent.includes('This event was reset. Refresh the page')"),'Old rendered page must show reset error');
+   assert.equal((await pg.query('SELECT "timePenaltyRevision" AS n FROM "Station" WHERE id=$1',['revision-browser-station'])).rows[0].n,1,'Old page must not change the new run');
+   await visit(fieldUrl);await reviewButtons();await saveButtons();
+   assert.equal((await pg.query('SELECT "timePenaltyRevision" AS n FROM "Station" WHERE id=$1',['revision-browser-station'])).rows[0].n,2,'Reloaded page must use the new revision');
+   console.log('PASS: real browser sends current run revision, rejects stale open-page actions after reset, and resumes after reload.');
+   console.log('PASS: real organizer reset form, preview, confirmation, preserved 93-player roster and 320/390/768/1440 layouts.');continue;
+  }
   if(process.env.VOTING_BROWSER_ONLY){
    const voteUrl='/events/'+event.id+'/voting',setupUrl='/events/'+event.id+'/voting-settings';
    if(role==='organizer'){

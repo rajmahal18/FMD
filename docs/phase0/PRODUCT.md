@@ -60,7 +60,7 @@ QR scanner requires HTTPS, rear-camera preference, explicit permission, camera c
 
 On connection loss show Last confirmed update with timestamp. Persist an idempotent request before sending; display Pending confirmation and retry safely. Never unlock a station or award points from client-only state. No guaranteed offline Agent Contact: fresh token validation needs connectivity. No personalized shared service-worker cache. Refresh must preserve unsaved facilitator inputs.
 
-Destructive deletion is available for drafts/test events with confirmation. Live/completed events use archive or an explicitly scoped, audited retention workflow. Test events are visibly labeled and excluded from official results. Reset previews exactly which test records will be removed.
+Destructive deletion is available for drafts/test events with confirmation. Live/completed events use archive or an explicitly scoped, audited retention workflow. Organizers may explicitly reset an existing event run from any stage with exact-name confirmation and an impact preview, retaining accounts, roster and setup. Save the previous run in an atomic audit checkpoint before clearing operational records and returning to Preparing. Test events are visibly labeled and excluded from official results. See ../phase10/LIFECYCLE.md.
 
 ## Screens and acceptance
 Organizer: event list, setup checklist, people, station editor, route preview, Mission Control, results/award review, audit history.

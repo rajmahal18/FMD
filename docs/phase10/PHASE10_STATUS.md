@@ -1,5 +1,13 @@
 # Phase 10 — Lifecycle, retention and rehearsal reset
 
+## Existing-event reset update
+
+Review fix: reset audit history now supplies a monotonic run revision without a schema change. Preview tokens include the revision; rendered race/contact actions submit it, and server checks reject stale actions before receipt replay. Regression coverage reproduces an old End operation preview across reset/restart with identical live data, rejects old pending commands and receipts, and verifies current-run actions/retries.
+
+The organizer can now use **Event setup → Reset & archive → Reset event run** on an existing official or Demo event, including Live/Paused/Finalized stages. It returns to Preparing while retaining accounts/passwords, players, facilitators, teams/captains, station QR codes, routes and assignments. An atomic audit checkpoint retains the previous run before operational history and all published results/overall placements are cleared. Voting/contact collection close with configuration preserved. Exact-name confirmation, stale previews, role checks and idempotent retries are enforced. Archived events require restoration first. The legacy Demo-only reset API retains its restrictions. No schema migration is needed.
+
+Validation: 50 unit tests, production build, isolated authenticated integration tests (including checkpoint contents, unchanged-count stale previews, replay, Live/Paused/Finalized resets, preserved identities/setup and event isolation), and an actual headless-browser reset form/preview/confirmation with the 93-person roster at 320/390/768/1440px. No production event was reset. See LIFECYCLE.md for the current behavior; the original Phase 10 notes below describe the earlier Demo-only implementation.
+
 Phase 10 closes the retention gap from the Phase 0 product contract. Real operations are archived instead of destructively cleared; disposable Demo / no official results events get an explicit reset with a stale-safe preview.
 
 ## Delivered

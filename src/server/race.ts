@@ -1,3 +1,4 @@
+import {requireRunRevision} from './run-revision';
 import "server-only";
 import {configurePenaltyButtons,recordTimePenalty,penaltyTotal} from "./time-penalties";
 import {getRaceRule} from "./race-ranking";
@@ -15,7 +16,7 @@ const occupied=["ARRIVED","ACTIVE","AWAITING_CONFIRMATION"] as const;
 export function parseRace(value:unknown):RaceCommand{
  if(!value||typeof value!=="object"||Array.isArray(value))throw new InputError("Invalid race request.");const v=value as Record<string,unknown>;
  const fields:Record<string,string[]>={configureTimePenalties:["stationId","penaltyButtons","penaltyRevision"],addTimePenalty:["visitId","penaltyButtonId","expectedSeconds","expectedLabel"],voidTimePenalty:["visitId","penaltyEntryId","reason"],startEvent:[],checkIn:["credential"],leaveQueue:["visitId"],admitTeam:["visitId"],startChallenge:["visitId"],finishChallenge:["visitId"],confirmResult:["visitId","successful","points","bonus","penalty","reason","expectedPenaltySeconds"]};
- if(typeof v.operation!=="string"||!fields[v.operation]||Object.keys(v).some(k=>!["operation","requestKey",...fields[v.operation as string]].includes(k)))throw new InputError("Invalid race action.");
+ if(typeof v.operation!=="string"||!fields[v.operation]||Object.keys(v).some(k=>!["operation","requestKey","runRevision",...fields[v.operation as string]].includes(k)))throw new InputError("Invalid race action.");
  if(typeof v.requestKey!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v.requestKey))throw new InputError("Refresh the action and try again.");
  if(v.operation==="checkIn"&&(typeof v.credential!=="string"||!v.credential.trim()||v.credential.length>1024))throw new InputError("Enter a station code or scan its QR.");
  if(!["checkIn","startEvent","configureTimePenalties"].includes(v.operation)&&(typeof v.visitId!=="string"||!v.visitId||v.visitId.length>120))throw new InputError("Choose a team visit from this event.");
@@ -66,7 +67,7 @@ export async function raceCommand(actorId:string,eventId:string,body:unknown):Pr
  const command=parseRace(body);const {requestKey,...input}=command;const requestHash=tokenHash(JSON.stringify(Object.fromEntries(Object.entries(input).sort(([a],[b])=>a.localeCompare(b))))+eventId);const operation=`race:${command.operation}`;
  if(command.operation==="checkIn"&&!await db().managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}}))await arrivalBudget(actorId,eventId);
  return db().$transaction(async tx=>{
-  const m=await context(tx,actorId,eventId);let team:Awaited<ReturnType<typeof captain>>|undefined;
+  const m=await context(tx,actorId,eventId);await requireRunRevision(tx,eventId,command.runRevision);let team:Awaited<ReturnType<typeof captain>>|undefined;
   if(command.operation==="startEvent"){if(m.role!=="ORGANIZER")throw new InputError("Organizer access is required to start the operation.",403);}else if(["checkIn","leaveQueue"].includes(command.operation))team=await captain(tx,m,eventId);
   if(command.operation==="configureTimePenalties"&&!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===command.stationId)))throw new InputError("You are not assigned to this station.",403);
   const visit=command.visitId?await tx.stationVisit.findFirst({where:{id:command.visitId,eventId},include:{station:true,team:true,outcome:true}}):null;

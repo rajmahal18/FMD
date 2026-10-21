@@ -1,3 +1,4 @@
+import {runRevision} from './run-revision';
 import 'server-only';
 import {penaltyTotal} from './time-penalties';
 import {db} from '@/lib/db';
@@ -19,7 +20,7 @@ function required(value:string|undefined,label:string){if(!value?.trim())throw n
 async function plan(tx:Tx,eventId:string,c:ControlCommand,state:EventState){
  const teams=await tx.team.findMany({where:{eventId},include:{routeAssignment:true,members:{where:{active:true,user:{active:true}},include:{user:{select:{name:true,mustChangePassword:true}}}}},orderBy:{id:'asc'}});
  const stations=await tx.station.findMany({where:{eventId},include:{assignments:{include:{membership:{include:{user:{select:{active:true,mustChangePassword:true}}}}}}},orderBy:{id:'asc'}});const visits=await tx.stationVisit.findMany({where:{eventId},orderBy:{id:'asc'}});const outcomes=await tx.stationOutcome.findMany({where:{eventId},include:{entries:true,corrections:{include:{entries:true}}},orderBy:{id:'asc'}});const routes=await tx.routePlan.findMany({where:{eventId},orderBy:{id:'asc'}});const announcements=await tx.announcement.findMany({where:{eventId},orderBy:{id:'asc'}});
- const {requestKey:_key,previewToken:_token,...input}=c;const token=tokenHash(JSON.stringify({eventId,input,state,teams,stations,visits,outcomes,routes,announcements}));if(c.previewToken&&c.previewToken!==token)throw new InputError("The event changed after this preview. Refresh and review the impact again; nothing was changed.",409);
+ const {requestKey:_key,previewToken:_token,...input}=c;const token=tokenHash(JSON.stringify({runRevision:await runRevision(tx,eventId),eventId,input,state,teams,stations,visits,outcomes,routes,announcements}));if(c.previewToken&&c.previewToken!==token)throw new InputError("The event changed after this preview. Refresh and review the impact again; nothing was changed.",409);
  const effects:string[]=[];let title='';let afterRoute:{routeId:string;routeRevision:number;mode:RouteMode;stationIds:string[];startStationId:string|null}|undefined;
  const station=stations.find(s=>s.id===c.stationId);const visit=visits.find(v=>v.id===c.visitId);const outcome=outcomes.find(o=>o.id===c.outcomeId);const team=teams.find(t=>t.id===c.teamId);let score:ReturnType<typeof resultPoints>|undefined;
  const inflight=visits.filter(v=>!['COMPLETED','CANCELLED'].includes(v.state));

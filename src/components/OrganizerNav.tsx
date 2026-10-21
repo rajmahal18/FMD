@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-const setupLinks=[["Event details","/setup"],["Teams & agents","/people"],["Stations","/stations"],["Routes","/routes"],["Facilitators","/staff"],["Ranking rules","/ranking-settings"],["Contact policy","/contact-settings"],["Voting events","/voting-settings"],["Rehearsal","/rehearsal"],["Archive & reset","/lifecycle"]];
+const setupLinks=[["Event details","/setup"],["Teams & agents","/people"],["Stations","/stations"],["Routes","/routes"],["Facilitators","/staff"],["Ranking rules","/ranking-settings"],["Contact policy","/contact-settings"],["Voting events","/voting-settings"],["Rehearsal","/rehearsal"],["Reset & archive","/lifecycle"]];
 const liveLinks=[["Mission Control",""],["Field station","/field"],["Agent Contact","/contact-policy"],["Voting controls","/voting"],["Race results","/results"],["Overall results","/overall"]];
 export function OrganizerNav({eventId}:{eventId:string}){
  const path=usePathname(),base=`/events/${eventId}`;
