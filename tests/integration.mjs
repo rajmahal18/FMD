@@ -401,10 +401,24 @@ try{
  const roam=await prepareRace('Required first free roam rehearsal');
  const roamRoute=await command('saveRoute',{eventId:roam.e,name:'Random first then captain choice',mode:'FREE',routeStationId:[roam.s1,roam.s2]});
  assert.equal((await command('assignRoute',{eventId:roam.e,teamId:roam.a,routeId:roamRoute.targetId,startStationId:'foreign'})).status,400);
+ const bulkToken=async(e,routeId)=>{const html=(await (await get('/events/'+e+'/routes',cookies.organizer)).text()).replaceAll(String.fromCharCode(92,34),'"');const match=[...html.matchAll(/"id":"([^"]+)","name":"[^"]*","setupToken":"([a-f0-9]{64})"/g)].find(m=>m[1]===routeId);assert(match,'Route page must include the bulk setup token');return match[2];};
+ let allStarts={eventId:roam.e,routeId:roamRoute.targetId,setupToken:await bulkToken(roam.e,roamRoute.targetId),startingAssignments:JSON.stringify([{teamId:roam.a,startStationId:roam.s2},{teamId:roam.b,startStationId:roam.s1}])};
+ assert.equal((await command('assignAllFreeRoutes',allStarts,cookies.agent)).status,403);
+ const unbalanced=await command('assignAllFreeRoutes',{...allStarts,startingAssignments:JSON.stringify([{teamId:roam.a,startStationId:roam.s2},{teamId:roam.b,startStationId:roam.s2}])});assert.equal(unbalanced.status,400,JSON.stringify(unbalanced));
+ assert.equal((await command('assignAllFreeRoutes',{...allStarts,startingAssignments:JSON.stringify([{teamId:roam.a,startStationId:roam.s2},{teamId:roam.a,startStationId:roam.s1}])})).status,400);
+ assert.equal((await command('assignAllFreeRoutes',{...allStarts,startingAssignments:JSON.stringify([{teamId:roam.a,startStationId:roam.s2},{teamId:'foreign',startStationId:roam.s1}])})).status,400);
+ assert.equal((await command('assignAllFreeRoutes',{...allStarts,setupToken:'stale'})).status,409);
+ assert.equal((await command('assignAllFreeRoutes',{...allStarts,startingAssignments:JSON.stringify([{teamId:roam.a,startStationId:'foreign'},{teamId:roam.b,startStationId:roam.s1}])})).status,400);
+ assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1',[roamRoute.targetId])).rows[0].n,0,'Rejected bulk requests must preserve original assignments');
+
+ const bulkKey=crypto.randomUUID();assert.equal((await command('assignAllFreeRoutes',allStarts,cookies.organizer,bulkKey)).status,200);assert.equal((await command('assignAllFreeRoutes',allStarts,cookies.organizer,bulkKey)).replayed,true);
+ assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1 AND "startStationId" IS NOT NULL',[roamRoute.targetId])).rows[0].n,2);
+ assert.equal((await command('assignAllFreeRoutes',allStarts)).status,409);
+
  const roamAssignment={eventId:roam.e,teamId:roam.a,routeId:roamRoute.targetId,startStationId:roam.s2};const roamKey=crypto.randomUUID();
  assert.equal((await command('assignRoute',roamAssignment,cookies.organizer,roamKey)).status,200);assert.equal((await command('assignRoute',roamAssignment,cookies.organizer,roamKey)).replayed,true);
  for(const stationId of [roam.s1,roam.s2])await command('issueStationCode',{eventId:roam.e,stationId});
- assert.equal((await race(roam.e,'startEvent')).status,200);
+ assert.equal((await race(roam.e,'startEvent')).status,200);assert.equal((await command('assignAllFreeRoutes',allStarts)).status,409);
  const roamRead=async()=>await (await get('/api/events/'+roam.e+'/mission',cookies.agent)).json();let roamMission=await roamRead();
  assert.equal(roamMission.route.startStationId,roam.s2);assert.equal(roamMission.view.currentId,roam.s2);assert.deepEqual(roamMission.view.progress.unlocked,[roam.s2]);
  const rc1=await stationCode(roam.s1),rc2=await stationCode(roam.s2);

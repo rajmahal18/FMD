@@ -114,7 +114,7 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
     do{code=Array.from(randomBytes(8),b=>arrivalAlphabet[b&31]).join("");}while(await tx.station.findFirst({where:{eventId,arrivalCode:code}}));
     await tx.station.update({where:{id:station.id},data:{arrivalCode:code}});details={stationId:station.id,rotated:!!station.arrivalCode};result={message:"Arrival QR/code issued. Print the current station sign; earlier signs no longer work.",targetId:station.id};break;
    }
-   case "configureStation":case "saveRoute":case "assignRoute":case "removeRoute":case "unassignRoute":{
+   case "configureStation":case "saveRoute":case "assignRoute":case "assignAllFreeRoutes":case "removeRoute":case "unassignRoute":{
     const change=await routeCommand(tx,eventId,operation,data);const {details:changes,...response}=change;details=JSON.parse(JSON.stringify(changes));result=response;break;
    }
    default:throw new InputError("Unknown management action.");

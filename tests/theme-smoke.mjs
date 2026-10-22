@@ -44,7 +44,7 @@ try{
  for(const role of ['ORGANIZER','FACILITATOR','PARTICIPANT']){const email=role==='PARTICIPANT'?'agent@example.test':role.toLowerCase()+'@example.test';await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) SELECT $1,$2,id,$3 FROM "User" WHERE email=$4',['overall-browser-'+role,publishedId,role,email]);}
  await pg.query('INSERT INTO "OverallRanking" ("eventId",config,finalized) VALUES ($1,$2,$3)',[publishedId,JSON.stringify(publicConfig),JSON.stringify({rows:publicRows,config:publicConfig,finalizedAt:new Date().toISOString()})]);
 
- const timerTeam=(await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 LIMIT 1',[event.id])).rows[0].id;
+ const timerTeam=(await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 AND name=$2 LIMIT 1',[event.id,'Delta'])).rows[0].id;
  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',event.id]);
  await pg.query('UPDATE "EventMembership" SET "isCaptain"=true WHERE "eventId"=$1 AND role=$2',[event.id,'PARTICIPANT']);
  await pg.query('UPDATE "Station" SET configured=true,"timePenaltyButtons"=$1,"timePenaltyRevision"=1 WHERE id=$2',[JSON.stringify([{id:'wrong-step',label:'Wrong step',seconds:10},{id:'boundary',label:'Boundary violation',seconds:30}]),'demo-cipher-room']);
@@ -129,12 +129,16 @@ try{
     await pg.query('UPDATE "Station" SET configured=true,capacity=1,"queueEnabled"=false WHERE id=$1',['demo-cipher-room']);
     await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,configured,capacity) VALUES ($1,$2,$3,$4,$5,true,1)',['roam-browser-second',event.id,'Signal Station With a Long Station Name','South entrance with a long location description','Meet the handler']);
     await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['roam-browser-route',event.id,'Captain choice','FREE',JSON.stringify(['demo-cipher-room','roam-browser-second'])]);
-    await check('roam-route-preview','/events/'+event.id+'/routes',"(async()=>{const list=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==='Route sections');[...list.children].find(e=>e.textContent.startsWith('Team routes')).click();await new Promise(r=>setTimeout(r,150));document.querySelector('.record-add').open=true;[...document.querySelectorAll('button')].find(e=>e.textContent==='Randomize first station').click();})()");
-    assert(await evaluate("!!document.querySelector('select[name=startStationId]').value"),'Random preview must choose a first stop');
-    const first=await evaluate("document.querySelector('select[name=startStationId]').value");
-    await evaluate("[...document.forms].find(f=>f.querySelector('select[name=startStationId]')).requestSubmit()");
-    for(let i=0;i<40;i++){const row=(await pg.query('SELECT "startStationId" FROM "TeamRouteAssignment" WHERE "teamId"=$1',[team.id])).rows[0];if(row?.startStationId===first)break;await new Promise(r=>setTimeout(r,150));}
-    assert.equal((await pg.query('SELECT "startStationId" FROM "TeamRouteAssignment" WHERE "teamId"=$1',[team.id])).rows[0].startStationId,first);
+
+    for(let i=0;i<4;i++)await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['bulk-browser-team-'+i,event.id,'Team '+(i+1)+' with a long team name']);
+    const showBulk="(async()=>{const tabs=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==='Route sections');[...tabs.children].find(e=>e.textContent.startsWith('Team routes')).click();await new Promise(r=>setTimeout(r,100));document.querySelector('.bulk-starts>button').click();await new Promise(r=>setTimeout(r,100));})()";
+    await check('roam-all-team-preview','/events/'+event.id+'/routes',showBulk);
+    assert.equal(await evaluate("document.querySelectorAll('.bulk-starts .management-form .bulk-start-row').length"),5);
+    assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1',['roam-browser-route'])).rows[0].n,0,'Preview must not save assignments');
+    await evaluate("document.querySelector('.bulk-starts form').requestSubmit()");
+    for(let i=0;i<40;i++){if((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1',['roam-browser-route'])).rows[0].n===5)break;await new Promise(r=>setTimeout(r,150));}
+    assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1',['roam-browser-route'])).rows[0].n,5);
+    const loads=(await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1 GROUP BY "startStationId"',['roam-browser-route'])).rows.map(r=>r.n);assert.equal(Math.max(...loads)-Math.min(...loads),1);
     await pg.query('UPDATE "EventMembership" SET "isCaptain"=true WHERE "eventId"=$1 AND role=$2',[event.id,'PARTICIPANT']);await pg.query('UPDATE "Event" SET state=$2 WHERE id=$1',[event.id,'LIVE']);
    }else{
     await check('roam-required-first','/events/'+event.id);assert(await evaluate("document.body.textContent.includes('Required first station.')"));assert.equal(await evaluate("!!document.querySelector('.station-choice')"),false);

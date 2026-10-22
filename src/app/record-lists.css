@@ -27,3 +27,5 @@
 .record-workspace .record-panel>.paper-file .status-good{color:#83d6b2}
 .record-workspace .record-panel>.paper-file :is(.status-wait,.demo){color:#f5cb83}
 .record-workspace .record-panel>.paper-file .danger-text{color:#ffa4a8}
+
+.bulk-starts{min-width:0}.bulk-starts>label{display:grid;gap:8px;font-weight:600;max-width:560px}.bulk-starts select{width:100%;min-width:0;max-width:100%;min-height:46px;background:#eaf4f5;color:#10243a;border:1px solid #789ba6;border-radius:4px;padding:10px;font:inherit}.bulk-start-preview{max-height:440px;overflow-y:auto;overscroll-behavior:contain}.bulk-start-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:12px;border-top:1px solid var(--line);padding:12px 0;overflow-wrap:anywhere}.bulk-start-row p{margin:0}.bulk-starts .management-form{margin-bottom:24px}@media(max-width:600px){.bulk-start-row{grid-template-columns:minmax(0,1fr);gap:4px}.bulk-starts button{max-width:100%;white-space:normal}.bulk-start-preview{max-height:55dvh}}

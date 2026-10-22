@@ -1,4 +1,11 @@
 export type RouteMode="FIXED"|"CIRCULAR"|"FREE";
+export function randomStartingAssignments(teamIds:string[],stationIds:string[],random:()=>number=Math.random){
+ if(!teamIds.length||new Set(teamIds).size!==teamIds.length)throw new Error("Choose distinct teams.");
+ routeOrder("FREE",stationIds);
+ function shuffle(ids:string[]){const result=[...ids];for(let i=result.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}return result;}
+ const teams=shuffle(teamIds),stations=shuffle(stationIds);
+ return teams.map((teamId,i)=>({teamId,startStationId:stations[i%stations.length]}));
+}
 export function routeOrder(mode:RouteMode,ids:string[],start?:string|null):string[]{
  if(!ids.length||new Set(ids).size!==ids.length)throw new Error("Choose at least one station, without duplicates.");
  if(mode!=="FIXED"&&mode!=="CIRCULAR"&&mode!=="FREE")throw new Error("Choose a valid route mode.");
