@@ -85,7 +85,7 @@ try{
  const cmd=(method,params)=>send(method,params,sessionId);
  await cmd('Page.enable');await cmd('Runtime.enable');await cmd('Network.enable');
  await cmd('Security.setIgnoreCertificateErrors',{ignore:true});
- const evaluate=async expression=>{const r=await cmd('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.text);return r.result.value;};
+ const evaluate=async expression=>{const r=await cmd('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
  const visit=async url=>{await cmd('Page.navigate',{url:origin+url});await new Promise(r=>setTimeout(r,450));await evaluate('document.fonts.ready.then(()=>true)');};
  let votingPollId,votingOrganizerCookie;
  const checks=[];
@@ -110,7 +110,7 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
@@ -120,6 +120,30 @@ try{
 
 
 
+  if(process.env.FREE_ROAM_BROWSER_ONLY){
+   const {rows:[team]}=await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 LIMIT 1',[event.id]);
+   if(role==='organizer'){
+    await pg.query('DELETE FROM "StationVisit" WHERE "eventId"=$1',[event.id]);await pg.query('UPDATE "Event" SET state=$2 WHERE id=$1',[event.id,'PREPARING']);
+    await pg.query('UPDATE "Station" SET configured=true,capacity=1,"queueEnabled"=false WHERE id=$1',['demo-cipher-room']);
+    await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,configured,capacity) VALUES ($1,$2,$3,$4,$5,true,1)',['roam-browser-second',event.id,'Signal Station With a Long Station Name','South entrance with a long location description','Meet the handler']);
+    await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['roam-browser-route',event.id,'Captain choice','FREE',JSON.stringify(['demo-cipher-room','roam-browser-second'])]);
+    await check('roam-route-preview','/events/'+event.id+'/routes',"(async()=>{const list=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==='Route sections');[...list.children].find(e=>e.textContent.startsWith('Team routes')).click();await new Promise(r=>setTimeout(r,150));document.querySelector('.record-add').open=true;[...document.querySelectorAll('button')].find(e=>e.textContent==='Randomize first station').click();})()");
+    assert(await evaluate("!!document.querySelector('select[name=startStationId]').value"),'Random preview must choose a first stop');
+    const first=await evaluate("document.querySelector('select[name=startStationId]').value");
+    await evaluate("[...document.forms].find(f=>f.querySelector('select[name=startStationId]')).requestSubmit()");
+    for(let i=0;i<40;i++){const row=(await pg.query('SELECT "startStationId" FROM "TeamRouteAssignment" WHERE "teamId"=$1',[team.id])).rows[0];if(row?.startStationId===first)break;await new Promise(r=>setTimeout(r,150));}
+    assert.equal((await pg.query('SELECT "startStationId" FROM "TeamRouteAssignment" WHERE "teamId"=$1',[team.id])).rows[0].startStationId,first);
+    await pg.query('UPDATE "EventMembership" SET "isCaptain"=true WHERE "eventId"=$1 AND role=$2',[event.id,'PARTICIPANT']);await pg.query('UPDATE "Event" SET state=$2 WHERE id=$1',[event.id,'LIVE']);
+   }else{
+    await check('roam-required-first','/events/'+event.id);assert(await evaluate("document.body.textContent.includes('Required first station.')"));assert.equal(await evaluate("!!document.querySelector('.station-choice')"),false);
+    await pg.query('UPDATE "TeamRouteAssignment" SET "startStationId"=NULL WHERE "teamId"=$1',[team.id]);
+    await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['roam-busy-team',event.id,'Busy team']);await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"updatedAt") VALUES ($1,$2,$3,$4,$5,now())',['roam-busy-visit',event.id,'roam-busy-team','demo-cipher-room','ARRIVED']);
+    await check('roam-station-choice','/events/'+event.id);assert(await evaluate("document.querySelector('.station-availability').textContent.includes('Full')"));
+    await evaluate("const select=document.querySelector('.station-choice select');select.value='roam-browser-second';select.dispatchEvent(new Event('change',{bubbles:true}))");assert(await evaluate("document.querySelector('.destination').textContent.includes('Signal Station')"));
+    await cmd('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});await check('roam-reduced-motion','/events/'+event.id);
+   }
+   console.log('PASS: free roam '+role+' preview/save or required first/availability/choice at all viewport sizes.');continue;
+  }
   if(process.env.LISTS_BROWSER_ONLY){
    const clickTab=async(label,name)=>evaluate("(()=>{const list=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==="+JSON.stringify(label)+"&&e.getClientRects().length);const tab=[...list.children].find(e=>e.textContent.startsWith("+JSON.stringify(name)+"));tab.click();})()");
    const visibleForm=label=>"[...document.forms].find(f=>f.getClientRects().length&&[...f.querySelectorAll('button')].some(b=>b.textContent==="+JSON.stringify(label)+"))";

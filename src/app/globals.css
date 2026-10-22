@@ -320,3 +320,7 @@ button:hover,.button:hover{background:linear-gradient(135deg,#b7f7ff,#63e6ff);tr
 .staff-account-menu{position:absolute;bottom:calc(100% + 8px);left:0;display:grid;gap:8px;min-width:190px;max-width:calc(100vw - 32px);padding:16px;border:1px solid #57738a;border-radius:4px;background:#10243a;box-shadow:0 8px 24px #0008}
 .staff-account-menu>a{display:flex;align-items:center;min-height:44px}
 @media(max-width:760px){.facilitator-shell aside{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:8px 16px}.facilitator-shell .brand-lockup{margin:0;grid-column:1}.facilitator-shell .brand-emblem{width:36px;height:36px}.facilitator-shell .brand-copy .wordmark{font-size:18px}.facilitator-shell .shell-links{grid-column:1/-1;grid-row:2}.facilitator-shell .staff-account{grid-column:2;grid-row:1;margin:0}.staff-account-menu{top:calc(100% + 8px);bottom:auto;left:auto;right:0}.facilitator-shell .content{padding-top:16px}}
+
+.station-availability{list-style:none;padding:0;margin:0}.station-availability li{display:flex;justify-content:space-between;gap:12px;padding:16px 0;border-top:1px solid var(--border-dark,#385166)}.station-availability li>div{min-width:0;overflow-wrap:anywhere}.station-availability li>div:last-child{display:flex;flex-direction:column;gap:8px;align-items:flex-start;flex-shrink:0;max-width:45%}.station-availability p{margin:4px 0}.station-availability button{white-space:normal}
+
+.participant-card .station-choice .fine{color:var(--muted-light,#B0C2D1)}

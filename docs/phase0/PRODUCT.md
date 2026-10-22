@@ -18,7 +18,7 @@ Create event with name and timezone; dates and branding can be filled afterward.
 
 Each station contains name, optional codename, location, participant directions, facilitator instructions, assigned staff, scoring policy and operational availability. Capacity/queueing is optional and initially off. No activity object is needed.
 
-Routes support same fixed order, circular order with different starting stations, or free roam. Randomized and complex conditional routes are deferred until a real requirement. Show a per-team route preview before assigning. Changing routes during a live event requires an impact preview and reason; preserve the original assignment and completed visits.
+Routes support same fixed order, circular order with different starting stations, or free roam. Free roam optionally requires an assigned first station before captain choice opens. Organizers can preview a randomized first stop, favoring stations with fewer assigned starts, and save it per team. Existing free-roam assignments without a starting station remain unrestricted. Participants see station occupancy, queue counts and operational availability; arrival rechecks capacity on the server. Complex conditional routes are deferred until a real requirement. Show a per-team route preview before assigning. Changing routes during a live event requires an impact preview and reason; preserve the original assignment and completed visits.
 
 ## Live station flow
 1. Participant sees one primary current-station card, location and next action.

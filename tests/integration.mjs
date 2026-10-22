@@ -397,6 +397,29 @@ try{
  const controlCommit=async(e,body,cookie=cookies.organizer,key=crypto.randomUUID(),originHeader=origin)=>{const r=await fetch(`${origin}/api/events/${e}/control`,{method:'POST',headers:{origin:originHeader,cookie,'content-type':'application/json'},body:JSON.stringify({...body,requestKey:key})});return {status:r.status,...await r.json()};};
  const control=async(e,operation,values={},cookie=cookies.organizer)=>{const body={operation,reason:'Authenticated integration rehearsal',...values};const preview=await controlPreview(e,body,cookie);if(preview.status!==200)return preview;return controlCommit(e,{...body,previewToken:preview.token},cookie);};
 
+ // Free roam with a required first stop: enforced through real HTTP arrivals and confirmation.
+ const roam=await prepareRace('Required first free roam rehearsal');
+ const roamRoute=await command('saveRoute',{eventId:roam.e,name:'Random first then captain choice',mode:'FREE',routeStationId:[roam.s1,roam.s2]});
+ assert.equal((await command('assignRoute',{eventId:roam.e,teamId:roam.a,routeId:roamRoute.targetId,startStationId:'foreign'})).status,400);
+ const roamAssignment={eventId:roam.e,teamId:roam.a,routeId:roamRoute.targetId,startStationId:roam.s2};const roamKey=crypto.randomUUID();
+ assert.equal((await command('assignRoute',roamAssignment,cookies.organizer,roamKey)).status,200);assert.equal((await command('assignRoute',roamAssignment,cookies.organizer,roamKey)).replayed,true);
+ for(const stationId of [roam.s1,roam.s2])await command('issueStationCode',{eventId:roam.e,stationId});
+ assert.equal((await race(roam.e,'startEvent')).status,200);
+ const roamRead=async()=>await (await get('/api/events/'+roam.e+'/mission',cookies.agent)).json();let roamMission=await roamRead();
+ assert.equal(roamMission.route.startStationId,roam.s2);assert.equal(roamMission.view.currentId,roam.s2);assert.deepEqual(roamMission.view.progress.unlocked,[roam.s2]);
+ const rc1=await stationCode(roam.s1),rc2=await stationCode(roam.s2);
+ assert.equal((await arrivalPreview(roam.e,rc1,cookies.agent)).status,409);assert.equal((await race(roam.e,'checkIn',{credential:rc1},cookies.agent)).status,409);
+ assert.equal((await race(roam.e,'checkIn',{credential:rc2},cookies.agent)).status,200);const rv=await visitFor(roam.a,roam.s2);
+ roamMission=await roamRead();assert.equal(roamMission.stations.find(s=>s.id===roam.s2).occupied,1);assert.equal(roamMission.stations.find(s=>s.id===roam.s2).capacity,1);
+ assert.equal((await race(roam.e,'checkIn',{credential:rc2},aliceCookie)).status,409); // full, queue disabled
+ for(const operation of ['startChallenge','finishChallenge'])assert.equal((await race(roam.e,operation,{visitId:rv.id},cookies.facilitator)).status,200);
+ assert.deepEqual((await roamRead()).view.progress.unlocked,[roam.s2]);
+ const roamConfirm={visitId:rv.id,successful:true,points:50};const roamConfirmKey=crypto.randomUUID();assert.equal((await race(roam.e,'confirmResult',roamConfirm,cookies.facilitator,roamConfirmKey)).status,200);assert.equal((await race(roam.e,'confirmResult',roamConfirm,cookies.facilitator,roamConfirmKey)).replayed,true);
+ roamMission=await roamRead();assert.deepEqual(roamMission.view.progress.unlocked,[roam.s1]);assert.equal(roamMission.stations.find(s=>s.id===roam.s2).occupied,0);
+ assert.equal((await race(roam.e,'checkIn',{credential:rc2},cookies.agent)).status,409);assert.equal((await race(roam.e,'checkIn',{credential:rc1},cookies.agent)).status,200);
+ const rv2=await visitFor(roam.a,roam.s1);for(const operation of ['startChallenge','finishChallenge'])assert.equal((await race(roam.e,operation,{visitId:rv2.id},cookies.facilitator)).status,200);
+ assert.equal((await race(roam.e,'confirmResult',{visitId:rv2.id,successful:true},cookies.facilitator)).status,200);assert.equal((await roamRead()).view.status,'COMPLETE');
+ console.log('PASS: Required first free roam, readiness, server lock, occupancy, full station rejection, confirmation retries and completion.');
  // Pure station-speed race with configurable, idempotent and attributed timer penalties.
  const speed=await prepareRace('Station timer penalty rehearsal');
  const onlyStation=await command('saveRoute',{eventId:speed.e,name:'Single timed station',mode:'FIXED',routeStationId:[speed.s1]});

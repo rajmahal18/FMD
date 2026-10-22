@@ -99,3 +99,9 @@ Native Neon migration/deployment remains untested in this execution environment.
 
 ## Release gate
 The Phase 9 software harness is included. Field approval still requires the real-phone, printed-QR, venue-network and multi-team rehearsal described in docs/phase9/EVENT_DAY_REHEARSAL.md. Keep docs/phase0/PRODUCT.md and DESIGN.md authoritative.
+
+## Dry run: random first stop, then captain choice
+
+While Preparing, open Routes, create a Free roam template with every required station, then open Team routes. For each team, choose that template, click Randomize first station, review the first-stop preview, and Assign route. Random selection favors stations with fewer assigned starts; assign teams one at a time to spread starts. A saved start is required until facilitator-confirmed completion; remaining stations then open for captain choice. Existing free-roam assignments with no start keep their original behavior. No database migration is needed.
+
+Configure each station's capacity (for example 1 team) and optional queue in Stations. With no capacity limit, busy stations can still accept teams. Mission shows Available / Full / Paused, active teams and queued teams; it refreshes every 10 seconds. Viewing a destination is not a reservation. The captain scans or enters the station code at arrival, where the server checks capacity again. Use a Demo event and follow the field rehearsal runbook through results finalization.
