@@ -202,3 +202,16 @@ body:has(.player-shell){background:radial-gradient(ellipse at top left,#12314a 0
 .player-shell .player-bottom-item.active::after{content:'';position:absolute;bottom:4px;left:calc(50% - 16px);width:32px;height:4px;border-radius:3px;background:#126576;pointer-events:none}
 .player-shell .player-bottom-item.active:hover{background:#d6f6fa;color:#071426}
 .player-shell .player-mission-link.active .player-mission-icon{background:#071426;color:#bdeaf0;border-color:#72d5e3}
+
+/* White account/QR and pale review surfaces use their own foreground palette. */
+.player-shell .player-account-menu{color:#10243a}
+.player-shell .player-account-menu :is(button,.button).secondary{color:#264458;border-color:#789ba6;background:#fff}
+.player-shell .player-account-menu :is(button,.button).secondary:hover{background:#eaf4f5;color:#10243a}
+.player-shell :is(.result-review,.arrival-review){color:#10243a}
+.player-shell :is(.result-review,.arrival-review) :is(label,summary,li,dt,dd,.fine){color:#10243a}
+.player-shell :is(.result-review,.arrival-review,.contact-credential) .secondary{color:#264458;border-color:#789ba6;background:#fff}
+.player-shell :is(.result-review,.arrival-review,.contact-credential) .secondary:hover{color:#10243a;background:#dcecef}
+.player-shell :is(.result-review,.arrival-review) .tag{color:#10243a;background:#dcecef;border-color:#789ba6}
+.player-shell .station-choice .fine{color:var(--muted)}
+
+.player-shell .paper-file{color:var(--text)}

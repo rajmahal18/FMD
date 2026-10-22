@@ -37,3 +37,6 @@
 .voting-notice p{margin:4px 0;color:#d4edf1}
 .voting-workspace button:disabled{opacity:.55;cursor:default}
 @media(max-width:600px){.voting-actions>button{flex:1;min-width:0}.voting-ballot-review{padding:16px}.voting-event-heading{gap:8px}.voting-results li{grid-template-columns:36px minmax(0,1fr);gap:8px}.voting-results li>span:last-child{grid-column:2}.voting-notice .button{width:100%;justify-content:center}}
+
+.player-shell .voting-ballot-review .secondary{color:#10243a;background:#fff;border-color:#789ba6}
+.player-shell .voting-ballot-review .secondary:hover{color:#10243a;background:#dcecef}

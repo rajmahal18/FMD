@@ -324,3 +324,16 @@ button:hover,.button:hover{background:linear-gradient(135deg,#b7f7ff,#63e6ff);tr
 .station-availability{list-style:none;padding:0;margin:0}.station-availability li{display:flex;justify-content:space-between;gap:12px;padding:16px 0;border-top:1px solid var(--border-dark,#385166)}.station-availability li>div{min-width:0;overflow-wrap:anywhere}.station-availability li>div:last-child{display:flex;flex-direction:column;gap:8px;align-items:flex-start;flex-shrink:0;max-width:45%}.station-availability p{margin:4px 0}.station-availability button{white-space:normal}
 
 .participant-card .station-choice .fine{color:var(--muted-light,#B0C2D1)}
+
+/* Light reading surfaces retain dark text, including nested form labels. */
+:is(.paper-file,.dossier,.result-review,.station-sign,.contact-credential) .management-form label{color:inherit}
+:is(.paper-file,.dossier,.result-review,.station-sign,.contact-credential) :is(.status-good){color:#174f39}
+:is(.paper-file,.dossier,.result-review,.station-sign,.contact-credential) :is(.status-wait,.demo){color:#68430b}
+:is(.paper-file,.dossier,.result-review) .danger-text{color:#8a2835}
+:is(.paper-file,.dossier,.result-review) .danger-form button{color:#8a2835;border-color:#8a2835}
+:is(.paper-file,.dossier,.result-review) .danger-form button:hover{background:#f8dedf}
+:is(.paper-file,.dossier,.result-review) .text-action{color:#18596b}
+.management-form :is(input,textarea,select)::placeholder{color:#526576;opacity:1}
+/* Route controls remain legible when disabled, without fading their labels. */
+.route-tools button{min-height:44px}
+.route-tools button:disabled{opacity:1;color:#b0c2d1;background:#24384a;border-color:#789ba6;cursor:default}

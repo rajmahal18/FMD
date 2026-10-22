@@ -23,3 +23,10 @@
 .roster-empty{padding:16px 0;color:var(--muted)}
 @media(max-width:600px){.roster-person-heading{gap:2px}.roster-person-heading>div:first-child{flex-basis:100%;display:flex;flex-direction:column;align-items:stretch;gap:0}.roster-row{padding:4px 0}.roster-name{font-size:16px}.roster-office{margin-top:2px}.roster-row .person-status{margin:4px 0}.roster-tabs [role=tab]{padding:10px 12px}.roster-summary{margin:12px 0}}
 @media(max-width:600px){.facilitator-shell .roster-email{display:none}.shell:not(.facilitator-shell) .roster-office{display:none}}
+
+/* Add forms share the dark roster surface after their paper panels are flattened. */
+.roster-add .paper-file{color:var(--text);background:#0b1c2e}
+.roster-add .paper-file :is(p,.fine,.eyebrow):not(.feedback *){color:var(--muted)}
+.roster-add .paper-file .secondary{color:var(--ice);background:#10243a;border-color:#789ba6}
+.roster-add .paper-file .secondary:hover{color:var(--text);background:#19364b}
+.roster-add .paper-file::before{display:none}

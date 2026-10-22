@@ -13,3 +13,17 @@
 .bounded-records .field-team,.bounded-records .audit-item,.bounded-records .revision-row{padding:10px 0;margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;background:transparent}.bounded-records h3{font-size:16px;margin:0 0 4px}.bounded-records p{font-size:14px;margin:4px 0}.bounded-records .list-row{min-height:44px;padding:8px 0}
 .overall-standing{padding:0!important;margin:0!important;border-radius:0!important;box-shadow:none!important;border:0!important;border-bottom:1px solid var(--line)!important;background:transparent!important}.overall-standing>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:8px 0;cursor:pointer}.overall-standing>summary strong{font-size:16px}.overall-standing>summary span{flex:none;font-weight:600}.overall-standing p{margin:6px 0;font-size:14px}.overall-standing[open]{padding-bottom:12px!important}
 @media(max-width:600px){.record-tabs [role=tab]{padding:10px 12px}.record-tab-label{max-width:180px}.record-tab-badge{display:none}.record-search{max-width:none}.record-panel{padding:12px 0}.bounded-records{max-height:55dvh}.station-details-grid{grid-template-columns:1fr;gap:0}}
+
+/* Flattened forms use the dark workspace palette, rather than light-paper ink. */
+.record-panel{background:#0b1c2e}
+.record-workspace .record-panel>.paper-file{color:var(--text)}
+.record-workspace .record-panel>.paper-file :is(p,.eyebrow,.fine):not(.feedback *){color:var(--muted)}
+.record-workspace .record-panel>.paper-file :is(.secondary,.dark-outline){color:var(--ice);border-color:#789ba6;background:#10243a}
+.record-workspace .record-panel>.paper-file :is(.secondary,.dark-outline):hover{color:var(--text);background:#19364b}
+.record-workspace .record-panel>.paper-file .text-action{color:var(--cyan)}
+.record-workspace .record-panel>.paper-file .pending-note{color:#f5cb83}
+.record-workspace .record-panel>.paper-file::before{display:none}
+
+.record-workspace .record-panel>.paper-file .status-good{color:#83d6b2}
+.record-workspace .record-panel>.paper-file :is(.status-wait,.demo){color:#f5cb83}
+.record-workspace .record-panel>.paper-file .danger-text{color:#ffa4a8}

@@ -1,3 +1,4 @@
+import {auditContrast} from './browser-contrast.mjs';
 import {PGlite} from '@electric-sql/pglite';
 import {PGLiteSocketServer} from '@electric-sql/pglite-socket';
 import {spawn} from 'node:child_process';
@@ -56,7 +57,7 @@ try{
 
  if(process.env.ROSTER_BROWSER_ONLY)await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) SELECT $1,$2,id,$3 FROM "User" WHERE email=$4',['roster-browser-faci',roster.id,'FACILITATOR','facilitator@example.test']);
 
- if(process.env.LISTS_BROWSER_ONLY){
+ if(process.env.LISTS_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY){
   for(let i=0;i<7;i++){
    await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured) VALUES ($1,$2,$3,$4,$5,$6,true)',['list-station-'+i,roster.id,'Station '+(i+1)+(i===0?' with a long physical challenge name':''),'Hall '+(i+1),'Complete the physical station game.','Confirm the team result.']);
    await pg.query('INSERT INTO "User" (id,name,email,"passwordHash") SELECT $1,$2,$3,"passwordHash" FROM "User" WHERE email=$4',['list-user-'+i,'Facilitator '+(i+1),'list-faci-'+i+'@example.test','facilitator@example.test']);
@@ -98,6 +99,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
+   if(process.env.VISIBILITY_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -143,6 +145,16 @@ try{
     await cmd('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});await check('roam-reduced-motion','/events/'+event.id);
    }
    console.log('PASS: free roam '+role+' preview/save or required first/availability/choice at all viewport sizes.');continue;
+  }
+  if(process.env.VISIBILITY_BROWSER_ONLY){
+   const expand="document.querySelectorAll('.content-body details,.player-body details').forEach(d=>d.open=true)";
+   if(role==='organizer'){
+    for(const section of ['setup','people','stations','routes','staff','ranking-settings','contact-settings','voting-settings','rehearsal','lifecycle'])await check('visibility-'+section,'/events/'+roster.id+'/'+section,expand);
+    await check('visibility-new-route','/events/'+roster.id+'/routes',"(async()=>{[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.includes('Create route')).click();await new Promise(r=>setTimeout(r,100));const select=[...document.querySelectorAll('.fields select')].find(e=>e.getClientRects().length);select.value=select.options[1].value;select.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(r=>setTimeout(r,100));})()");
+    for(const section of ['','field','results','overall','contact-policy'])await check('visibility-operations-'+(section||'control'),'/events/'+event.id+(section?'/'+section:''),expand);
+   }else if(role==='facilitator')await check('visibility-facilitator','/events/'+event.id+'/field',expand);
+   else for(const section of ['','contact','check-in','results','overall','agents/me'])await check('visibility-player-'+(section||'mission').replace('/','-'),'/events/'+event.id+(section?'/'+section:''),expand);
+   continue;
   }
   if(process.env.LISTS_BROWSER_ONLY){
    const clickTab=async(label,name)=>evaluate("(()=>{const list=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==="+JSON.stringify(label)+"&&e.getClientRects().length);const tab=[...list.children].find(e=>e.textContent.startsWith("+JSON.stringify(name)+"));tab.click();})()");
@@ -495,6 +507,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
+ if(process.env.VISIBILITY_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');
