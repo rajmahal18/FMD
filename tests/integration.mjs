@@ -17,6 +17,19 @@ try{
  assert.equal((await login('agent@example.test',origin,'bad')).headers.get('location'),origin+'/login?error=credentials');
  const cookies={};for(const role of ['organizer','facilitator','agent']){const r=await login(role+'@example.test');assert.equal(r.status,303);cookies[role]=r.headers.get('set-cookie').split(';')[0];assert(r.headers.get('set-cookie').includes('HttpOnly'));assert.equal((await get('/events/'+event.id,cookies[role])).status,200);assert.equal((await get('/events/other-event',cookies[role])).status,404);}
 
+ // Printed account QR identifies the account but never authenticates the scanner.
+ for(const role of ['agent','facilitator']){
+  const {rows:[target]}=await pg.query('SELECT id, name FROM "User" WHERE email=$1',[role+'@example.test']);
+  const access='/players/'+target.id;
+  const publicPage=await get(access);assert.equal(publicPage.status,200);assert((await publicPage.text()).replaceAll('<!-- -->','').includes('Sign in as '+target.name));
+  assert.equal((await get(access,cookies.organizer)).status,200);
+  assert.equal((await get(access,cookies[role])).headers.get('location'),'/events/'+event.id);
+  const attempt=async(password,originHeader=origin)=>fetch(origin+'/api/auth/login',{method:'POST',headers:{origin:originHeader,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({playerCode:target.id,password}),redirect:'manual'});
+  assert.equal((await attempt(env.SEED_PASSWORD,'https://evil.test')).status,403);
+  const bad=await attempt('wrong-password');assert.equal(bad.headers.get('location'),origin+access+'?error=credentials');assert.equal(bad.headers.get('set-cookie'),null);
+  const good=await attempt(env.SEED_PASSWORD);assert.equal(good.headers.get('location'),origin+access);assert(good.headers.get('set-cookie').includes('HttpOnly'));
+ }
+ assert.equal((await get('/players/missing-account')).status,404);
  const faciRoster=await get('/events/'+event.id+'/people',cookies.facilitator);assert.equal(faciRoster.status,200);const faciRosterHtml=await faciRoster.text();assert(faciRosterHtml.includes('Read-only roster'));assert(faciRosterHtml.includes('role="tablist"'));assert(!faciRosterHtml.includes('name="membershipId"'));assert(!faciRosterHtml.includes('Add a team or person'));
  assert.equal((await get('/events/'+event.id+'/people',cookies.agent)).status,404);
  assert.equal((await get('/events/other-event/people',cookies.facilitator)).status,404);
@@ -612,3 +625,4 @@ try{
  for(let i=0;i<11;i++)var limited=await login('missing@example.test',origin,'bad');assert.equal(limited.headers.get('location'),origin+'/login?error=rate');
  console.log('PASS: SQL migration, repeat seed, real login, all roles, station scope, event isolation, inactive membership, expired session, logout revocation, CSRF, rate limit, optional browser checks when PLAYWRIGHT_MODULE is provided.');
 }finally{next?.kill('SIGTERM');await socket.stop();await pg.close();}
+

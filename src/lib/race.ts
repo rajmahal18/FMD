@@ -7,7 +7,7 @@ export function stationCredential(value:string,eventId:string,origin:string){
  if(/^https?:/i.test(code)){let url:URL;try{url=new URL(code);}catch{throw new Error("Use a valid station QR or code.");}if(url.origin!==new URL(origin).origin||url.pathname!==`/events/${eventId}/check-in`||url.searchParams.getAll("code").length!==1)throw new Error("This QR belongs to another event or website.");code=url.searchParams.get("code")??"";}
  code=code.replace(/[\s-]/g,"").toUpperCase();if(code.length!==8||[...code].some(c=>!arrivalAlphabet.includes(c)))throw new Error("Enter the eight-character station code from the sign.");return code;
 }
-export function safeReturnPath(value:unknown){if(typeof value!=="string"||value.length>300||/[\r\n]/.test(value))return "";return /^\/events\/[A-Za-z0-9_-]{1,120}\/(?:check-in(?:\?code=[A-HJ-NP-Z2-9]{8})?|contact(?:\?(?:token=[A-Za-z0-9_-]{43}|code=\d{8}))?)$/.test(value)?value:"";}
+export function safeReturnPath(value:unknown){if(typeof value!=="string"||value.length>300||/[\r\n]/.test(value))return "";return /^\/players\/[A-Za-z0-9_-]{1,120}$/.test(value)?value:/^\/events\/[A-Za-z0-9_-]{1,120}\/(?:check-in(?:\?code=[A-HJ-NP-Z2-9]{8})?|contact(?:\?(?:token=[A-Za-z0-9_-]{43}|code=\d{8}))?)$/.test(value)?value:"";}
 export type ScoringPolicy={scoringMode:"FIXED"|"MANUAL";fixedPoints:number;minimumPoints:number;maximumPoints:number;allowAdjustments:boolean;maximumAdjustment:number};
 export type ResultInput={successful:boolean;points?:number;bonus?:number;penalty?:number;reason?:string};
 export function resultPoints(policy:ScoringPolicy,input:ResultInput){

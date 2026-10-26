@@ -5,19 +5,24 @@ import { db } from "@/lib/db";
 import { hashPassword,verifyPassword,tokenHash } from "@/lib/password";
 import { isSameOrigin } from "@/lib/policy";
 import { sessionCookie } from "@/lib/auth";
+import {playerAccessPath, validPlayerCode} from "@/lib/player-access";
 export const runtime="nodejs";
 const dummy=hashPassword(randomBytes(32).toString("hex"));
 export async function POST(request:NextRequest){
  const expected=process.env.APP_ORIGIN;
  if(!expected||!isSameOrigin(request.headers.get("origin"),expected))return new NextResponse("Forbidden",{status:403});
  const form=await request.formData();const email=String(form.get("email")||"").trim().toLowerCase();const password=String(form.get("password")||"");
- const returnTo=safeReturnPath(form.get("returnTo"));const fail=(code:string)=>{const url=new URL(`/login?error=${code}`,expected);if(returnTo)url.searchParams.set("returnTo",returnTo);return NextResponse.redirect(url,303);};
- if(email.length>254||!email.includes("@")||password.length>128||!password)return fail("credentials");
- const key=tokenHash(`login:${email}`);const now=new Date();const expires=new Date(now.getTime()+15*60*1000);
+ const playerCode=form.get("playerCode");
+ const player=validPlayerCode(playerCode)?await db().user.findFirst({where:{id:playerCode,active:true,memberships:{some:{active:true,role:{in:["PARTICIPANT","FACILITATOR"]}}}},select:{email:true}}):null;
+ const returnTo=validPlayerCode(playerCode)?playerAccessPath(playerCode):safeReturnPath(form.get("returnTo"));
+ const fail=(code:string)=>{const url=new URL(validPlayerCode(playerCode)?`${playerAccessPath(playerCode)}?error=${code}`:`/login?error=${code}`,expected);if(returnTo&&!playerCode)url.searchParams.set("returnTo",returnTo);return NextResponse.redirect(url,303);};
+ const loginEmail=player?.email??email;
+ if((playerCode&&!player)||loginEmail.length>254||!loginEmail.includes("@")||password.length>128||!password)return fail("credentials");
+ const key=tokenHash(`login:${loginEmail}`);const now=new Date();const expires=new Date(now.getTime()+15*60*1000);
  // Atomic fixed-window budget. Email-scoped limit works across server instances.
  const budget=await db().$queryRaw<Array<{count:number}>>`INSERT INTO "LoginAttempt" ("key","count","expiresAt") VALUES (${key},1,${expires}) ON CONFLICT ("key") DO UPDATE SET "count"=CASE WHEN "LoginAttempt"."expiresAt" < ${now} THEN 1 ELSE "LoginAttempt"."count"+1 END, "expiresAt"=CASE WHEN "LoginAttempt"."expiresAt" < ${now} THEN EXCLUDED."expiresAt" ELSE "LoginAttempt"."expiresAt" END RETURNING "count"`;
  if(budget[0].count>10)return fail("rate");
- const user=await db().user.findUnique({where:{email}});const ok=await verifyPassword(password,user?.passwordHash??await dummy);
+ const user=await db().user.findUnique({where:{email:loginEmail}});const ok=await verifyPassword(password,user?.passwordHash??await dummy);
  if(!user?.active||!ok)return fail("credentials");
  const token=randomBytes(32).toString("base64url");const expiresAt=new Date(Date.now()+12*60*60*1000);
  await db().$transaction([db().session.create({data:{tokenHash:tokenHash(token),userId:user.id,expiresAt}}),db().auditEntry.create({data:{actorId:user.id,action:"SIGN_IN"}})]);
