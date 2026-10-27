@@ -12,16 +12,12 @@ export default async function Login({searchParams}:{searchParams:Promise<{error?
         <div className="login-brand-copy">
           <img className="login-emblem" src="/theme/app-logo.png" alt="" width={108} height={108}/>
           <div>
-            <span className="eyebrow">ENCRYPTED ACCESS / 10</span>
             <h2>Operation Spy Chase</h2>
-            <p>Mission control, field stations, and private agent dossiers under one themed control room.</p>
+            <p>Event access for organizers, facilitators, and participants.</p>
           </div>
         </div>
         <div className="login-brand-visual">
           <img src="/theme/spy-command-center.png" alt="" width={1672} height={941}/>
-        </div>
-        <div className="login-brand-icons">
-          <img src="/theme/spy-icon-grid.png" alt="" width={1448} height={1086}/>
         </div>
       </div>
       <section className="dossier">
