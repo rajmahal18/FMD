@@ -157,15 +157,15 @@ body:has(.player-shell){background:radial-gradient(ellipse at top left,#12314a 0
 .player-shell .agent-dossier-top,.player-shell .agent-dossier-bottom{letter-spacing:.08em}
 @media(max-width:500px){.player-shell .agent-dossier-main{padding:20px 16px}.player-shell .agent-dossier-top,.player-shell .agent-dossier-bottom{font-size:11px}.player-shell .dossier-mission-action{width:100%}}
 
-/* Three primary destinations; reserve space for the fixed dock and device inset. */
+/* Mobile participant dock; desktop uses the same destinations below the topbar. */
 .player-shell.has-bottom-nav .player-content{padding-bottom:calc(124px + env(safe-area-inset-bottom,0px))}
 .player-bottom-nav{position:fixed;inset:auto 0 0;z-index:40;background:#0a192bf5;border-top:1px solid #385166;box-shadow:0 -8px 28px #0005;padding-bottom:env(safe-area-inset-bottom,0px)}
-.player-bottom-inner{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:stretch;max-width:600px;margin:0 auto;min-height:76px}
+.player-bottom-inner{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch;max-width:600px;margin:0 auto;min-height:76px}
 .player-shell .player-bottom-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;min-height:76px;border:0;border-radius:0;background:transparent;color:#b0c2d1;font:600 14px/1.25 'Source Sans 3',Arial,sans-serif;padding:8px;box-shadow:none;text-align:center}
 .player-shell .player-bottom-item.active{color:#bdeaf0}
 .player-shell .player-bottom-item:hover{background:#142e43;color:#fff}
 .player-shell .player-mission-link{position:relative;padding-top:0;color:#bdeaf0;gap:5px}
-.player-mission-icon{display:flex;align-items:center;justify-content:center;width:62px;height:46px;margin-top:-14px;border:1px solid #bdeaf0;border-radius:10px;background:#72d5e3;color:#071426;box-shadow:-4px 0 0 #367f9c,4px 0 0 #d8b96d,0 3px 12px #0006}
+.player-mission-icon{display:flex;align-items:center;justify-content:center;width:48px;height:46px;margin-top:-14px;border:1px solid #bdeaf0;border-radius:10px;background:#72d5e3;color:#071426;box-shadow:-4px 0 0 #367f9c,4px 0 0 #d8b96d,0 3px 12px #0006}
 .player-mission-icon svg{width:28px;height:28px}
 .player-mission-link.active .player-mission-icon{background:#bdeaf0}
 .player-ranks{position:relative;min-width:0}
@@ -196,12 +196,27 @@ body:has(.player-shell){background:radial-gradient(ellipse at top left,#12314a 0
 .player-shell :is(a,button,input,select,textarea,summary){scroll-margin-block:100px}
 @media(max-width:600px){.player-shell .destination{padding:12px}.player-shell .mission #mission-state{font-size:15px}}
 
-/* Consistent selected-page marker across all three bottom destinations. */
+/* Consistent selected-page marker across participant destinations. */
 .player-shell .player-bottom-item{position:relative}
 .player-shell .player-bottom-item.active,.player-shell .player-bottom-item.active:not(.player-mission-link){background:#bdeaf0;color:#071426;box-shadow:inset 0 3px #72d5e3;font-weight:700}
 .player-shell .player-bottom-item.active::after{content:'';position:absolute;bottom:4px;left:calc(50% - 16px);width:32px;height:4px;border-radius:3px;background:#126576;pointer-events:none}
 .player-shell .player-bottom-item.active:hover{background:#d6f6fa;color:#071426}
 .player-shell .player-mission-link.active .player-mission-icon{background:#071426;color:#bdeaf0;border-color:#72d5e3}
+
+@media(max-width:767px){
+ .player-shell .player-bottom-item{min-width:0;padding-inline:2px;font-size:12px}
+ .player-bottom-item>span:last-child{white-space:nowrap}
+}
+@media(min-width:768px){
+ .player-shell.has-bottom-nav .player-content{padding-bottom:32px}
+ .player-bottom-nav{position:relative;inset:auto;padding-bottom:0;border-top:0;border-bottom:1px solid #385166;box-shadow:none;z-index:10}
+ .player-bottom-inner{max-width:920px;min-height:56px}
+ .player-shell .player-bottom-item{flex-direction:row;gap:8px;min-height:56px;padding:8px 12px}
+ .player-shell .player-mission-link{padding-top:8px}
+ .player-mission-icon{width:28px;height:28px;margin:0;border:0;border-radius:4px;box-shadow:none}
+ .player-mission-icon svg{width:24px;height:24px}
+ .player-ranks-options{top:calc(100% + 8px);bottom:auto}
+}
 
 /* White account/QR and pale review surfaces use their own foreground palette. */
 .player-shell .player-account-menu{color:#10243a}
