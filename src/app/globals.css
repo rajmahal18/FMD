@@ -343,3 +343,7 @@ button:hover,.button:hover{background:linear-gradient(135deg,#b7f7ff,#63e6ff);tr
 /* Route controls remain legible when disabled, without fading their labels. */
 .route-tools button{min-height:44px}
 .route-tools button:disabled{opacity:1;color:#b0c2d1;background:#24384a;border-color:#789ba6;cursor:default}
+.station-batch-actions{margin:16px 0 24px;padding:16px 0;border-block:1px solid var(--line)}
+.station-batch-actions h2{margin:0 0 8px;font-size:20px}.station-batch-actions p{margin:8px 0}.station-batch-actions .management-form{margin:12px 0}.station-batch-actions .text-action{display:inline-flex;align-items:center;min-height:44px}
+.station-signs{display:grid;gap:24px;min-width:0}.station-signs .station-sign{margin-top:0;background:#fff;color:#071426;box-shadow:none;backdrop-filter:none}
+@media print{.station-signs{display:block}.station-signs .station-sign{break-after:page;page-break-after:always;background:#fff!important}.station-signs .station-sign:last-child{break-after:auto;page-break-after:auto}}

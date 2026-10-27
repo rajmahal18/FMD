@@ -109,6 +109,14 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
     await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});for(const stationId of stations)await tx.facilitatorAssignment.create({data:{membershipId:member.id,stationId}});
     targetUserId=member.userId;details={before:before.map(s=>s.stationId),after:stations};result={message:"Facilitator station access saved.",targetId:member.id};break;
    }
+   case "issueMissingStationCodes":{
+    const stations=await tx.station.findMany({where:{eventId},select:{id:true,arrivalCode:true},orderBy:{id:"asc"}});
+    if(!stations.length)throw new InputError("Add at least one station first.");
+    const reserved=new Set(stations.flatMap(s=>s.arrivalCode?[s.arrivalCode]:[]));const issued:string[]=[];
+    for(const station of stations){if(station.arrivalCode)continue;let code:string;do{code=Array.from(randomBytes(8),b=>arrivalAlphabet[b&31]).join("");}while(reserved.has(code));reserved.add(code);await tx.station.update({where:{id:station.id},data:{arrivalCode:code}});issued.push(station.id);}
+    details={stationIds:issued,generated:issued.length,preserved:stations.length-issued.length};
+    result={message:issued.length?`Generated arrival QR/codes for ${issued.length} stations. Existing codes and printed signs are unchanged. Open Print all station signs to print them together.`:"All stations already have arrival QR/codes. Existing codes are unchanged.",targetId:eventId};break;
+   }
    case "issueStationCode":{
     const station=await checkedStation(text(data,"stationId",120,true));let code:string;
     do{code=Array.from(randomBytes(8),b=>arrivalAlphabet[b&31]).join("");}while(await tx.station.findFirst({where:{eventId,arrivalCode:code}}));

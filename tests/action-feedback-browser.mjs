@@ -33,7 +33,23 @@ try{
  await evaluate(`respond(500,{error:'Response lost'})`);await pause();assert.equal(await evaluate('document.querySelector("dialog[open]").textContent.includes("Retry the saved request")'),true);
  await evaluate(`document.querySelector('dialog[open] button').click();document.querySelector('.race-action button').click()`);await pause();assert.equal(await evaluate('calls[2].key===calls[3].key'),true);
  await evaluate(`respond(200,{message:'Challenge started.',replayed:true})`);await pause();assert.equal(await evaluate('!!document.querySelector(".race-action")'),false);assert.equal(await evaluate('document.querySelector("dialog[open]").textContent.includes("Already recorded")'),true);
- console.log('PASS: cancel, confirm, processing, success, server error, double-click guard, retry key, unmount persistence, Escape lock, and 320/390/768/1440px overflow.');
+ await evaluate(`document.querySelector('dialog[open] button').click();document.querySelector('#test-blocked-start').click()`);await pause();
+ await evaluate(`document.querySelector('.race-action button').click()`);await pause();
+ assert.equal(await evaluate('document.querySelector("dialog[open] h2").textContent'),'Operation not started');
+ assert.equal(await evaluate('document.querySelectorAll("dialog[open] .start-operation-issues a").length'),2);
+ assert.equal(await evaluate('calls.length'),4,'Blocked start must explain requirements without submitting');
+ await evaluate(`document.querySelector('dialog[open] button').click();document.querySelector('#test-ready-start').click();window.refreshes=0;window.addEventListener('test-refresh',()=>refreshes++);`);await pause();
+ await evaluate(`document.querySelector('.race-action button').click()`);await pause();
+ assert.equal(await evaluate('document.querySelector("dialog[open] h2").textContent'),'Confirm action');
+ await evaluate(`document.querySelector('dialog[open] .action-feedback-actions button:last-child').click()`);await pause();
+ await evaluate(`respond(409,{error:'Preparation is incomplete: a station changed.'})`);await pause();
+ assert.equal(await evaluate('document.querySelector("dialog[open]").textContent.includes("Preparation is incomplete")'),true);
+ await evaluate(`document.querySelector('dialog[open] button').click();document.querySelector('.race-action button').click()`);await pause();
+ await evaluate(`document.querySelector('dialog[open] .action-feedback-actions button:last-child').click()`);await pause();
+ await evaluate(`respond(200,{message:'Operation started. Captain check-in and station handling are live.',state:'LIVE',redirect:'/'})`);await pause();
+ assert.equal(await evaluate('document.querySelector("dialog[open]").textContent.includes("Operation started")'),true,'Start success must survive same-page refresh');
+ assert.equal(await evaluate('refreshes>0'),true);
+ console.log('PASS: action feedback and start-operation blockers, server revalidation, success persistence, and refresh; mobile overflow at 320/390/768/1440px.');
 }finally{browser.kill();server.closeAllConnections();server.close();for(const p of pending.values())clearTimeout(p.timer);}
 
 

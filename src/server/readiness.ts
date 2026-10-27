@@ -4,10 +4,10 @@ import {routeOrder} from "@/lib/routes";
 export type ReadinessIssue={message:string;href:string};
 export async function readiness(tx:Prisma.TransactionClient,eventId:string){
  const [teams,people,stations,visitCount]=await Promise.all([tx.team.findMany({where:{eventId},include:{routeAssignment:{include:{route:true}}}}),tx.eventMembership.findMany({where:{eventId,active:true,user:{active:true}},include:{user:{select:{name:true,mustChangePassword:true}},assignments:true}}),tx.station.findMany({where:{eventId}}),tx.stationVisit.count({where:{eventId}})]);
- const issues:ReadinessIssue[]=[];const issue=(message:string,page:string)=>issues.push({message,href:`/events/${eventId}/${page}`});try{const url=new URL(process.env.APP_ORIGIN??"");if(url.protocol!=="https:"&&!["localhost","127.0.0.1","[::1]"].includes(url.hostname))issue("Ask the platform operator to enable HTTPS before starting.","setup");}catch{issue("Ask the platform operator to set the event website address.","setup");}const participants=people.filter(p=>p.role==="PARTICIPANT");
+ const warnings:ReadinessIssue[]=[];const issues:ReadinessIssue[]=[];const issue=(message:string,page:string)=>issues.push({message,href:`/events/${eventId}/${page}`});try{const url=new URL(process.env.APP_ORIGIN??"");if(url.protocol!=="https:"&&!["localhost","127.0.0.1","[::1]"].includes(url.hostname))issue("Ask the platform operator to enable HTTPS before starting.","setup");}catch{issue("Ask the platform operator to set the event website address.","setup");}const participants=people.filter(p=>p.role==="PARTICIPANT");
  if(!teams.length)issue("Add at least one team.","people");if(!participants.length)issue("Add participants to this event.","people");
  for(const p of participants){if(!teams.some(t=>t.id===p.teamId))issue(`${p.user.name} needs a team in this event.`,"people");}
- const passwordReminder=(names:string[],page:string)=>{if(!names.length)return;issue(names.length===1?names[0]+" has not changed their temporary password.":names[0]+" and "+(names.length-1)+" "+(names.length===2?"other have":"others have")+" not changed their temporary passwords.",page);};
+ const passwordReminder=(names:string[],page:string)=>{if(!names.length)return;warnings.push({message:names.length===1?names[0]+" has not changed their temporary password.":names[0]+" and "+(names.length-1)+" "+(names.length===2?"other have":"others have")+" not changed their temporary passwords.",href:`/events/${eventId}/${page}`});};
  passwordReminder(participants.filter(p=>p.user.mustChangePassword).map(p=>p.user.name),"people");
  const pendingStaff=new Map<string,string>();
  const used=new Set<string>();
@@ -20,5 +20,5 @@ export async function readiness(tx:Prisma.TransactionClient,eventId:string){
  passwordReminder([...pendingStaff.values()],"staff");
  if(visitCount)issue("This event already contains station visits. Ask the platform operator to review it before starting.","setup");
  const contactPolicy=await tx.contactPolicy.findUnique({where:{eventId}});if(contactPolicy?.enabled&&contactPolicy.closesAt<=new Date())issue("Agent Contact window has already ended. Update or disable collection.","contact-settings");
- return {issues,teamCount:teams.length,stationCount:used.size};
+ return {issues,warnings,teamCount:teams.length,stationCount:used.size};
 }

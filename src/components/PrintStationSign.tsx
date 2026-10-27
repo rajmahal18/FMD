@@ -1,2 +1,2 @@
 "use client";
-export function PrintStationSign(){return <div className="print-controls"><button type="button" onClick={()=>window.print()}>Print station sign</button></div>;}
+export function PrintStationSign({label="Print station sign"}:{label?:string}){return <div className="print-controls"><button type="button" onClick={()=>window.print()}>{label}</button></div>;}
