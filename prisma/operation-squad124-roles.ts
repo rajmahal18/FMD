@@ -1,0 +1,66 @@
+// Matched to existing event roster identities; forwarded spellings do not rename accounts.
+export const squad124Assignments = [
+ {team:'Team 1',expectedActive:19,assignments:[
+  {name:'Hussin, Sheila Mayl',role:'Team Commander'},
+  {name:'Legita, Mariel Yvonne',role:'Intel / Radio Officer'},
+  {name:'Kadir, Saima',role:'Intel / Radio Officer'},
+  {name:'Gecosala, Marichu',role:'Intel / Radio Officer'},
+  {name:'Salih, Junaidin',role:'Intel / Radio Officer'},
+  {name:'Masukat, Abujahirin',role:'Recon Specialist'},
+  {name:'Musor, Faisah',role:'Recon Specialist'},
+  {name:'Cosain, Sahara',role:'Recon Specialist'},
+  {name:'Samelon, Norhamin',role:'Recon Specialist'},
+  {name:'Martinez, Kaila',role:'Technical Analyst'},
+  {name:'Zarrah, Maharifa',role:'Technical Analyst'},
+  {name:'Pascual, Noah Jul',role:'Technical Analyst'},
+  {name:'Madid, Madeenah',role:'Technical Analyst'},
+  {name:'Decampong, Johanisa',role:'Support Specialist'},
+  {name:'Aspi, Siara-Faye',role:'Support Specialist'},
+  {name:'Basion, Roselani',role:'Support Specialist'},
+  {name:'Hadis, Marilyn',role:'Support Specialist'},
+  {name:'Guiamadil, Abdulkahar',role:'Support Specialist'},
+  {name:'Hadji Sakur, Anjiada',role:'Support Specialist'}
+ ]},
+ {team:'Team 2',expectedActive:18,assignments:[
+  {name:'Japal, Faisal',role:'Team Commander'},
+  {name:'Solaiman, Ada Rizza',role:'Intel / Radio Officer'},
+  {name:'Salilama, Faizee Hadith',role:'Intel / Radio Officer'},
+  {name:'Deticio, Mylene',role:'Intel / Radio Officer'},
+  {name:'Fontilla, Che Che',role:'Intel / Radio Officer'},
+  {name:'Quitiol, Rain Cyrene',role:'Recon Specialist'},
+  {name:'Bitol, Mahather',role:'Recon Specialist'},
+  {name:'Lumanas, James Mark',role:'Recon Specialist'},
+  {name:'Basirul, Adzramin',role:'Recon Specialist'},
+  {name:'Buisan, Reena Essa',role:'Technical Analyst'},
+  {name:'Esmael, Haroun',role:'Technical Analyst'},
+  {name:'Miparanum, Vin Lorenz',role:'Technical Analyst'},
+  // "Norjata Ebrahim" awaits confirmation against "Akmad, Norjata".
+  {name:'Palahuddin, Sheilamar',role:'Support Specialist'},
+  {name:'Pandao, Ibtisam',role:'Support Specialist'},
+  {name:'Diansuy, Mary Jane',role:'Support Specialist'},
+  {name:'Sarip, Tondogun',role:'Support Specialist'},
+  {name:'Balindong, Namraida',role:'Support Specialist'},
+  {name:'Ibrahim, Namraidah',role:'Support Specialist'}
+ ]},
+ {team:'Team 4',expectedActive:18,assignments:[
+  {name:'Fernando, Philip III',role:'Team Commander'},
+  {name:'Abdullah, Bai Sorayna',role:'Intel / Radio Officer'},
+  {name:'Songalia, Mer Cris',role:'Intel / Radio Officer'},
+  {name:'Musor-Galman, Sittie Saimah',role:'Intel / Radio Officer'},
+  {name:'Abdulkadir, Naim',role:'Intel / Radio Officer'},
+  {name:'Salik, Faharudin',role:'Recon Specialist'},
+  {name:'Gayak, Omar Hussein',role:'Recon Specialist'},
+  {name:'Bandah, Mondale',role:'Recon Specialist'},
+  {name:'Dalocanog, Aiyen',role:'Recon Specialist'},
+  // Ashree replaces inactive Rhoselda in this field duty, per organizer.
+  {name:'Asamuddin, Mohammad Ashree',role:'Technical Analyst'},
+  {name:'Camsa, Rasmiya',role:'Technical Analyst'},
+  {name:'Torres, Jemima Erin',role:'Technical Analyst'},
+  {name:'Kiram, Dayang Dayang Sheramar',role:'Technical Analyst'},
+  {name:'Macapeges, Zalika',role:'Support Specialist'},
+  {name:'Sulvan, Bai Malejah',role:'Support Specialist'},
+  {name:'Malawani, Amina',role:'Support Specialist'},
+  {name:'Ahadain, Nurhaida',role:'Support Specialist'},
+  {name:'Pumbayabaya, Najmah',role:'Support Specialist'}
+ ]}
+] as const;

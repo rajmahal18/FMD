@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { hashPassword,tokenHash } from "@/lib/password";
 import { InputError,text,color,timezone,dateOnly,emailAddress,roleValue,logoType } from "@/lib/validation";
 import { Prisma } from "@/generated/prisma/client";
+import {squadRoleValue} from '@/lib/squad-roles';
 export type ManagementResult={message:string;targetId?:string;redirect?:string;temporaryPassword?:string;email?:string;replayed?:boolean};
 export async function manage(actorId:string,data:FormData):Promise<ManagementResult>{
  const operation=text(data,"operation",40,true);const eventId=text(data,"eventId");const requestKey=text(data,"requestKey",40,true);
@@ -73,28 +74,31 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
    }
    case "addMember":{
     const email=emailAddress(text(data,"email",254,true));const name=text(data,"name",100,true);const role=roleValue(text(data,"role",20,true));const teamId=role==="PARTICIPANT"?text(data,"teamId"):"";await checkedTeam(teamId);
+    const squadRole=squadRoleValue(text(data,"squadRole",40));if(squadRole&&(role!=="PARTICIPANT"||!teamId))throw new InputError("Squad roles require a participant assigned to a team.");
     let user=await tx.user.findUnique({where:{email}});let temporaryPassword:string|undefined;
     if(user&&!user.active)throw new InputError("This account is disabled. Contact the platform operator.",409);
     if(!user){temporaryPassword=randomBytes(18).toString("base64url");user=await tx.user.create({data:{email,name,passwordHash:await hashPassword(temporaryPassword),mustChangePassword:true}});}
     const previous=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:user.id}}});if(previous?.active)throw new InputError("This person is already in the event. Edit their existing assignment instead.",409);
-    const member=await tx.eventMembership.upsert({where:{eventId_userId:{eventId,userId:user.id}},create:{eventId,userId:user.id,role,teamId:teamId||null},update:{role,active:true,teamId:teamId||null,isCaptain:false}});
-    await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});targetUserId=user.id;details={email,role,teamId:teamId||null,newAccount:!!temporaryPassword};result={message:temporaryPassword?"Agent account created. Share these credentials privately.":"Existing account linked. Their password and profile were not changed.",targetId:member.id,email,...(temporaryPassword?{temporaryPassword}:{})};break;
+    const member=await tx.eventMembership.upsert({where:{eventId_userId:{eventId,userId:user.id}},create:{eventId,userId:user.id,role,teamId:teamId||null,squadRole},update:{role,active:true,teamId:teamId||null,isCaptain:false,squadRole}});
+    await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});targetUserId=user.id;details={email,role,teamId:teamId||null,squadRole,newAccount:!!temporaryPassword};result={message:temporaryPassword?"Agent account created. Share these credentials privately.":"Existing account linked. Their password and profile were not changed.",targetId:member.id,email,...(temporaryPassword?{temporaryPassword}:{})};break;
    }
    case "updateMember":{
     const member=await checkedMember(text(data,"membershipId",120,true));const role=roleValue(text(data,"role",20,true));const teamId=role==="PARTICIPANT"?text(data,"teamId"):"";await checkedTeam(teamId);
     if(member.userId===actorId&&role!=="ORGANIZER")throw new InputError("You cannot remove your own organizer access.",409);
     if(member.active&&member.role==="ORGANIZER"&&role!=="ORGANIZER"&&await tx.eventMembership.count({where:{eventId,active:true,role:"ORGANIZER",user:{active:true}}})<=1)throw new InputError("Keep at least one active organizer.",409);
+    const squadRole=role==="PARTICIPANT"&&teamId?squadRoleValue(data.has("squadRole")?text(data,"squadRole",40):member.teamId===teamId?member.squadRole??"":""):null;
+    if(text(data,"squadRole",40)&&(role!=="PARTICIPANT"||!teamId))throw new InputError("Squad roles require a participant assigned to a team.");
     const isCaptain=role==="PARTICIPANT"&&!!teamId&&data.get("isCaptain")==="on";
     if(data.get("isCaptain")==="on"&&!isCaptain)throw new InputError("A captain must be an active participant assigned to a team.");
     if(!member.active||!member.user.active)throw new InputError("Restore this person’s access before changing their assignment.",409);
     if(isCaptain)await tx.eventMembership.updateMany({where:{eventId,teamId,isCaptain:true,id:{not:member.id}},data:{isCaptain:false}});
-    await tx.eventMembership.update({where:{id:member.id},data:{role,teamId:teamId||null,isCaptain}});if(role!=="FACILITATOR")await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});
-    targetUserId=member.userId;details={before:{role:member.role,teamId:member.teamId,isCaptain:member.isCaptain},after:{role,teamId:teamId||null,isCaptain}};result={message:"Event assignment saved.",targetId:member.id};break;
+    await tx.eventMembership.update({where:{id:member.id},data:{role,teamId:teamId||null,isCaptain,squadRole}});if(role!=="FACILITATOR")await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});
+    targetUserId=member.userId;details={before:{role:member.role,teamId:member.teamId,isCaptain:member.isCaptain,squadRole:member.squadRole},after:{role,teamId:teamId||null,isCaptain,squadRole}};result={message:"Event assignment saved.",targetId:member.id};break;
    }
    case "removeMember":{
     const member=await checkedMember(text(data,"membershipId",120,true));if(member.userId===actorId)throw new InputError("You cannot remove your own event access.",409);
     if(member.active&&member.role==="ORGANIZER"&&await tx.eventMembership.count({where:{eventId,active:true,role:"ORGANIZER",user:{active:true}}})<=1)throw new InputError("Keep at least one active organizer.",409);
-    await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});await tx.eventMembership.update({where:{id:member.id},data:{active:false,teamId:null,isCaptain:false}});targetUserId=member.userId;details={role:member.role,teamId:member.teamId};result={message:"Event access removed. Their account and other events are preserved.",targetId:member.id};break;
+    await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});await tx.eventMembership.update({where:{id:member.id},data:{active:false,teamId:null,isCaptain:false,squadRole:null}});targetUserId=member.userId;details={role:member.role,teamId:member.teamId};result={message:"Event access removed. Their account and other events are preserved.",targetId:member.id};break;
    }
    case "addStation":{
     const values={eventId,name:text(data,"name",100,true),location:text(data,"location",160),briefing:""};const station=await tx.station.create({data:values});details={name:station.name,location:station.location};result={message:"Station location added. Assign its facilitators below.",targetId:station.id};break;

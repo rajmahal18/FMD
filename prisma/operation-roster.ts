@@ -17,7 +17,7 @@ Legita, Mariel Yvonne|CCDEO - CFMS|F
 Madid, Madeenah|FMD - AS|F
 Martinez, Kaila|FMD - AS|F
 Masukat, Abujahirin|MDNDEO - CFMS|M
-Musor, Faisalh|LDS1DEO - CFMS|F
+Musor, Faisah|LDS1DEO - CFMS|F
 Pascual, Noah Jul|FMD - AS|M
 Salih, Junaidin|FMD - CS|M
 Samelon, Norhamin|MDNDEO - CFMS|M
@@ -92,7 +92,7 @@ Lee, Nur Elsa|S1DEO - CFMS|F
 Macapeges, Sohayla|CCDEO - CFMS|F
 Marabur, Omaira|LDS2DEO - CFMS|F
 Namal, Ma. Sheryl|MDSDEO - CFMS|F
-Pamlian, Norhaya|FMD - AS|F
+Pamlian, Norhayah|FMD - AS|F
 Pendulat, Shamraida Jann|FMD - BS|F
 Saylon, Norhaina|FMD - AS|F
 Taha, Rohaidah|FMD - CS|F`)}

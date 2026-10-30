@@ -271,6 +271,19 @@ try{
  assert.equal((await login('alice@example.test',origin,issued.temporaryPassword)).headers.get('location'),origin+'/login?error=credentials');const aliceLogin=await login('alice@example.test',origin,'alice-private-new-password');const aliceCookie=aliceLogin.headers.get('set-cookie').split(';')[0];assert.equal(aliceLogin.headers.get('location'),origin+'/workspace');
  assert.equal((await command('createEvent',{name:'Escalate',timezone:'Asia/Manila'},aliceCookie)).status,403);
  assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'PARTICIPANT',teamId:alpha.targetId,isCaptain:'on'})).status,200);
+
+ // Squad duties persist separately from access roles and captain responsibility.
+ assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'PARTICIPANT',teamId:alpha.targetId,squadRole:'Recon Specialist',isCaptain:'on'},aliceCookie)).status,403);
+ assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'PARTICIPANT',teamId:alpha.targetId,squadRole:'ORGANIZER'})).status,400);
+ assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'FACILITATOR',squadRole:'Recon Specialist'})).status,400);
+ assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'PARTICIPANT',teamId:alpha.targetId,squadRole:'Recon Specialist',isCaptain:'on'})).status,200);
+ assert.equal((await pg.query('SELECT "squadRole" FROM "EventMembership" WHERE id=$1',[issued.targetId])).rows[0].squadRole,'Recon Specialist');
+ assert((await (await get('/events/'+event2+'/agents/'+issued.targetId,aliceCookie)).text()).includes('Recon Specialist'));
+ assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'PARTICIPANT',teamId:alpha.targetId,isCaptain:'on'})).status,200);
+ assert.equal((await pg.query('SELECT "squadRole" FROM "EventMembership" WHERE id=$1',[issued.targetId])).rows[0].squadRole,'Recon Specialist');
+ assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'PARTICIPANT',teamId:bravo.targetId})).status,200);
+ assert.equal((await pg.query('SELECT "squadRole" FROM "EventMembership" WHERE id=$1',[issued.targetId])).rows[0].squadRole,null);
+ assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'PARTICIPANT',teamId:alpha.targetId,isCaptain:'on'})).status,200);
  const {rows:[demoMember]}=await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event.id,'PARTICIPANT']);
  const {rows:[demoTeam]}=await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1',[event.id]);
  assert.equal((await command('updateMember',{eventId:event2,membershipId:issued.targetId,role:'PARTICIPANT',teamId:demoTeam.id})).status,400);

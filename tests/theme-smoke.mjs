@@ -25,6 +25,7 @@ try{
  });
  await run(['--import','tsx','prisma/seed.ts']);
  await run(['--import','tsx','prisma/seed-roster.ts']);
+ if(process.env.ROSTER_BROWSER_ONLY)await pg.query('UPDATE "EventMembership" SET "squadRole"=$1 WHERE role=$2 AND "teamId" IN (SELECT id FROM "Team" WHERE name=$3)', ['Intel / Radio Officer','PARTICIPANT','Team 4']);
  const before=await pg.query('SELECT email,"passwordHash" FROM "User" WHERE email LIKE $1 ORDER BY email',['%@agents.invalid']);
  await run(['--import','tsx','prisma/seed-roster.ts']);
  assert(JSON.stringify((await pg.query('SELECT email,"passwordHash" FROM "User" WHERE email LIKE $1 ORDER BY email',['%@agents.invalid'])).rows)===JSON.stringify(before.rows),'Roster rerun must preserve account passwords');
@@ -241,14 +242,18 @@ try{
    assert.equal(await evaluate("[...document.querySelectorAll('[role=tabpanel]')].filter(e=>!e.hidden).length"),1);
    await evaluate("document.querySelectorAll('[role=tab]')[2].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))");
    assert(await evaluate("document.querySelectorAll('[role=tab]')[3].getAttribute('aria-selected')==='true'"));
+   assert(await evaluate("document.querySelector('[role=tabpanel]:not([hidden])').textContent.includes('Intel / Radio Officer')"));
+   for(const width of [320,390,768,1440]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Squad role roster overflow');}
    if(role==='facilitator'){
     assert.equal(await evaluate("document.querySelectorAll('.roster-edit,.roster-add').length"),0);
     assert(await evaluate("!![...document.querySelectorAll('a')].find(a=>a.textContent==='Teams & agents')"));
     await evaluate("document.querySelector('[role=tabpanel]:not([hidden]) .roster-name').click()");await new Promise(r=>setTimeout(r,500));
     assert(await evaluate("!!document.querySelector('.agent-dossier-shell')"),'Facilitator can open a player dossier');
+    assert(await evaluate("document.querySelector('.agent-biography').textContent.includes('Intel / Radio Officer')"));
    }else{
     await evaluate("document.querySelector('[role=tabpanel]:not([hidden]) .roster-edit').open=true");
     assert(await evaluate("!!document.querySelector('[role=tabpanel]:not([hidden]) input[name=membershipId]')"),'Organizer assignment form retained');
+    assert.equal(await evaluate("document.querySelector('[role=tabpanel]:not([hidden]) select[name=squadRole]').value"),'Intel / Radio Officer');
     await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});
     assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Expanded assignment form overflow');
    }
