@@ -1,0 +1,74 @@
+/* Shared handheld controls. Organizer workspaces keep their existing layout. */
+.controller-shell{touch-action:manipulation;--controller-dock:90px}
+.controller-shell .player-topbar{position:sticky;top:0;z-index:45;min-height:64px;padding-block:8px;border-bottom:1px solid #385166;background:#0b1e30}
+.controller-shell .player-content{max-width:960px;padding-top:16px}
+.controller-shell .player-content:has(.participant-controller,.field-board-controller)>.player-page-heading{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.controller-event-label{font-size:12px;color:var(--muted);margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;overflow-wrap:anywhere}
+.controller-event-label span{font-weight:700;color:var(--warning,#f5cb83)}
+.controller-shell .controller-tabs{display:flex;gap:4px;max-width:100%;min-width:0;overflow-x:auto;border-bottom:1px solid var(--line);padding:0 0 6px;margin-bottom:20px;scrollbar-width:thin}
+.controller-shell .controller-tabs>button{position:relative;flex:1 0 auto;min-height:48px;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:0;border-radius:6px;color:var(--muted);font-size:15px;box-shadow:none;white-space:nowrap}
+.controller-shell .controller-tabs>button[aria-selected=true]{background:#bdeaf0;color:#071426}
+.controller-shell .controller-tabs>button:hover{background:#193b50;color:#fff}
+.controller-shell .controller-tabs>button[aria-selected=true]:hover{background:#d6f6fa;color:#071426}
+.controller-count{font:12px 'IBM Plex Mono',monospace;padding:1px 5px;min-width:20px;border-radius:3px;background:#0714261c;color:inherit}
+.controller-panel[hidden],.controller-shell .mission-support[hidden],.controller-shell .station-team[hidden]{display:none!important}
+.controller-shell .controller-panel:not([hidden]){animation:controller-enter 150ms ease-out}
+.controller-shell .participant-layout{display:block}
+.controller-shell .agent-strip{margin:4px 0 18px;padding-left:0;border-left:0;gap:8px;flex-wrap:wrap}
+.controller-shell .agent-strip strong{font-size:18px}
+.controller-shell .agent-strip .tag{font-size:11px;max-width:100%;overflow-wrap:anywhere}
+.controller-shell .participant-card{border:0;border-radius:0;padding:0;background:transparent;box-shadow:none}
+.controller-shell .mission .destination{margin:16px 0;padding:16px 0;background:transparent;border:0;border-bottom:1px solid var(--line)}
+.controller-shell .mission .destination h3{font-size:clamp(26px,5vw,36px);line-height:1.15;margin:0 0 12px}
+.controller-shell .mission .destination-location{margin-top:0}
+.controller-shell .mission .destination-location strong{font-size:18px;color:var(--ice)}
+.controller-shell .mission .next-action{font-size:16px}
+.controller-shell .mission-arrival{display:flex;width:100%;min-height:60px;font-size:18px;border-radius:8px;box-shadow:0 3px 0 #357c89;margin-block:20px}
+.controller-shell .mission-progress{margin-top:24px}
+.controller-shell .mission-support .panel{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:16px 0;box-shadow:none}
+.controller-shell .sync-status{margin:18px 0 0;padding:12px 0;border-top:1px solid var(--line);gap:12px;align-items:center}
+.controller-shell .sync-status p{font-size:12px;margin:0}
+.controller-shell .sync-status strong{font-size:12px}
+.controller-shell .sync-status>button{min-height:44px;width:auto!important;font-size:13px;padding:8px 12px}
+.controller-shell .sync-status:has([role=alert]){align-items:start}
+.controller-shell .mission-briefing{padding:16px 0;border-top:1px solid var(--line)}
+.controller-shell .field-header{background:transparent;padding:0 0 16px;border:0;border-radius:0;box-shadow:none}
+.controller-shell .field-header>.eyebrow{display:none}
+.controller-shell .field-header .field-heading{align-items:center;gap:12px}
+.controller-shell .field-header h2{font-size:26px;margin:0;line-height:1.2}
+.controller-shell .field-header>p{margin:6px 0 12px}
+.controller-shell .field-header>details{font-size:14px;margin:12px 0}
+.controller-shell .field-capacity{margin-top:12px;font-size:13px;display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--muted)}
+.controller-shell .field-columns{display:block}
+.controller-shell .field-columns>.panel,.controller-shell .field-tools,.controller-shell #field-history{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.controller-shell .field-columns>section>h2{font-size:15px;margin-bottom:12px;color:var(--muted)}
+.controller-shell .station-team{padding:12px 0 20px;border:0;margin:0;min-width:0}
+.controller-shell .station-team .field-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.controller-shell .station-team h3{font-size:25px;margin:8px 0}
+.controller-shell .station-team>.race-action>button,.controller-shell .station-team>.management-form button[type=submit],.controller-shell .station-team>button,.controller-shell .result-review>.race-action>button{width:100%;min-height:60px;border-radius:8px;font-size:18px}
+.controller-shell .controller-steps{display:flex;list-style:none;gap:12px;justify-content:space-between;padding:12px 0;margin:0;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.controller-steps li{display:flex;align-items:center;gap:6px}.controller-steps li>span{display:grid;place-items:center;border:1px solid currentColor;border-radius:50%;width:23px;height:23px;font:11px 'IBM Plex Mono',monospace}.controller-steps li[aria-current=step]{color:#bdeaf0;font-weight:700}
+.controller-shell .field-next-step{font-size:15px;margin:12px 0}
+.controller-shell .station-timer{padding:16px 0;background:transparent;border:0}
+.controller-shell .challenge-clock{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.controller-shell .station-timer .challenge-clock strong{font:600 clamp(34px,7vw,48px)/1.2 'IBM Plex Mono',monospace;color:#fff;font-variant-numeric:tabular-nums}
+.controller-shell .time-penalty-controls h4{font-size:15px;margin:12px 0}
+.controller-shell .time-penalty-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.controller-shell .time-penalty-actions .race-action button{width:100%;min-height:60px;font-size:14px;padding:10px;overflow-wrap:anywhere;background:#19364b;color:#f5cb83;border:1px solid #766440}
+.controller-shell .field-queue{margin-top:16px;padding-top:16px!important;border-top:1px solid var(--line)!important}
+.controller-shell .recorded-result{background:#133d36;border:1px solid #437c69;color:#f2f7fa;padding:16px;box-shadow:none}
+.controller-shell .field-tools>summary,.controller-shell #field-history>summary{font-size:18px;padding-block:12px}
+.controller-shell .field-tools .time-penalty-editor{margin-top:16px}
+.controller-shell .field-workspace>.sync-status{margin-bottom:20px}
+.field-bottom-nav{display:flex;justify-content:center;position:fixed;inset:auto 0 0;z-index:40;background:#0a192b;border-top:1px solid #385166;padding:6px 12px calc(6px + env(safe-area-inset-bottom,0px));min-height:76px;gap:8px}
+.field-bottom-nav>a{position:relative;display:flex;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#b0c2d1;min-height:60px;font-size:12px;border-radius:6px;max-width:180px}
+.field-bottom-nav>a[aria-current=page]{background:#bdeaf0;color:#071426;font-weight:700}
+.field-bottom-nav>a:hover{background:#19364b;color:#fff}
+.controller-shell.facilitator-shell .player-content{padding-bottom:calc(116px + env(safe-area-inset-bottom,0px))}
+.app-link{position:relative}.app-link-pending{position:absolute;right:5px;top:5px;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;font-size:0;pointer-events:none;animation:controller-spin .8s linear infinite}.app-link-pending:not([data-pending=true]){display:none}
+@keyframes controller-enter{from{opacity:.75;transform:translateY(3px)}to{opacity:1;transform:none}}@keyframes controller-spin{to{transform:rotate(360deg)}}
+@media(max-width:480px){.controller-shell .player-content{padding-inline:16px}.controller-shell .controller-tabs>button{padding-inline:12px}.controller-shell .field-header h2{font-size:24px}.controller-shell .controller-steps{gap:6px}.controller-shell .sync-status{flex-wrap:nowrap}.controller-shell .sync-status>div{min-width:0;flex:1}}
+@media(min-width:768px){.field-bottom-nav{position:static;border:0;border-bottom:1px solid #385166;min-height:56px;padding:0 24px}.field-bottom-nav>a{flex-direction:row;min-height:56px;font-size:14px;max-width:280px}.controller-shell.facilitator-shell .player-content{padding-bottom:40px}.controller-shell .participant-card{max-width:700px}.controller-shell .field-board-controller{max-width:760px;margin:auto}}
+@media(prefers-reduced-motion:reduce){.controller-shell .controller-panel:not([hidden]),.app-link-pending{animation:none}.controller-shell :is(a,button){transition:none}}
+
+.controller-shell .field-header{margin:0 0 12px;padding-bottom:8px}.controller-shell .field-capacity{padding:8px 0;margin:8px 0 0;border:0;background:transparent}.controller-shell .field-columns>section>h2{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.controller-shell .field-board-controller>.controller-tabs{margin-bottom:8px}

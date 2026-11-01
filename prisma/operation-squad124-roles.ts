@@ -34,7 +34,7 @@ export const squad124Assignments = [
   {name:'Buisan, Reena Essa',role:'Technical Analyst'},
   {name:'Esmael, Haroun',role:'Technical Analyst'},
   {name:'Miparanum, Vin Lorenz',role:'Technical Analyst'},
-  // "Norjata Ebrahim" awaits confirmation against "Akmad, Norjata".
+  {name:'Akmad, Norjata G.',role:'Technical Analyst'},
   {name:'Palahuddin, Sheilamar',role:'Support Specialist'},
   {name:'Pandao, Ibtisam',role:'Support Specialist'},
   {name:'Diansuy, Mary Jane',role:'Support Specialist'},

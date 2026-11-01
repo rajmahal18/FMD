@@ -22,7 +22,7 @@ Pascual, Noah Jul|FMD - AS|M
 Salih, Junaidin|FMD - CS|M
 Samelon, Norhamin|MDNDEO - CFMS|M
 Zarrah, Maharifa|FMD - BS|F`)},
- {team:"Team 2",color:"#B8BE8B",members:parse(`Akmad, Norjata|MDNDEO - CFMS|F
+ {team:"Team 2",color:"#B8BE8B",members:parse(`Akmad, Norjata G.|MDNDEO - CFMS|F
 Balindong, Namraida|LDS2DEO - CFMS|F
 Basirul, Adzramin|S1DEO - CFMS|M
 Bitol, Mahather|FMD - BS|M

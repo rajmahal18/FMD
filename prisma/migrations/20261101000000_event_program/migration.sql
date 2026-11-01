@@ -1,0 +1,7 @@
+CREATE TABLE "EventProgram" (
+ "eventId" TEXT NOT NULL,
+ "content" JSONB NOT NULL,
+ "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT "EventProgram_pkey" PRIMARY KEY ("eventId"),
+ CONSTRAINT "EventProgram_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);

@@ -9,6 +9,7 @@ import {PlayerShell} from "./PlayerShell";
 
 export async function Shell({name,title,role,children,eventId}:{name:string;title:string;role:string;children:React.ReactNode;eventId?:string}){
   children=<RunRevisionProvider revision={eventId?await runRevision(db(),eventId):0}>{children}</RunRevisionProvider>;
+  if(role==="FACILITATOR")return <PlayerShell mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell>;
   if(role==="PARTICIPANT"||role==="AGENT")return <PlayerShell name={name} title={title} eventId={eventId}>{children}</PlayerShell>;
   const roleLabel=role.replaceAll("_"," ");
   return <div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":role==="FACILITATOR"?"facilitator-shell":""}`}>
@@ -33,6 +34,7 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
         {role==="FACILITATOR"&&eventId&&<NavigationLink href={`/events/${eventId}/voting`}>Voting events</NavigationLink>}
         {role==="FACILITATOR"&&eventId&&<NavigationLink href={`/events/${eventId}/results`}>Final results</NavigationLink>}
         {eventId&&role!=="ORGANIZER"&&<NavigationLink href={`/events/${eventId}/overall`}>Team Building Overall Ranking</NavigationLink>}
+        {eventId&&<NavigationLink href={`/events/${eventId}/program`}>Event Program</NavigationLink>}
         <NavigationLink href="/workspace">My events</NavigationLink>
       </nav>
       <div className="sidebar-intel-strip" aria-hidden="true">

@@ -26,6 +26,7 @@ try{
  await run(['--import','tsx','prisma/seed.ts']);
  await run(['--import','tsx','prisma/seed-roster.ts']);
  if(process.env.ROSTER_BROWSER_ONLY)await pg.query('UPDATE "EventMembership" SET "squadRole"=$1 WHERE role=$2 AND "teamId" IN (SELECT id FROM "Team" WHERE name=$3)', ['Intel / Radio Officer','PARTICIPANT','Team 4']);
+ if(process.env.PROGRAM_BROWSER_ONLY)await run(['--import','tsx','scripts/configure-operation-program.ts']);
  const before=await pg.query('SELECT email,"passwordHash" FROM "User" WHERE email LIKE $1 ORDER BY email',['%@agents.invalid']);
  await run(['--import','tsx','prisma/seed-roster.ts']);
  assert(JSON.stringify((await pg.query('SELECT email,"passwordHash" FROM "User" WHERE email LIKE $1 ORDER BY email',['%@agents.invalid'])).rows)===JSON.stringify(before.rows),'Roster rerun must preserve account passwords');
@@ -33,6 +34,8 @@ try{
  const {rows:[event]}=await pg.query('SELECT id FROM "Event" WHERE slug=$1',['classified-demo']);
  await pg.query('UPDATE "Station" SET "arrivalCode"=$1 WHERE id=$2',['23456789','demo-cipher-room']);
  const {rows:[roster]}=await pg.query('SELECT id FROM "Event" WHERE slug=$1',['operation-classified-fmd']);
+ if(process.env.PROGRAM_BROWSER_ONLY)await pg.query('INSERT INTO "EventProgram" ("eventId",content) SELECT $1,content FROM "EventProgram" WHERE "eventId"=$2',[event.id,roster.id]);
+
  assert.equal((await pg.query('SELECT count(*)::int AS n FROM "EventMembership" WHERE "eventId"=$1 AND role=$2 AND active=true',[roster.id,'ORGANIZER'])).rows[0].n,1);
  const overallFixture={events:[{id:'spy',name:'Spy Chase',weight:40,source:'SPY',credits:[100,90,80,70,60],ranks:{}},{id:'sports',name:'Sports and physical team challenges',weight:60,source:'MANUAL',credits:[100,90,80,70,60],ranks:{}}]};
  await pg.query('INSERT INTO "OverallRanking" ("eventId",config) VALUES ($1,$2)',[roster.id,JSON.stringify(overallFixture)]);
@@ -54,6 +57,11 @@ try{
  await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['timer-browser-assignment',timerTeam,'timer-browser-route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"startedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['timer-browser-visit',event.id,timerTeam,'demo-cipher-room','ACTIVE']);
 
+
+ if(process.env.CONTROLLER_BROWSER_ONLY){
+  await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['controller-second-team',event.id,'Second team with a long name']);
+  await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"updatedAt") VALUES ($1,$2,$3,$4,$5,NOW())',['controller-second-visit',event.id,'controller-second-team','demo-cipher-room','ARRIVED']);
+ }
  if(process.env.PLAYER_BROWSER_ONLY)await pg.query('INSERT INTO "ContactPolicy" (id,"eventId",mode,"sameTeamAllowed","mutualConfirmation","reciprocityAllowed",visibility,"tieRule",enabled,"opensAt","closesAt") VALUES ($1,$2,$3,true,true,true,$4,$5,true,$6,$7)',['player-ui-contact-policy',event.id,'INTERACTION','SELF','SHARED',new Date(Date.now()-60000).toISOString(),new Date(Date.now()+7200000).toISOString()]);
 
  if(process.env.ROSTER_BROWSER_ONLY)await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) SELECT $1,$2,id,$3 FROM "User" WHERE email=$4',['roster-browser-faci',roster.id,'FACILITATOR','facilitator@example.test']);
@@ -94,10 +102,10 @@ try{
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
    await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(url);if(setup)await evaluate(setup);
-   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open]")&&!e.closest(".error-modal"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav")&&!e.closest(".player-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
-   if(await evaluate("!!document.querySelector('.player-bottom-nav')")){
+   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open]")&&!e.closest(".error-modal"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs,.program-tabs,.controller-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav,.field-bottom-nav")&&!e.closest(".player-bottom-nav,.field-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   if(await evaluate("!!document.querySelector('.player-bottom-nav,.field-bottom-nav') && getComputedStyle(document.querySelector('.player-bottom-nav,.field-bottom-nav')).position==='fixed'")){
     await evaluate("window.scrollTo(0,document.documentElement.scrollHeight)");
-    assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
+    assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
    if(process.env.VISIBILITY_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
@@ -113,7 +121,7 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
@@ -232,6 +240,98 @@ try{
    assert.equal((await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 AND name=$2',[roster.id,'Modal validation team'])).rows.length,1);
    assert(!(await evaluate("document.querySelector('.error-modal').open")),'Successful submissions do not open an error modal');
    console.log('PASS: login and management error modals, focus trap/restore, Escape/Close, repeated errors, retained input, successful retry and responsive sizing.');continue;
+  }
+
+
+  if(process.env.CONTROLLER_BROWSER_ONLY){
+   const base='/events/'+event.id;
+   const click=async label=>evaluate("[...document.querySelectorAll('button')].find(b=>b.getClientRects().length&&b.textContent.trim()==="+JSON.stringify(label)+").click()");
+   const tab=async(label,item)=>evaluate("[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==="+JSON.stringify(label)+").querySelectorAll('button')["+item+"].click()");
+   const wait=async fn=>{for(let i=0;i<80;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Controller condition timed out');};
+   const closeFeedback=async()=>{await wait(()=>evaluate("!!document.querySelector('.action-feedback-modal[open] button')"));await evaluate("document.querySelector('.action-feedback-modal[open] button').click()");};
+   if(role==='organizer'){
+    await check('controller-organizer-unchanged',base);assert(await evaluate("!!document.querySelector('.themed-shell')&&!document.querySelector('.controller-shell')"));continue;
+   }
+   if(role==='agent'){
+    await check('controller-player-mission',base);
+    assert(await evaluate("!!document.querySelector('.participant-controller')"));
+    assert.equal(await evaluate("document.querySelector('.mission-main').hidden"),false);
+    await tab('Mission sections',1);assert.equal(await evaluate("document.querySelector('.mission-main').hidden"),true);
+    await check('controller-player-stations',base,"document.querySelectorAll('[aria-label=\"Mission sections\"] button')[1].click()");
+    await check('controller-player-team',base,"document.querySelectorAll('[aria-label=\"Mission sections\"] button')[2].click()");
+    assert(await evaluate("document.querySelector('#team-file').getClientRects().length>0"));
+    await tab('Mission sections',0);
+    await evaluate("window.__controllerNavigation='same-document';document.querySelector('.player-bottom-nav a[href$=\"/agents/me\"]').click()");
+    await wait(()=>evaluate("!!document.querySelector('.agent-dossier-shell')"));
+    assert.equal(await evaluate('window.__controllerNavigation'),'same-document');
+    await evaluate("document.querySelector('.dossier-mission-action').click()");await wait(()=>evaluate("!!document.querySelector('.participant-controller')"));
+    assert.equal(await evaluate('window.__controllerNavigation'),'same-document');
+    await pg.query('UPDATE "StationVisit" SET state=$1,"startedAt"=NULL WHERE id=$2',['CANCELLED','timer-browser-visit']);
+    await visit(base);assert(await evaluate("document.querySelector('.mission-arrival').getBoundingClientRect().height>=56"));
+    await pg.query('UPDATE "StationVisit" SET state=$1,"startedAt"=NOW() WHERE id=$2',['ACTIVE','timer-browser-visit']);
+    console.log('PASS: participant controller tabs, large captain action, full profile, mobile safe area and client navigation.');continue;
+   }
+   await check('controller-field-work',base);
+   assert.equal(await evaluate("[...document.querySelectorAll('.station-team')].filter(e=>e.getClientRects().length).length"),1);
+   await tab('Teams at station',0);await tab('Teams at station',1);
+   // Return to the active timer regardless of database row ordering.
+   await evaluate("const id=document.querySelector('.station-team[data-visit-state=ACTIVE]').id;document.querySelector('button[aria-controls=\"'+id+'\"]').click()");
+   await check('controller-field-tools',base,"document.querySelectorAll('[aria-label=\"Station sections\"] button')[2].click();document.querySelector('.time-penalty-editor').open=true");
+   await visit(base);await evaluate("window.__controllerNavigation='same-document';document.querySelector('.field-bottom-nav a[href$=\"#field-history\"]').click()");
+   await wait(()=>evaluate("document.querySelector('#field-history').getClientRects().length>0"));
+   assert.equal(await evaluate('window.__controllerNavigation'),'same-document');
+   await tab('Station sections',0);
+   const actorId=(await pg.query('SELECT id FROM "User" WHERE email=$1',['facilitator@example.test'])).rows[0].id;
+   const hiddenRetryKey='spy-race:'+actorId+':'+event.id+':startChallenge:controller-second-visit';
+   await evaluate("sessionStorage.setItem("+JSON.stringify(hiddenRetryKey)+","+JSON.stringify(JSON.stringify({body:{operation:'startChallenge',visitId:'controller-second-visit',requestKey:crypto.randomUUID()},description:'Hidden team pending check',endpoint:'race'}))+");window.dispatchEvent(new Event('spy-race-pending'))");
+   await wait(()=>evaluate("!!document.querySelector('.pending-requests')&&document.querySelector('.pending-requests').textContent.includes('Hidden team pending check')"));
+   await evaluate("sessionStorage.removeItem("+JSON.stringify(hiddenRetryKey)+");window.dispatchEvent(new Event('spy-race-pending'))");
+   await evaluate("[...document.querySelectorAll('.station-team:not([hidden]) button')].find(b=>b.textContent.startsWith('+10 sec')).click()");
+   await wait(async()=>(await pg.query('SELECT COUNT(*)::int AS n FROM "TimePenaltyEntry" WHERE "visitId"=$1',['timer-browser-visit'])).rows[0].n===1);await closeFeedback();
+   await click('Finish challenge');await wait(async()=>(await pg.query('SELECT state FROM "StationVisit" WHERE id=$1',['timer-browser-visit'])).rows[0].state==='AWAITING_CONFIRMATION');await closeFeedback();
+   await wait(()=>evaluate("!![...document.querySelectorAll('.station-team:not([hidden]) button')].find(b=>b.textContent==='Review station time')"));
+   await click('Review station time');await click('Confirm station time');
+   await wait(async()=>(await pg.query('SELECT state FROM "StationVisit" WHERE id=$1',['timer-browser-visit'])).rows[0].state==='COMPLETED');await closeFeedback();
+   assert.equal((await pg.query('SELECT "timePenaltySeconds" FROM "StationOutcome" WHERE "visitId"=$1',['timer-browser-visit'])).rows[0].timePenaltySeconds,10);
+   // A points-mode draft must survive tabs, SPA navigation, reload, polling and disconnection.
+   await pg.query('UPDATE "OverallRanking" SET config=jsonb_set(config,$1,$2) WHERE "eventId"=$3',['{raceRule}','"POINTS"',event.id]);
+   await pg.query('UPDATE "Station" SET "allowAdjustments"=true WHERE id=$1',['demo-cipher-room']);
+   await pg.query('UPDATE "StationVisit" SET state=$1,"startedAt"=NOW(),"finishedAt"=NOW() WHERE id=$2',['AWAITING_CONFIRMATION','controller-second-visit']);
+   await visit(base);await evaluate("document.querySelector('.station-team:not([hidden]) textarea').focus()");await cmd('Input.insertText',{text:'Keep this facilitator draft'});
+   await tab('Station sections',2);await tab('Station sections',0);
+   assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');
+   await evaluate("window.__controllerNavigation='same-document';document.querySelector('.field-bottom-nav a[href$=\"/people\"]').click()");await wait(()=>evaluate("!!document.querySelector('.roster-tabs')"));
+   await evaluate("document.querySelector('.field-bottom-nav a[href=\""+base+"\"]').click()");await wait(()=>evaluate("!!document.querySelector('.station-team textarea')"));
+   assert.equal(await evaluate('window.__controllerNavigation'),'same-document');
+   await wait(()=>evaluate("document.querySelector('.station-team textarea').value==='Keep this facilitator draft'"));
+   await visit(base);assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');
+   await cmd('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0});await evaluate("window.dispatchEvent(new Event('offline'))");
+   assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');
+   await cmd('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});await evaluate("document.querySelector('.error-modal[open] button')?.click();window.dispatchEvent(new Event('online'))");
+   await wait(()=>evaluate("!document.querySelector('.sync-status button').disabled"));
+   assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');
+   await evaluate("document.querySelector('.player-account').open=true;document.querySelector('.player-account form').requestSubmit()");await wait(()=>evaluate("location.pathname==='/login'"));
+   assert.equal(await evaluate("Object.keys(sessionStorage).filter(k=>k.startsWith('spy-field-draft:')).length"),0);
+   console.log('PASS: one-team controller, station/history/tools, real penalty/finish/confirm, retained drafts across tabs/navigation/reload/offline and sign-out cleanup.');continue;
+  }
+  if(process.env.PROGRAM_BROWSER_ONLY){
+   const url='/events/'+event.id+'/program';
+   await check('program-'+role,url);
+   assert.equal(await evaluate("document.querySelectorAll('.program-tabs [role=tab]').length"),3);
+   assert(await evaluate("getComputedStyle(document.querySelectorAll('.program-tabs button')[0]).backgroundColor!==getComputedStyle(document.querySelectorAll('.program-tabs button')[1]).backgroundColor"),'Selected program tab must be visually distinct');
+   await evaluate("document.querySelectorAll('.program-tabs button')[0].focus();document.querySelectorAll('.program-tabs button')[0].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))");
+   assert.equal(await evaluate("document.querySelectorAll('.program-tabs button')[1].getAttribute('aria-selected')"),'true');
+   await check('program-briefing-'+role,url,"document.querySelectorAll('.program-tabs button')[1].click();[...document.querySelectorAll('.program-item summary')].find(e=>e.textContent.includes('Pre-Race Tactical Challenge')).click()");
+   assert(await evaluate("[...document.querySelectorAll('.program-item[open]')].some(e=>e.textContent.includes('Chief Macabai M. Pangamadun'))"));
+   await check('program-gala-'+role,url,"document.querySelectorAll('.program-tabs button')[2].click();[...document.querySelectorAll('.program-item summary')].find(e=>e.textContent.includes('Gala Showcase')).click()");
+   assert(await evaluate("[...document.querySelectorAll('.program-day:not([hidden]) time')].some(e=>e.textContent==='10:00 PM')"));
+   if(role==='agent'){
+    await visit('/events/'+event.id);
+    assert(await evaluate("!!document.querySelector('.mission-program-entry a')"));
+    await evaluate("document.querySelector('.player-account').open=true");
+    assert(await evaluate("!!document.querySelector('.player-account-menu a[href$=\"/program\"]')"));
+   }
+   console.log('PASS: '+role+' event program, keyboard tabs, expanded speakers, gala timings and 320/390/768/1440 layouts.');continue;
   }
   if(process.env.ROSTER_BROWSER_ONLY){
    const peopleUrl='/events/'+roster.id+'/people';await check('roster-'+role,peopleUrl);

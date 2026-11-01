@@ -64,6 +64,7 @@ model Event {
  accentColor String @default("#72D5E3")
  archivedAt DateTime?
  overallRanking OverallRanking?
+ program EventProgram?
  votingEvents VotingEvent[]
  archivedReason String?
  logoData Bytes?
@@ -88,6 +89,13 @@ model OverallRanking {
  revision Int @default(1)
  config Json
  finalized Json?
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+}
+
+model EventProgram {
+ eventId String @id
+ content Json
+ updatedAt DateTime @updatedAt
  event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
 }
 model EventMembership {

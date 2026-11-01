@@ -17,6 +17,12 @@ try{
  assert.equal((await login('agent@example.test',origin,'bad')).headers.get('location'),origin+'/login?error=credentials');
  const cookies={};for(const role of ['organizer','facilitator','agent']){const r=await login(role+'@example.test');assert.equal(r.status,303);cookies[role]=r.headers.get('set-cookie').split(';')[0];assert(r.headers.get('set-cookie').includes('HttpOnly'));assert.equal((await get('/events/'+event.id,cookies[role])).status,200);assert.equal((await get('/events/other-event',cookies[role])).status,404);}
 
+
+ // Program visibility follows individual event membership; other events do not inherit it.
+ const programFixture={title:'Private event agenda',theme:'Espionage',days:[{date:'2026-11-04',label:'Forum',sections:[{id:'forum',title:'Forum',items:[{id:'seminar',start:'09:00',end:'12:00',title:'Private seminar details',description:'For this event only.'}]}]}]};
+ await pg.query('INSERT INTO "EventProgram" ("eventId",content) VALUES ($1,$2)',[event.id,JSON.stringify(programFixture)]);
+ assert.equal((await get('/events/'+event.id+'/program')).status,307);
+ for(const role of ['organizer','facilitator','agent']){const response=await get('/events/'+event.id+'/program',cookies[role]);assert.equal(response.status,200);assert((await response.text()).includes('Private seminar details'));assert.equal((await get('/events/other-event/program',cookies[role])).status,404);}
  // Printed account QR identifies the account but never authenticates the scanner.
  for(const role of ['agent','facilitator']){
   const {rows:[target]}=await pg.query('SELECT id, name FROM "User" WHERE email=$1',[role+'@example.test']);
@@ -46,6 +52,8 @@ try{
  assert.equal((await command('createEvent',{name:'Forgery',timezone:'Asia/Manila'},cookies.organizer,crypto.randomUUID(),'https://evil.test')).status,403);
  assert.equal((await command('createEvent',{name:'Bad timezone',timezone:'Not/AZone'})).status,400);
  const creationKey=crypto.randomUUID();const newEvent=await command('createEvent',{name:'Operation Aurora',timezone:'Asia/Manila'},cookies.organizer,creationKey);assert.equal(newEvent.status,200);const event2=newEvent.targetId;
+ const emptyProgram=await get('/events/'+event2+'/program',cookies.organizer);assert.equal(emptyProgram.status,200);const emptyProgramText=await emptyProgram.text();assert(emptyProgramText.includes('Program not published yet'));assert(!emptyProgramText.includes('Private seminar details'));assert.equal((await get('/events/'+event2+'/program',cookies.agent)).status,404);
+
  assert.equal((await command('createEvent',{name:'Operation Aurora',timezone:'Asia/Manila'},cookies.organizer,creationKey)).targetId,event2);
  assert.equal((await command('createEvent',{name:'Changed retry',timezone:'Asia/Manila'},cookies.organizer,creationKey)).status,409);
  assert.equal((await get(`/events/${event2}/people`,cookies.agent)).status,404);
