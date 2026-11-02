@@ -1,4 +1,6 @@
 // Existing immutable account IDs keep printed links stable without a schema change.
+export const accountQrRoles = ["ORGANIZER", "PARTICIPANT", "FACILITATOR"] as ("ORGANIZER" | "PARTICIPANT" | "FACILITATOR")[];
+
 export function playerAccessPath(id: string) {
   return `/players/${encodeURIComponent(id)}`;
 }

@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { hashPassword,verifyPassword,tokenHash } from "@/lib/password";
 import { isSameOrigin } from "@/lib/policy";
 import { sessionCookie } from "@/lib/auth";
-import {playerAccessPath, validPlayerCode} from "@/lib/player-access";
+import {accountQrRoles, playerAccessPath, validPlayerCode} from "@/lib/player-access";
 export const runtime="nodejs";
 const dummy=hashPassword(randomBytes(32).toString("hex"));
 export async function POST(request:NextRequest){
@@ -13,7 +13,7 @@ export async function POST(request:NextRequest){
  if(!expected||!isSameOrigin(request.headers.get("origin"),expected))return new NextResponse("Forbidden",{status:403});
  const form=await request.formData();const email=String(form.get("email")||"").trim().toLowerCase();const password=String(form.get("password")||"");
  const playerCode=form.get("playerCode");
- const player=validPlayerCode(playerCode)?await db().user.findFirst({where:{id:playerCode,active:true,memberships:{some:{active:true,role:{in:["PARTICIPANT","FACILITATOR"]}}}},select:{email:true}}):null;
+ const player=validPlayerCode(playerCode)?await db().user.findFirst({where:{id:playerCode,active:true,memberships:{some:{active:true,role:{in:accountQrRoles}}}},select:{email:true}}):null;
  const returnTo=validPlayerCode(playerCode)?playerAccessPath(playerCode):safeReturnPath(form.get("returnTo"));
  const fail=(code:string)=>{const url=new URL(validPlayerCode(playerCode)?`${playerAccessPath(playerCode)}?error=${code}`:`/login?error=${code}`,expected);if(returnTo&&!playerCode)url.searchParams.set("returnTo",returnTo);return NextResponse.redirect(url,303);};
  const loginEmail=player?.email??email;

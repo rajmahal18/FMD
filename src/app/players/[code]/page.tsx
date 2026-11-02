@@ -1,7 +1,7 @@
 import {notFound, redirect} from "next/navigation";
 import {currentUser} from "@/lib/auth";
 import {db} from "@/lib/db";
-import {playerAccessPath, validPlayerCode} from "@/lib/player-access";
+import {accountQrRoles, playerAccessPath, validPlayerCode} from "@/lib/player-access";
 import {ErrorNotice} from "@/components/ErrorNotice";
 import {EmailLogin} from "@/components/EmailLogin";
 
@@ -12,7 +12,7 @@ export default async function PlayerAccess({params, searchParams}: {
   const {code} = await params;
   if (!validPlayerCode(code)) notFound();
   const target = await db().user.findFirst({
-    where: {id: code, active: true, memberships: {some: {active: true, role: {in: ["PARTICIPANT", "FACILITATOR"]}}}},
+    where: {id: code, active: true, memberships: {some: {active: true, role: {in: accountQrRoles}}}},
     select: {id: true, name: true},
   });
   if (!target) notFound();

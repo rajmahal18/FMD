@@ -15,9 +15,9 @@ try{
  const login=async(email,originHeader=origin,password=env.SEED_PASSWORD)=>fetch(origin+'/api/auth/login',{method:'POST',headers:{origin:originHeader,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email,password}),redirect:'manual'});
  // Real OTP verification against isolated PostgreSQL; no email provider needed.
  const otpPost=(body,originHeader=origin)=>fetch(origin+'/api/auth/otp',{method:'POST',headers:{origin:originHeader,'content-type':'application/json'},body:JSON.stringify(body)});
- const fixture=async({expired=false,playerCode=null,attempts=0}={})=>{
+ const fixture=async({expired=false,playerCode=null,attempts=0,email='agent@example.test'}={})=>{
   const id=randomBytes(32).toString('base64url');const code='042819';
-  await pg.query('INSERT INTO "EmailOtp" (id,email,"codeHash","playerCode","returnTo","expiresAt",attempts) VALUES ($1,$2,$3,$4,$5,$6,$7)',[id,'agent@example.test',createHash('sha256').update(id+':'+code).digest('hex'),playerCode,'/workspace',new Date(Date.now()+(expired?-1000:600000)),attempts]);
+  await pg.query('INSERT INTO "EmailOtp" (id,email,"codeHash","playerCode","returnTo","expiresAt",attempts) VALUES ($1,$2,$3,$4,$5,$6,$7)',[id,email,createHash('sha256').update(id+':'+code).digest('hex'),playerCode,'/workspace',new Date(Date.now()+(expired?-1000:600000)),attempts]);
   return {operation:'verify',challenge:id,code};
  };
  assert.equal((await otpPost(await fixture(),'https://evil.test')).status,403);
@@ -46,11 +46,13 @@ try{
  assert.equal((await get('/events/'+event.id+'/program')).status,307);
  for(const role of ['organizer','facilitator','agent']){const response=await get('/events/'+event.id+'/program',cookies[role]);assert.equal(response.status,200);assert((await response.text()).includes('Private seminar details'));assert.equal((await get('/events/other-event/program',cookies[role])).status,404);}
  // Printed account QR identifies the account but never authenticates the scanner.
- for(const role of ['agent','facilitator']){
+ for(const role of ['agent','facilitator','organizer']){
   const {rows:[target]}=await pg.query('SELECT id, name FROM "User" WHERE email=$1',[role+'@example.test']);
   const access='/players/'+target.id;
   const publicPage=await get(access);assert.equal(publicPage.status,200);assert((await publicPage.text()).replaceAll('<!-- -->','').includes('Sign in as '+target.name));
-  assert.equal((await get(access,cookies.organizer)).status,200);
+  assert.equal((await get(access,role==='organizer'?cookies.agent:cookies.organizer)).status,200);
+  const otp=await otpPost(await fixture({playerCode:target.id,email:role+'@example.test'}));
+  assert.equal(otp.status,200);assert(otp.headers.get('set-cookie').includes('HttpOnly'));
   assert.equal((await get(access,cookies[role])).headers.get('location'),'/events/'+event.id);
   const attempt=async(password,originHeader=origin)=>fetch(origin+'/api/auth/login',{method:'POST',headers:{origin:originHeader,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({playerCode:target.id,password}),redirect:'manual'});
   assert.equal((await attempt(env.SEED_PASSWORD,'https://evil.test')).status,403);

@@ -4,13 +4,13 @@ import {db} from "@/lib/db";
 import {tokenHash} from "@/lib/password";
 import {isSameOrigin} from "@/lib/policy";
 import {safeReturnPath} from "@/lib/race";
-import {validPlayerCode,playerAccessPath} from "@/lib/player-access";
+import {accountQrRoles,validPlayerCode,playerAccessPath} from "@/lib/player-access";
 import {sessionCookie} from "@/lib/auth";
 import nodemailer from "nodemailer";
 
 export const runtime="nodejs";
 const eligible={active:true,memberships:{some:{active:true,event:{archivedAt:null}}}};
-const playerEligible={...eligible,memberships:{some:{active:true,event:{archivedAt:null},role:{in:["PARTICIPANT","FACILITATOR"] as ("PARTICIPANT"|"FACILITATOR")[]}}}};
+const playerEligible={...eligible,memberships:{some:{active:true,event:{archivedAt:null},role:{in:accountQrRoles}}}};
 function failure(error:string,status=400){return NextResponse.json({error},{status,headers:{"Cache-Control":"no-store"}});}
 async function budget(scope:string,limit:number,windowMs:number){
  const key=tokenHash(scope);const now=new Date();const expires=new Date(now.getTime()+windowMs);
