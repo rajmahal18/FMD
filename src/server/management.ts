@@ -59,6 +59,7 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
     details={before:JSON.parse(JSON.stringify(before)),after:JSON.parse(JSON.stringify(values)),logoChanged:!!logo||data.get("removeLogo")==="on"};result={message:"Event details saved.",targetId:eventId};break;
    }
    case "deleteDraftEvent":{
+    if(await tx.judgingScore.count({where:{eventId}})||await tx.auditEntry.count({where:{eventId,action:"JUDGING_PUBLISH"}}))throw new InputError("This event has judging history. Archive it instead of deleting it.",409);
     const event=await tx.event.findUniqueOrThrow({where:{id:eventId}});
      if(await tx.votingBallot.count({where:{eventId}})||await tx.auditEntry.count({where:{eventId,action:"VOTING_PUBLISH"}}))throw new InputError("This event has voting history. Archive it instead of deleting it.",409);
     if(await tx.auditEntry.count({where:{eventId,action:'OVERALL_FINALIZE'}}))throw new InputError("This event has finalized overall result history. Archive it instead of deleting it.",409);

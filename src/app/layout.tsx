@@ -8,6 +8,7 @@ import "./globals.css";
 import "./player.css";
 import "./controller.css";
 import "./voting.css";
+import "./judging.css";
 import "./spy-theme.css";
 import {SpyAtmosphere} from "@/components/SpyAtmosphere";
 export const metadata:Metadata={title:"Spy Chase | Operation Classified",description:"Field operations for station-based team events",robots:{index:false,follow:false}};

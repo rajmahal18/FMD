@@ -78,6 +78,7 @@ model Event {
  overallRanking OverallRanking?
  program EventProgram?
  votingEvents VotingEvent[]
+ judgingContests JudgingContest[]
  archivedReason String?
  logoData Bytes?
  logoMime String?
@@ -125,6 +126,7 @@ model EventMembership {
  assignments FacilitatorAssignment[]
  ballots VotingBallot[]
  receivedVotes VotingChoice[]
+ judgingAssignments JudgingAssignment[]
  contactCredentials ContactCredential[]
  requestedContacts ContactRecord[] @relation("ContactRequester")
  receivedContacts ContactRecord[] @relation("ContactRecipient")
@@ -133,6 +135,51 @@ model EventMembership {
  @@index([userId,active])
 }
 
+model JudgingContest {
+ id String @id @default(cuid())
+ eventId String
+ name String
+ instructions String @default("")
+ config Json
+ state String @default("DRAFT")
+ revision Int @default(1)
+ publishedResults Json?
+ publishedAt DateTime?
+ createdAt DateTime @default(now())
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ assignments JudgingAssignment[]
+ scores JudgingScore[]
+ @@unique([eventId,id])
+ @@index([eventId,createdAt])
+}
+model JudgingAssignment {
+ eventId String
+ contestId String
+ membershipId String
+ active Boolean @default(true)
+ contest JudgingContest @relation(fields:[eventId,contestId],references:[eventId,id],onDelete:Cascade)
+ membership EventMembership @relation(fields:[eventId,membershipId],references:[eventId,id],onDelete:Cascade)
+ scores JudgingScore[]
+ @@id([contestId,membershipId])
+ @@unique([eventId,contestId,membershipId])
+ @@index([membershipId,active])
+}
+model JudgingScore {
+ id String @id @default(cuid())
+ eventId String
+ contestId String
+ judgeMembershipId String
+ candidateId String
+ scores Json
+ totalHundredths Int
+ version Int @default(1)
+ submittedAt DateTime?
+ updatedAt DateTime @updatedAt
+ contest JudgingContest @relation(fields:[eventId,contestId],references:[eventId,id],onDelete:Restrict)
+ assignment JudgingAssignment @relation(fields:[eventId,contestId,judgeMembershipId],references:[eventId,contestId,membershipId],onDelete:Restrict)
+ @@unique([contestId,judgeMembershipId,candidateId])
+ @@index([eventId,contestId])
+}
 model VotingEvent {
  id String @id @default(cuid())
  eventId String

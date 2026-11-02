@@ -12,6 +12,7 @@ const out=path.resolve('.tmp/stability-evidence');fs.mkdirSync(out,{recursive:tr
 const origin='https://127.0.0.1:3189';
 const appOrigin='http://127.0.0.1:3188';
 const env={...process.env,DATABASE_URL:'postgresql://postgres:postgres@127.0.0.1:5546/postgres',DIRECT_URL:'postgresql://postgres:postgres@127.0.0.1:5546/postgres',APP_ORIGIN:origin,SEED_PASSWORD:'isolated-stability-password',SEED_AGENT_PASSWORD:'isolated-roster-password',SEED_ORGANIZER_EMAIL:'organizer@example.test',DB_POOL_SIZE:'1'};
+const judgingBrowserCriteria=[{id:'story',name:'Thematic Storyline & Interpretation',description:'Clear espionage narrative.',maximum:30},{id:'quality',name:'Performance Quality & Mastery',description:'Precision, timing and confidence.',maximum:30},{id:'creativity',name:'Creativity & Entertainment Value',description:'Original concept and entertainment impact.',maximum:20},{id:'stage',name:'Costumes, Props & Stage Utilization',description:'Props, costumes and stage presence.',maximum:20}];
 const pg=await PGlite.create();
 for(const dir of fs.readdirSync('prisma/migrations').sort()){const p=path.join('prisma/migrations',dir,'migration.sql');if(fs.existsSync(p))await pg.exec(fs.readFileSync(p,'utf8'));}
 const socket=new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:5546});await socket.start();
@@ -59,6 +60,15 @@ try{
  if(process.env.STATION_REQUIREMENTS_BROWSER_ONLY){
   await pg.query('UPDATE "Station" SET brawn=5,brain=0,"playersRequired"=6 WHERE id=$1',['demo-cipher-room']);
   await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured) VALUES ($1,$2,$3,$4,$5,$6,true)',['requirements-editor-station',roster.id,'Station requirements editor','Main hall','Meet the facilitator.','Confirm the result.']);
+ }
+ if(process.env.JUDGING_BROWSER_ONLY){
+  await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['judging-browser-bravo',event.id,'Bravo with a long team name']);
+  const membership=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event.id,'FACILITATOR'])).rows[0].id;
+  const config={target:'TEAM',candidateIds:[timerTeam,'judging-browser-bravo'],criteria:judgingBrowserCriteria};
+  for(const [id,name,state] of [['judging-browser-gala','Gala Showcase Performance','OPEN'],['judging-browser-draft','Banner judging draft','DRAFT']]){
+   await pg.query('INSERT INTO "JudgingContest" (id,"eventId",name,instructions,config,state) VALUES ($1,$2,$3,$4,$5,$6)',[id,event.id,name,'Score each criterion independently. Each judge has equal weight.',JSON.stringify(config),state]);
+   await pg.query('INSERT INTO "JudgingAssignment" ("eventId","contestId","membershipId") VALUES ($1,$2,$3)',[event.id,id,membership]);
+  }
  }
 
 
@@ -112,7 +122,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -130,6 +140,39 @@ try{
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
+
+  if(process.env.JUDGING_BROWSER_ONLY){
+   if(role==='organizer'){
+    await check('judging-setup','/events/'+event.id+'/judging-settings',"[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.includes('Add contest')).click()");
+    await check('judging-organizer','/events/'+event.id+'/judging');
+   }else if(role==='facilitator'){
+    await check('judging-score-sheet','/events/'+event.id+'/judging');
+    assert(await evaluate("!!document.querySelector('.field-bottom-nav a[href$=\"/judging\"]')"),'Assigned judges need a navigation entry');
+    await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});await visit('/events/'+event.id+'/judging');
+    await evaluate("const input=document.querySelector('.judging-score-sheet input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'27');input.dispatchEvent(new Event('input',{bubbles:true}));");
+    await new Promise(r=>setTimeout(r,100));
+    await evaluate("[...document.querySelectorAll('.judging-score-sheet button')].find(b=>b.textContent==='Save draft').click()");
+    for(let i=0;i<50;i++){if((await pg.query('SELECT COUNT(*)::int AS n FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0].n===1)break;await new Promise(r=>setTimeout(r,100));}
+    assert.equal((await pg.query('SELECT "totalHundredths" FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0].totalHundredths,2700);
+    await visit('/events/'+event.id+'/judging');assert.equal(await evaluate("document.querySelector('.judging-score-sheet input').value"),'27');
+    await evaluate("document.querySelectorAll('.judging-score-sheet')[0].querySelectorAll('input').forEach((input,i)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,String([27,25,18,19][i]));input.dispatchEvent(new Event('input',{bubbles:true}));})");
+    await new Promise(r=>setTimeout(r,150));await evaluate("document.querySelector('.judging-score-sheet form').requestSubmit()");await new Promise(r=>setTimeout(r,150));
+    assert(await evaluate("!!document.querySelector('.judging-dialog[open]')"));
+    assert(await evaluate("(()=>{const d=document.querySelector('.judging-dialog');const r=d.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;})()"),'Judging review must fit the mobile viewport');
+    const reviewImage=await cmd('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,'judging-review-320.png'),Buffer.from(reviewImage.data,'base64'));
+    await evaluate("(()=>{const d=document.querySelector('.judging-dialog');d.scrollTop=d.scrollHeight;[...d.querySelectorAll('button')].find(b=>b.textContent==='Confirm & submit score').click();})()");
+    for(let i=0;i<50;i++){if((await pg.query('SELECT "submittedAt" FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0]?.submittedAt)break;await new Promise(r=>setTimeout(r,100));}
+    assert.equal((await pg.query('SELECT "totalHundredths" FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0].totalHundredths,8900);
+    const other=await fetch(appOrigin+'/api/events/'+event.id+'/judging',{method:'POST',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify({operation:'submitScore',contestId:'judging-browser-gala',revision:1,version:0,candidateId:'judging-browser-bravo',scores:{story:26,quality:25,creativity:17,stage:18},runRevision:0,requestKey:crypto.randomUUID()})});assert.equal(other.status,200);
+    const adminCookie=(await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:'organizer@example.test',password:env.SEED_PASSWORD}),redirect:'manual'})).headers.get('set-cookie').split(';')[0];
+    for(const [operation,revision] of [['close',1],['publish',2]]){const r=await fetch(appOrigin+'/api/events/'+event.id+'/judging',{method:'POST',headers:{origin,cookie:adminCookie,'content-type':'application/json'},body:JSON.stringify({operation,revision,contestId:'judging-browser-gala',runRevision:0,requestKey:crypto.randomUUID()})});assert.equal(r.status,200);}
+   }else{
+    await check('judging-published','/events/'+event.id+'/judging');
+    assert(await evaluate("document.querySelector('.judging-results').textContent.includes('89.00')"));
+    await evaluate("document.querySelector('.judging-result-row').click()");await new Promise(r=>setTimeout(r,100));assert(await evaluate("document.querySelector('.judging-dialog').textContent.includes('Individual judge sheets remain private')"));
+   }
+   continue;
+  }
 
   if(process.env.STATION_REQUIREMENTS_BROWSER_ONLY){
    if(role==='organizer'){
@@ -694,7 +737,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

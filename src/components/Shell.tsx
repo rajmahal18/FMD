@@ -1,3 +1,4 @@
+import {currentUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {runRevision} from '@/server/run-revision';
 import {RunRevisionProvider} from './RunRevision';
@@ -9,7 +10,7 @@ import {PlayerShell} from "./PlayerShell";
 
 export async function Shell({name,title,role,children,eventId}:{name:string;title:string;role:string;children:React.ReactNode;eventId?:string}){
   children=<RunRevisionProvider revision={eventId?await runRevision(db(),eventId):0}>{children}</RunRevisionProvider>;
-  if(role==="FACILITATOR")return <PlayerShell mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell>;
+  if(role==="FACILITATOR"){const account=await currentUser();const hasJudging=!!eventId&&!!account&&await db().judgingAssignment.count({where:{eventId,active:true,membership:{userId:account.id,active:true,role:"FACILITATOR"}}})>0;return <PlayerShell judgingEnabled={hasJudging} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell>;}
   if(role==="PARTICIPANT"||role==="AGENT")return <PlayerShell name={name} title={title} eventId={eventId}>{children}</PlayerShell>;
   const roleLabel=role.replaceAll("_"," ");
   return <div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":role==="FACILITATOR"?"facilitator-shell":""}`}>

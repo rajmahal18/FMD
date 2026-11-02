@@ -137,6 +137,85 @@ try{
  const competitionConfig={raceRule:'POINTS_TIME',events:[{id:'race',name:'Amazing Race',weight:40,source:'SPY',credits:[100,90],ranks:{}},{id:'other',name:'Unpublished activity placements',weight:60,source:'MANUAL',credits:[100,90],ranks:{[ta]:2,[tb]:1}}]};
  const postJson=async(path,body,cookie=cookies.organizer)=>{const r=await fetch(origin+path,{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body:JSON.stringify(body)});return {status:r.status,...await r.json()};};
 
+ // Judged contests: assignment-scoped sheets, equal-weight averages and audited publication.
+ const judgedEvent=(await command('createEvent',{name:'Judging Rehearsal',timezone:'Asia/Manila'})).targetId;
+ const jt1=(await command('addTeam',{eventId:judgedEvent,name:'Judged Team 1',color:'#72d5e3'})).targetId,jt2=(await command('addTeam',{eventId:judgedEvent,name:'Judged Team 2',color:'#83d6b2'})).targetId;
+ await command('addMember',{eventId:judgedEvent,name:'Agent',email:'agent@example.test',role:'PARTICIPANT',teamId:jt1});
+ const judge1=(await command('addMember',{eventId:judgedEvent,name:'Judge One',email:'facilitator@example.test',role:'FACILITATOR'})).targetId;
+ for(const suffix of ['two','unassigned'])await pg.query('INSERT INTO "User" (id,name,email,"passwordHash") SELECT $1,$2,$3,"passwordHash" FROM "User" WHERE email=$4',['judge-'+suffix,'Judge '+suffix,'judge-'+suffix+'@example.test','facilitator@example.test']);
+ const judge2=(await command('addMember',{eventId:judgedEvent,name:'Judge Two',email:'judge-two@example.test',role:'FACILITATOR'})).targetId;
+ await command('addMember',{eventId:judgedEvent,name:'Unassigned Judge',email:'judge-unassigned@example.test',role:'FACILITATOR'});
+ const judge2Cookie=(await login('judge-two@example.test')).headers.get('set-cookie').split(';')[0],unassignedJudgeCookie=(await login('judge-unassigned@example.test')).headers.get('set-cookie').split(';')[0];
+ const judgingPath='/api/events/'+judgedEvent+'/judging';let contestId;
+ const jc=async(operation,values={},cookie=cookies.organizer,key=crypto.randomUUID())=>{
+  const revision=contestId?(await pg.query('SELECT revision FROM "JudgingContest" WHERE id=$1',[contestId])).rows[0]?.revision:undefined;
+  return postJson(judgingPath,{operation,contestId,revision,runRevision:0,requestKey:key,...values},cookie);
+ };
+ const judgingData=async cookie=>{const r=await get(judgingPath,cookie);return {status:r.status,...await r.json()};};
+ const judgingConfig={target:'TEAM',candidateIds:[jt1,jt2],criteria:[{id:'impact',name:'Stage impact',description:'Stage presence',maximum:10},{id:'harmony',name:'Harmony',description:'Team harmony',maximum:15}]};
+ const newContest={name:'Gala Judging',instructions:'Judge both teams independently.',config:judgingConfig,judgeIds:[judge1,judge2]};
+ assert.equal((await judgingData()).status,401);
+ for(const cookie of [cookies.agent,cookies.facilitator])assert.equal((await jc('createContest',newContest,cookie)).status,403);
+ assert.equal((await jc('createContest',{...newContest,judgeIds:[jt1]})).status,400);
+ assert.equal((await jc('createContest',{...newContest,config:{...judgingConfig,candidateIds:[alpha.targetId]}})).status,400);
+ assert.equal((await postJson('/api/events/'+event2+'/judging',{operation:'createContest',requestKey:crypto.randomUUID(),...newContest})).status,400);
+ const createdJudging=await jc('createContest',newContest);assert.equal(createdJudging.status,200);contestId=createdJudging.targetId;
+ assert.equal((await get('/events/'+judgedEvent+'/judging-settings',cookies.facilitator)).status,404);
+ assert.equal((await get('/events/'+judgedEvent+'/judging-settings',cookies.organizer)).status,200);
+ assert((await (await get('/events/'+judgedEvent,cookies.facilitator)).text()).includes('>Judge</span>'));
+ assert.deepEqual((await judgingData(cookies.agent)).contests,[]);assert.deepEqual((await judgingData(unassignedJudgeCookie)).contests,[]);
+ assert.equal((await jc('open')).status,200);
+ assert.equal((await jc('saveDraft',{candidateId:jt1,version:0,scores:{impact:9}},unassignedJudgeCookie)).status,403);
+ assert.equal((await jc('saveDraft',{candidateId:jt1,version:0,scores:{impact:9}},cookies.organizer)).status,403);
+ assert.equal((await jc('saveDraft',{candidateId:jt1,version:0,scores:{impact:9}},cookies.facilitator)).status,200);
+ assert.equal((await jc('saveContest',newContest)).status,409);
+ assert.equal((await jc('submitScore',{candidateId:jt1,version:1,scores:{impact:9}},cookies.facilitator)).status,400);
+ assert.equal((await jc('submitScore',{candidateId:jt1,version:1,scores:{impact:11,harmony:10}},cookies.facilitator)).status,400);
+ assert.equal((await jc('saveDraft',{candidateId:alpha.targetId,version:0,scores:{}},cookies.facilitator)).status,403);
+ await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['PAUSED',judgedEvent]);
+ assert.equal((await jc('submitScore',{candidateId:jt1,version:1,scores:{impact:9,harmony:10}},cookies.facilitator)).status,409);
+ await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['ENDED',judgedEvent]); // Gala scoring can continue after the race ends.
+ const scoreKey=crypto.randomUUID(),scoreBody={candidateId:jt1,version:1,scores:{impact:9,harmony:10}};
+ const concurrentJudges=await Promise.all([jc('submitScore',scoreBody,cookies.facilitator,scoreKey),jc('submitScore',scoreBody,cookies.facilitator,scoreKey)]);assert(concurrentJudges.every(r=>r.status===200));assert(concurrentJudges.some(r=>r.replayed));
+ assert.equal((await jc('submitScore',{...scoreBody,scores:{impact:10,harmony:10}},cookies.facilitator,scoreKey)).status,409);
+ assert.equal((await jc('saveDraft',{candidateId:jt1,version:2,scores:{impact:10,harmony:10}},cookies.facilitator)).status,409);
+ assert.equal((await jc('close')).status,200);assert.equal((await jc('publish')).status,409);assert.equal((await jc('open')).status,200);
+ assert.equal((await jc('submitScore',{candidateId:jt1,version:0,scores:{impact:10,harmony:15}},judge2Cookie)).status,200);
+ assert.equal((await jc('submitScore',{candidateId:jt2,version:0,scores:{impact:10,harmony:15}},cookies.facilitator)).status,200);
+ assert.equal((await jc('submitScore',{candidateId:jt2,version:0,scores:{impact:9,harmony:10}},judge2Cookie)).status,200);
+ const ownJudging=(await judgingData(cookies.facilitator)).contests[0];assert.equal(ownJudging.ownSheets.length,2);assert.equal(ownJudging.breakdown,undefined);assert.deepEqual(ownJudging.results,[]);assert.equal(ownJudging.judgeIds,undefined);
+ const adminJudging=(await judgingData(cookies.organizer)).contests[0];assert.deepEqual(adminJudging.results.map(r=>[r.average,r.rank]),[[22,1],[22,1]]);assert.equal(adminJudging.breakdown.length,4);
+ const beforePublishParticipant=await judgingData(cookies.agent);assert.deepEqual(beforePublishParticipant.contests,[]);
+ assert.equal((await jc('close')).status,200);const judgingPublishKey=crypto.randomUUID();assert.equal((await jc('publish',{},cookies.organizer,judgingPublishKey)).status,200);
+ const publishedJudging=(await judgingData(cookies.agent)).contests[0];assert.equal(publishedJudging.published.rows[0].average,22);assert.equal(publishedJudging.breakdown,undefined);assert.deepEqual(publishedJudging.ownSheets,[]);assert.deepEqual(publishedJudging.candidates,[]);
+ assert(!JSON.stringify(publishedJudging).includes('Judge Two'));assert.equal((await get('/events/'+judgedEvent+'/judging',cookies.agent)).status,200);
+ const firstPublication=(await pg.query('SELECT "publishedResults" FROM "JudgingContest" WHERE id=$1',[contestId])).rows[0].publishedResults;
+ assert.equal((await jc('unpublish',{reason:'Correct a judging entry'})).status,200);assert.deepEqual((await judgingData(cookies.agent)).contests,[]);
+ assert.equal((await jc('reopenScore',{judgeId:judge1,candidateId:jt1,reason:'Correct the impact score'})).status,200);
+ assert.equal((await jc('open')).status,200);
+ assert.equal((await jc('submitScore',{candidateId:jt1,version:2,scores:{impact:10,harmony:10}},cookies.facilitator)).status,409);
+ assert.equal((await jc('submitScore',{candidateId:jt1,version:3,scores:{impact:10,harmony:10}},cookies.facilitator)).status,200);
+ assert.equal((await jc('close')).status,200);assert.equal((await jc('publish')).status,200);
+ const secondPublication=(await judgingData(cookies.agent)).contests[0].published;assert.equal(secondPublication.rows[0].average,22.5);assert.equal(firstPublication.rows[0].average,22);
+ const individualNominee=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[judgedEvent,'PARTICIPANT'])).rows[0].id;
+ const individualJudging=await jc('createContest',{...newContest,name:'Agent of the Night',config:{target:'INDIVIDUAL',candidateIds:[individualNominee],criteria:[judgingConfig.criteria[0]]},judgeIds:[judge1]});assert.equal(individualJudging.status,200);
+ assert.equal((await jc('open',{contestId:individualJudging.targetId,revision:1})).status,200);
+ assert.equal((await jc('submitScore',{contestId:individualJudging.targetId,revision:2,candidateId:judge1,version:0,scores:{impact:9}},cookies.facilitator)).status,403);
+ assert.equal((await jc('submitScore',{contestId:individualJudging.targetId,revision:2,candidateId:individualNominee,version:0,scores:{impact:9}},cookies.facilitator)).status,200);
+ assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "AuditEntry" WHERE "eventId"=$1 AND action=$2',[judgedEvent,'JUDGING_PUBLISH'])).rows[0].n,2);
+ await pg.query('UPDATE "Event" SET "archivedAt"=NOW() WHERE id=$1',[judgedEvent]);assert.equal((await jc('unpublish',{reason:'Archived edit denied'})).status,409);await pg.query('UPDATE "Event" SET "archivedAt"=NULL,state=$1 WHERE id=$2',['PREPARING',judgedEvent]);
+ assert.equal((await command('deleteDraftEvent',{eventId:judgedEvent,confirmation:'Judging Rehearsal'})).status,409);
+ const resetJudging={operation:'resetEventRun',reason:'Test the judging run checkpoint',confirmation:'Judging Rehearsal'};
+ const resetJudgingPreview=await postJson('/api/events/'+judgedEvent+'/lifecycle-preview',resetJudging);assert.equal(resetJudgingPreview.status,200);
+ assert.equal((await postJson('/api/events/'+judgedEvent+'/lifecycle',{...resetJudging,previewToken:resetJudgingPreview.token,requestKey:crypto.randomUUID()})).status,200);
+ assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "JudgingScore" WHERE "eventId"=$1',[judgedEvent])).rows[0].n,0);
+ const resetContest=(await judgingData(cookies.organizer)).contests[0];assert.equal(resetContest.state,'DRAFT');assert.equal(resetContest.judgeCount,2);assert.equal(resetContest.published,null);
+ assert.equal((await jc('open')).status,409); // Old run revision cannot reopen the fresh run.
+ const judgingCheckpoint=(await pg.query('SELECT "detailsJson" FROM "AuditEntry" WHERE "eventId"=$1 AND action=$2',[judgedEvent,'EVENT_RUN_RESET_CHECKPOINT'])).rows[0].detailsJson.snapshot;
+ assert.equal(judgingCheckpoint.judgingScores.length,5);assert.equal(judgingCheckpoint.judgingContests.find(c=>c.id===contestId).state,'PUBLISHED');
+ assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "ScoreLedgerEntry" WHERE "eventId"=$1',[judgedEvent])).rows[0].n,0);
+ console.log('PASS: judging assignment permissions, private drafts/sheets, bounds/completeness, equal-weight ties, idempotent concurrent submission, correction/publication snapshots, archive and run-reset retention; no race ledger writes.');
+
  // Voting events: separate authenticated ballots, private counts and independent schedules.
  const voteEvent=(await command('createEvent',{name:'Voting Rehearsal',timezone:'Asia/Manila'})).targetId;
  await command('addMember',{eventId:voteEvent,name:'Voting Agent',email:'agent@example.test',role:'PARTICIPANT'});
