@@ -27,7 +27,7 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
    const membership=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{event:true}});
    if(!membership?.active||membership.role!=="ORGANIZER")throw new InputError("Organizer access is required for this event.",403);
    if(membership.event.archivedAt)throw new InputError("This operation is archived and read-only. Restore it from Lifecycle before making changes.",409);
-   if(membership.event.state!=="PREPARING")throw new InputError("Roster and setup changes are available while the event is Preparing.",409);
+   if(operation!=="updateParticipantVisibility"&&membership.event.state!=="PREPARING")throw new InputError("Roster and setup changes are available while the event is Preparing.",409);
   }else if(!actor.canCreateEvents)throw new InputError("You do not have permission to create events.",403);
   const receipt=await tx.managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}});
   if(receipt){if(receipt.requestHash!==requestHash||receipt.operation!==operation)throw new InputError("This request was already saved with different details. Refresh before trying again.",409);return {...receipt.responseJson as ManagementResult,replayed:true,message:operation==="addMember"?"Already saved. Temporary passwords are not displayed again; ask the platform operator if recovery is needed.":"Already saved. No duplicate change was made."};}
@@ -36,6 +36,13 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
   const checkedMember=async(id:string)=>{const m=await tx.eventMembership.findFirst({where:{id,eventId},include:{user:true}});if(!m)throw new InputError("This person does not belong to this event.",404);return m;};
   const checkedStation=async(id:string)=>{const s=await tx.station.findFirst({where:{id,eventId}});if(!s)throw new InputError("Choose a station from this event.");return s;};
   switch(operation){
+   case "updateParticipantVisibility":{
+    for(const key of ["hideEventDetails","hideStationDetails"]){const value=data.get(key);if(value!==null&&value!=="on")throw new InputError("Choose valid visibility settings.");}
+    const before=await tx.event.findUniqueOrThrow({where:{id:eventId},select:{hideEventDetails:true,hideStationDetails:true}});
+    const after={hideEventDetails:data.get("hideEventDetails")==="on",hideStationDetails:data.get("hideStationDetails")==="on"};
+    await tx.event.update({where:{id:eventId},data:after});
+    details={before,after};result={message:"Participant visibility saved. Hidden details stay private until you reveal them.",targetId:eventId};break;
+   }
    case "createEvent":{
     const name=text(data,"name",120,true);const zone=timezone(text(data,"timezone",80,true));
     const slug=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50)||"operation")+"-"+randomBytes(5).toString("hex");

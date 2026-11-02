@@ -1,0 +1,3 @@
+ALTER TABLE "Event"
+ ADD COLUMN "hideEventDetails" BOOLEAN NOT NULL DEFAULT false,
+ ADD COLUMN "hideStationDetails" BOOLEAN NOT NULL DEFAULT false;

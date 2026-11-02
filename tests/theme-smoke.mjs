@@ -108,7 +108,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -126,6 +126,31 @@ try{
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
+
+  if(process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY){
+   if(role==='organizer'){
+    await check('participant-visibility-controls','/events/'+roster.id+'/setup');
+    assert.equal(await evaluate("document.querySelectorAll('.participant-visibility input[role=switch]').length"),2);
+    await evaluate("const s=document.querySelector('[name=hideStationDetails]');s.scrollIntoView({block:'center'});s.focus()");
+    await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
+    await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
+    assert(await evaluate("document.querySelector('[name=hideStationDetails]').checked"),'Visibility switch must support keyboard interaction');
+    await evaluate("document.querySelector('.participant-visibility form').requestSubmit()");
+    for(let i=0;i<40;i++){if((await pg.query('SELECT "hideStationDetails" FROM "Event" WHERE id=$1',[roster.id])).rows[0].hideStationDetails)break;await new Promise(r=>setTimeout(r,100));}
+    assert.equal((await pg.query('SELECT "hideStationDetails" FROM "Event" WHERE id=$1',[roster.id])).rows[0].hideStationDetails,true);
+    await pg.query('UPDATE "Event" SET "hideStationDetails"=true,"hideEventDetails"=true WHERE id=$1',[event.id]);
+   }else if(role==='agent'){
+    await check('participant-hidden-mission','/events/'+event.id);
+    assert(await evaluate("document.body.textContent.includes('Station details not released yet')"));
+    assert(!await evaluate("document.querySelector('.player-body').textContent.includes('Cipher Room')"));
+    await check('participant-hidden-checkin','/events/'+event.id+'/check-in');
+    await check('participant-hidden-program','/events/'+event.id+'/program');
+   }else{
+    await check('visibility-facilitator-unaffected','/events/'+event.id+'/field');
+    assert(await evaluate("document.querySelector('.player-body').textContent.includes('Cipher Room')"));
+   }
+   continue;
+  }
 
   if(process.env.SPY_THEME_BROWSER_ONLY){
    await check('spy-'+role+'-workspace','/workspace');
@@ -646,7 +671,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

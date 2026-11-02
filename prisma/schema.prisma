@@ -71,6 +71,8 @@ model Event {
  endsOn DateTime? @db.Date
  codename String?
  briefing String @default("")
+ hideEventDetails Boolean @default(false)
+ hideStationDetails Boolean @default(false)
  accentColor String @default("#72D5E3")
  archivedAt DateTime?
  overallRanking OverallRanking?
