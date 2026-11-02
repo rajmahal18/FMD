@@ -10,7 +10,7 @@ export function EventIdentity({event,showState=true}:{showState?:boolean;event:{
     </div>
     {event.archivedAt
       ?<span className="tag">ARCHIVED / READ ONLY</span>
-      :showState&&<span className="tag">{event.state}</span>}
+      :showState&&<span className="tag" data-state={event.state}>{event.state}</span>}
     {event.isDemo&&<span className="demo">DEMO / NO OFFICIAL RESULTS</span>}
   </div>;
 }

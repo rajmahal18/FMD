@@ -27,7 +27,7 @@ export default function Home(){
     </div>
     <footer>
       <span>SECURE FIELD ACCESS</span>
-      <span>Phase 10 / Animated Theme</span>
+      <span>OPERATION / SPY CHASE</span>
     </footer>
   </main>;
 }

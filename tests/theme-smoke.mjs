@@ -108,15 +108,16 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.VISIBILITY_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
  }
  await check('landing','/');await check('login','/login');
+ await evaluate(`document.querySelector('details:has(form[action="/api/auth/login"])').open=true`);
  await evaluate(`document.querySelector('input[name=email]').focus()`);
  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('input[name=email]')).outlineStyle`),'none','Keyboard focus must remain visible');
- await evaluate(`document.querySelector('input[name=email]').value='organizer@example.test';document.querySelector('input[name=password]').value='${env.SEED_PASSWORD}';document.querySelector('form').requestSubmit()`);
+ await evaluate(`document.querySelector('details:has(form[action="/api/auth/login"])').open=true;const form=document.querySelector('form[action="/api/auth/login"]');form.querySelector('input[name=email]').value='organizer@example.test';form.querySelector('input[name=password]').value='${env.SEED_PASSWORD}';form.requestSubmit()`);
  for(let i=0;i<30;i++){if(await evaluate(`location.pathname==='/workspace'`))break;await new Promise(r=>setTimeout(r,200));}
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
@@ -125,6 +126,35 @@ try{
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
+
+  if(process.env.SPY_THEME_BROWSER_ONLY){
+   await check('spy-'+role+'-workspace','/workspace');
+   if(role==='organizer'){
+    await check('spy-setup','/events/'+roster.id+'/setup');
+    await check('spy-people','/events/'+roster.id+'/people');
+    await check('spy-control','/events/'+event.id);
+   }else if(role==='facilitator')await check('spy-field','/events/'+event.id+'/field');
+   else{
+    await check('spy-mission','/events/'+event.id);
+    await check('spy-contact','/events/'+event.id+'/contact');
+    await check('spy-profile','/events/'+event.id+'/agents/me');
+    await check('spy-results','/events/'+publishedId+'/overall');
+   }
+   assert(await evaluate("getComputedStyle(document.querySelector('.spy-atmosphere')).pointerEvents==='none'"),'Effects must never intercept input');
+   if(role==='agent'){
+    await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});
+    await visit('/events/'+event.id);
+    await evaluate("document.querySelector('.controller-tabs [aria-selected=true]').focus()");
+    await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
+    await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
+    assert(await evaluate("document.activeElement.getAttribute('aria-selected')==='true' && document.querySelectorAll('.controller-tabs [aria-selected=true]').length===1"),'Tab keyboard selection must remain intact');
+    assert(await evaluate("getComputedStyle(document.querySelector('.player-bottom-item:not(.active)')).backgroundColor==='rgba(0, 0, 0, 0)'"),'Inactive dock destinations must remain visually secondary');
+   }
+   await cmd('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+   assert(await evaluate("[...document.querySelectorAll('.spy-atmosphere *')].every(e=>getComputedStyle(e).animationName==='none')"),'Decorative effects must respect reduced motion');
+   await cmd('Emulation.setEmulatedMedia',{features:[]});
+   continue;
+  }
 
 
 
@@ -616,7 +646,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.VISIBILITY_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

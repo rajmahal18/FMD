@@ -12,6 +12,12 @@ export const runtime="nodejs";
 const eligible={active:true,memberships:{some:{active:true,event:{archivedAt:null}}}};
 const playerEligible={...eligible,memberships:{some:{active:true,event:{archivedAt:null},role:{in:accountQrRoles}}}};
 function failure(error:string,status=400){return NextResponse.json({error},{status,headers:{"Cache-Control":"no-store"}});}
+// Log only allowlisted diagnostic fields, never provider responses, credentials or OTPs.
+function logFailure(stage:string,error:unknown){
+ const e=error as {code?:unknown;responseCode?:unknown;command?:unknown}|null;
+ const code=typeof e?.code==="string"&&/^[A-Z0-9_]{1,40}$/.test(e.code)?e.code:"UNKNOWN";
+ console.error("Email OTP failure",{stage,code,responseCode:typeof e?.responseCode==="number"?e.responseCode:undefined,command:typeof e?.command==="string"&&/^[A-Z ]{1,30}$/.test(e.command)?e.command:undefined});
+}
 async function budget(scope:string,limit:number,windowMs:number){
  const key=tokenHash(scope);const now=new Date();const expires=new Date(now.getTime()+windowMs);
  const rows=await db().$queryRaw<Array<{count:number}>>`INSERT INTO "LoginAttempt" ("key","count","expiresAt") VALUES (${key},1,${expires}) ON CONFLICT ("key") DO UPDATE SET "count"=CASE WHEN "LoginAttempt"."expiresAt" < ${now} THEN 1 ELSE "LoginAttempt"."count"+1 END, "expiresAt"=CASE WHEN "LoginAttempt"."expiresAt" < ${now} THEN EXCLUDED."expiresAt" ELSE "LoginAttempt"."expiresAt" END RETURNING "count"`;
@@ -40,17 +46,18 @@ export async function POST(request:NextRequest){
     try {
      const smtp=nodemailer.createTransport({
       host:"smtp.gmail.com",port:465,secure:true,
-      auth:{user:process.env.GMAIL_USER,pass:process.env.GMAIL_APP_PASSWORD.replace(/\s/g,"")},
+      auth:{user:process.env.GMAIL_USER.trim(),pass:process.env.GMAIL_APP_PASSWORD.replace(/\s/g,"")},
       connectionTimeout:5000,greetingTimeout:5000,socketTimeout:10000,
       disableFileAccess:true,disableUrlAccess:true,
      });
      const sent=await smtp.sendMail({
-      from:{name:"Spy Chase",address:process.env.GMAIL_USER},to:loginEmail,
+      from:{name:"Spy Chase",address:process.env.GMAIL_USER.trim()},to:loginEmail,
       subject:"Your Spy Chase sign-in code",
       text:`Your sign-in code is ${code}.\n\nIt expires in 10 minutes and can be used once. Do not share this code. If you did not request it, ignore this email.`,
      });
      if(!sent.accepted.length)throw new Error("Delivery failed");
-    } catch {
+    } catch(error) {
+     logFailure("smtp-send",error);
      await db().emailOtp.deleteMany({where:{id}});
      return failure("Unable to send the email code right now. Please try again later or use your password.",503);
     }
@@ -77,5 +84,5 @@ export async function POST(request:NextRequest){
   const response=NextResponse.json(result,{headers:{"Cache-Control":"no-store"}});
   response.cookies.set(sessionCookie,token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",expires:expiresAt});
   return response;
- } catch {return failure("Unable to sign in right now. Please try again.",500);}
+ } catch(error) {logFailure("request",error);return failure("Unable to sign in right now. Please try again.",500);}
 }

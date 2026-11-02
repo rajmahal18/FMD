@@ -1,7 +1,7 @@
 // Matched to existing event roster identities; forwarded spellings do not rename accounts.
 export const squad124Assignments = [
  {team:'Team 1',expectedActive:19,assignments:[
-  {name:'Hussin, Sheila Mayl',role:'Team Commander'},
+  {name:'Sheila May L. Hussin',role:'Team Commander'},
   {name:'Legita, Mariel Yvonne',role:'Intel / Radio Officer'},
   {name:'Kadir, Saima',role:'Intel / Radio Officer'},
   {name:'Gecosala, Marichu',role:'Intel / Radio Officer'},

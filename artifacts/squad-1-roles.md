@@ -4,7 +4,7 @@
 
 ## Team Commander (1)
 
-- Hussin, Sheila Mayl
+- Sheila May L. Hussin
 
 ## Intel / Radio Officer (4)
 
