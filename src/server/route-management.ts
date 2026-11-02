@@ -35,6 +35,10 @@ export async function routeCommand(tx:Prisma.TransactionClient,eventId:string,op
   if(text(data,"setupToken",64,true)!==bulkRouteToken(route,teams))throw new InputError("Teams or routes changed after the preview. Refresh and randomize again.",409);
   const stations=await tx.station.findMany({where:{eventId,id:{in:ids},configured:true,available:true}});if(stations.length!==ids.length)throw new InputError("All route stations must be configured and available.",409);
   if(await tx.stationVisit.count({where:{eventId}}))throw new InputError("This event already has station visits. Reset the run before assigning all teams.",409);
+  if(data.get("freeChoice")==="on"){
+   const assignedAt=new Date();for(const team of teams){const values={routeId:route.id,routeRevision:route.revision,startStationId:null,mode:route.mode,stationIds:ids,assignedAt};await tx.teamRouteAssignment.upsert({where:{teamId:team.id},create:{teamId:team.id,...values},update:values});}
+   return {message:`Free roaming enabled for all ${teams.length} teams. Choose any remaining station from the start.`,targetId:route.id,details:{before:teams.map(t=>({teamId:t.id,assignment:t.routeAssignment})),freeChoice:true,routeId:route.id,routeRevision:route.revision}};
+  }
   let proposed:unknown;try{proposed=JSON.parse(text(data,"startingAssignments",100000,true));}catch{throw new InputError("Randomize first stations before saving.");}
   if(!Array.isArray(proposed)||proposed.length!==teams.length)throw new InputError("The preview must include every team exactly once.");
   const seen=new Set<string>();const counts=new Map(ids.map(id=>[id,0]));const assignments:{teamId:string;startStationId:string}[]=[];

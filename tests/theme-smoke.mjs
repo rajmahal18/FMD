@@ -290,10 +290,11 @@ try{
 
     for(let i=0;i<4;i++)await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['bulk-browser-team-'+i,event.id,'Team '+(i+1)+' with a long team name']);
     const showBulk="(async()=>{const tabs=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==='Route sections');[...tabs.children].find(e=>e.textContent.startsWith('Team routes')).click();await new Promise(r=>setTimeout(r,100));document.querySelector('.bulk-starts>button').click();await new Promise(r=>setTimeout(r,100));})()";
+    await check('roam-free-choice-setup','/events/'+event.id+'/routes',"(async()=>{const tabs=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==='Route sections');[...tabs.children].find(e=>e.textContent.startsWith('Team routes')).click();await new Promise(r=>setTimeout(r,100));})()");
     await check('roam-all-team-preview','/events/'+event.id+'/routes',showBulk);
     assert.equal(await evaluate("document.querySelectorAll('.bulk-starts .management-form .bulk-start-row').length"),5);
     assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1',['roam-browser-route'])).rows[0].n,0,'Preview must not save assignments');
-    await evaluate("document.querySelector('.bulk-starts form').requestSubmit()");
+    await evaluate("document.querySelector('.bulk-starts input[name=startingAssignments]').form.requestSubmit()");
     for(let i=0;i<40;i++){if((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1',['roam-browser-route'])).rows[0].n===5)break;await new Promise(r=>setTimeout(r,150));}
     assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1',['roam-browser-route'])).rows[0].n,5);
     const loads=(await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1 GROUP BY "startStationId"',['roam-browser-route'])).rows.map(r=>r.n);assert.equal(Math.max(...loads)-Math.min(...loads),1);
@@ -302,7 +303,8 @@ try{
     await check('roam-required-first','/events/'+event.id);assert(await evaluate("document.body.textContent.includes('Required first station.')"));assert.equal(await evaluate("!!document.querySelector('.station-choice')"),false);
     await pg.query('UPDATE "TeamRouteAssignment" SET "startStationId"=NULL WHERE "teamId"=$1',[team.id]);
     await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['roam-busy-team',event.id,'Busy team']);await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"updatedAt") VALUES ($1,$2,$3,$4,$5,now())',['roam-busy-visit',event.id,'roam-busy-team','demo-cipher-room','ARRIVED']);
-    await check('roam-station-choice','/events/'+event.id);assert(await evaluate("document.querySelector('.station-availability').textContent.includes('Full')"));
+    await pg.query('INSERT INTO "AuditEntry" (id,"eventId","actorId",action,"targetId","detailsJson") SELECT $1,$2,id,$3,$4,$5 FROM "User" WHERE email=$6',['roam-busy-arrival',event.id,'RACE_CHECKIN','roam-busy-visit',JSON.stringify({state:'ARRIVED'}),'agent@example.test']);
+    await check('roam-station-choice','/events/'+event.id);assert(await evaluate("document.querySelector('.station-availability').textContent.includes('Full')"));assert(await evaluate("document.querySelector('.station-availability').textContent.includes('Busy team')&&document.querySelector('.station-availability').textContent.includes('since')"));
     await evaluate("const select=document.querySelector('.station-choice select');select.value='roam-browser-second';select.dispatchEvent(new Event('change',{bubbles:true}))");assert(await evaluate("document.querySelector('.destination').textContent.includes('Signal Station')"));
     await cmd('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});await check('roam-reduced-motion','/events/'+event.id);
    }

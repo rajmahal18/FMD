@@ -618,6 +618,22 @@ try{
  const controlCommit=async(e,body,cookie=cookies.organizer,key=crypto.randomUUID(),originHeader=origin)=>{const r=await fetch(`${origin}/api/events/${e}/control`,{method:'POST',headers:{origin:originHeader,cookie,'content-type':'application/json'},body:JSON.stringify({...body,requestKey:key})});return {status:r.status,...await r.json()};};
  const control=async(e,operation,values={},cookie=cookies.organizer)=>{const body={operation,reason:'Authenticated integration rehearsal',...values};const preview=await controlPreview(e,body,cookie);if(preview.status!==200)return preview;return controlCommit(e,{...body,previewToken:preview.token},cookie);};
 
+ // Unrestricted free roaming: all teams choose any stop, with public occupancy.
+ const openRoam=await prepareRace('Unrestricted free roaming rehearsal');
+ const openRoute=await command('saveRoute',{eventId:openRoam.e,name:'Choose any station',mode:'FREE',routeStationId:[openRoam.s1,openRoam.s2]});
+ const openToken=async()=>{const html=(await (await get('/events/'+openRoam.e+'/routes',cookies.organizer)).text()).replaceAll(String.fromCharCode(92,34),'"');return [...html.matchAll(/"id":"([^"]+)","name":"[^"]*","setupToken":"([a-f0-9]{64})"/g)].find(m=>m[1]===openRoute.targetId)?.[2];};
+ const openInput={eventId:openRoam.e,routeId:openRoute.targetId,setupToken:await openToken(),freeChoice:'on'};
+ assert.equal((await command('assignAllFreeRoutes',openInput,cookies.agent)).status,403);
+ assert.equal((await command('assignAllFreeRoutes',{...openInput,setupToken:'stale'})).status,409);
+ assert.equal((await command('assignAllFreeRoutes',openInput)).status,200);
+ assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "TeamRouteAssignment" WHERE "routeId"=$1 AND "startStationId" IS NULL',[openRoute.targetId])).rows[0].n,2);
+ for(const stationId of [openRoam.s1,openRoam.s2])await command('issueStationCode',{eventId:openRoam.e,stationId});
+ assert.equal((await race(openRoam.e,'startEvent')).status,200);
+ let openMission=await (await get('/api/events/'+openRoam.e+'/mission',cookies.agent)).json();assert.deepEqual(openMission.view.progress.unlocked,[openRoam.s1,openRoam.s2]);
+ assert.equal((await race(openRoam.e,'checkIn',{credential:await stationCode(openRoam.s2)},cookies.agent)).status,200);
+ openMission=await (await get('/api/events/'+openRoam.e+'/mission',cookies.agent)).json();const occupiedStation=openMission.stations.find(s=>s.id===openRoam.s2);assert.equal(occupiedStation.occupied,1);assert.equal(occupiedStation.occupants.length,1);assert(occupiedStation.occupants[0].teamName);assert(Number.isFinite(Date.parse(occupiedStation.occupants[0].since)));assert.equal(openMission.stations.find(s=>s.id===openRoam.s1).occupied,0);
+ assert.equal((await command('assignAllFreeRoutes',openInput)).status,409);
+
  // Free roam with a required first stop: enforced through real HTTP arrivals and confirmation.
  const roam=await prepareRace('Required first free roam rehearsal');
  const roamRoute=await command('saveRoute',{eventId:roam.e,name:'Random first then captain choice',mode:'FREE',routeStationId:[roam.s1,roam.s2]});

@@ -13,9 +13,14 @@ export function BulkStartingStations({eventId,teams,routes}:{eventId:string;team
  const saved=!!preview&&!current&&preview.routeId===routeId&&teams.every(t=>t.currentRouteId===routeId&&preview.assignments.some(a=>a.teamId===t.id&&a.startStationId===t.currentStartId));
  const ready=!!teams.length&&!!route?.stations.length&&route.stations.every(s=>s.available);
  function randomize(){if(route&&ready)setPreview({routeId,setupToken:route.setupToken,assignments:randomStartingAssignments(teams.map(t=>t.id),route.stations.map(s=>s.id))});}
- return <section className="bulk-starts"><h2>First stations for all teams</h2>
+ return <section className="bulk-starts"><h2>Movement for all teams</h2>
  {!routes.length?<p>Create a Free roam route first.</p>:<>
  <label>Free roam route<select value={routeId} onChange={e=>{setRouteId(e.target.value);setPreview(null);}}>{routes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+ {ready&&route&&<ManagementForm operation="assignAllFreeRoutes" eventId={eventId} label="Enable free roaming for all teams" confirm="Replace every team's route with this free-roam route, with no required first station?">
+ <input type="hidden" name="routeId" value={routeId}/><input type="hidden" name="setupToken" value={route.setupToken}/><input type="hidden" name="freeChoice" value="on"/>
+ <h3>Free choice from the start</h3><p>All {teams.length} teams can choose any uncompleted station in this route. No fixed order or required first station. Check station availability before heading over.</p>
+ </ManagementForm>}
+ <hr/><h3>Optional: assign first stations</h3>
  <p>Randomize the first station for all {teams.length} teams. Starts are spread evenly across the route. After the first confirmed result, captains choose their remaining stations.</p>
  {!ready&&<p className="notice">Add teams and make sure every route station is configured and available.</p>}
  {saved&&<p role="status" className="feedback success-feedback">First stations saved for all {teams.length} teams.</p>}
