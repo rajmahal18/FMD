@@ -451,6 +451,19 @@ try{
  await pg.query('UPDATE "User" SET "mustChangePassword"=false WHERE email=$1',['facilitator@example.test']);
  console.log('PASS: organizer-only batch station codes, preserved signs, unique codes, retry/no-op safety, bulk printing and nonblocking facilitator password reminders.');
  const game=await prepareRace('Phase 5 HTTP rehearsal',true);
+ const requirementSettings={eventId:game.e,stationId:game.s1,name:'Cipher Room',location:'North wing',briefing:'Meet the cipher handler.',facilitatorInstructions:'PRIVATE CIPHER INSTRUCTIONS',scoringMode:'FIXED',fixedPoints:'100',minimumPoints:'10',maximumPoints:'200',available:'on',capacity:'1',queueEnabled:'on',timeLimitMinutes:'1',allowAdjustments:'on',maximumAdjustment:'20'};
+ const savedRequirements=async()=>(await pg.query('SELECT brawn,brain,"playersRequired" FROM "Station" WHERE id=$1',[game.s1])).rows[0];
+ assert.equal((await command('configureStation',{...requirementSettings,brawn:'0',brain:'5',playersRequired:'6'})).status,200);
+ assert.deepEqual(await savedRequirements(),{brawn:0,brain:5,playersRequired:6});
+ for(const invalid of [{brawn:'-1'},{brawn:'6'},{brain:'1.5'},{brain:'6'},{playersRequired:'0'},{playersRequired:'1001'}])assert.equal((await command('configureStation',{...requirementSettings,...invalid})).status,400);
+ assert.deepEqual(await savedRequirements(),{brawn:0,brain:5,playersRequired:6});
+ assert.equal((await command('configureStation',requirementSettings)).status,200);
+ assert.deepEqual(await savedRequirements(),{brawn:0,brain:5,playersRequired:6});
+ assert.equal((await command('configureStation',{...requirementSettings,brawn:'',brain:'',playersRequired:''})).status,200);
+ assert.deepEqual(await savedRequirements(),{brawn:null,brain:null,playersRequired:null});
+ assert.equal((await command('configureStation',{...requirementSettings,brawn:'5',brain:'3',playersRequired:'6'},cookies.facilitator)).status,403);
+ assert.equal((await command('configureStation',{...requirementSettings,eventId:event2,brawn:'5'})).status,400);
+ assert.equal((await command('configureStation',{...requirementSettings,brawn:'5',brain:'3',playersRequired:'6'})).status,200);
  assert.equal((await race(game.e,'startEvent',{},cookies.agent)).status,403);
  assert.equal((await race(game.e,'startEvent',{},cookies.organizer,crypto.randomUUID(),'https://evil.test')).status,403);
  assert.equal((await race(game.e,'startEvent')).status,409); // missing station arrival codes remain blocking
@@ -466,6 +479,9 @@ try{
  const preview1=await arrivalPreview(game.e,code1,cookies.agent);assert.equal(preview1.status,200);assert.equal(preview1.stationName,'Cipher Room');assert.equal((await pg.query('SELECT COUNT(*)::int AS count FROM "StationVisit" WHERE "eventId"=$1',[game.e])).rows[0].count,0);
  assert.equal((await race(game.e,'checkIn',{credential:code1},cookies.facilitator)).status,403);assert.equal((await race(game.e,'checkIn',{credential:code1,teamId:game.b},cookies.agent)).status,400);
  const visibleBefore=await (await get('/api/events/'+game.e+'/mission',cookies.agent)).json();assert(visibleBefore.stations.some(s=>s.name==='Cipher Room'));
+ const publicRequirements=visibleBefore.stations.find(s=>s.id===game.s1);assert.equal(publicRequirements.brawn,5);assert.equal(publicRequirements.brain,3);assert.equal(publicRequirements.playersRequired,6);assert(!JSON.stringify(visibleBefore).includes('PRIVATE CIPHER INSTRUCTIONS'));
+ const requirementsPage=await (await get('/events/'+game.e,cookies.agent)).text();assert(requirementsPage.includes('Station requirements'));assert(requirementsPage.includes('Brawn'));assert(requirementsPage.includes('Brain'));assert(requirementsPage.includes('Players needed'));
+ console.log('PASS: station requirements validate whole-number ranges, preserve omitted fields, clear blanks, enforce organizer/event scope and reach participants separately from scoring.');
  assert.equal((await visibility(game.e,{hideStationDetails:'on'})).status,200);
  const concealedResponse=await get('/api/events/'+game.e+'/mission',cookies.agent);assert(concealedResponse.headers.get('cache-control').includes('no-store'));const concealed=await concealedResponse.json();
  assert.equal(concealed.view.status,'DETAILS_HIDDEN');assert.deepEqual(concealed.stations,[]);assert.deepEqual(concealed.stationIds,[]);assert.deepEqual(concealed.visits,[]);assert.equal(concealed.route,null);assert.equal(concealed.view.currentId,null);

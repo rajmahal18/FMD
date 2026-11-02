@@ -1,7 +1,7 @@
 import {routeProgress,type RouteMode} from "./routes";
 export type EventStage="PREPARING"|"READY"|"LIVE"|"PAUSED"|"ENDED"|"FINALIZED";
 export type VisitStage="QUEUED"|"ARRIVED"|"ACTIVE"|"AWAITING_CONFIRMATION"|"COMPLETED"|"CANCELLED";
-export type MissionStation={id:string;name:string;codename:string|null;location:string;briefing:string;available:boolean;configured:boolean;timeLimitMinutes:number|null;capacity?:number|null;queueEnabled?:boolean;occupied?:number;queued?:number};
+export type MissionStation={brawn?:number|null;brain?:number|null;playersRequired?:number|null;id:string;name:string;codename:string|null;location:string;briefing:string;available:boolean;configured:boolean;timeLimitMinutes:number|null;capacity?:number|null;queueEnabled?:boolean;occupied?:number;queued?:number};
 export type MissionVisit={stationId:string;state:VisitStage;confirmedAt:string|null;startedAt:string|null;updatedAt:string;queuePosition:number|null;visitId?:string;points?:number;durationSeconds?:number|null;timePenaltySeconds?:number};
 export type MissionInput={eventState:EventStage;mode:RouteMode|null;stationIds:string[];stations:MissionStation[];visits:MissionVisit[];hasTeam:boolean;integrityIssue?:boolean;startStationId?:string|null};
 export function missionState(input:MissionInput){

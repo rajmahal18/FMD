@@ -56,6 +56,10 @@ try{
  await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['timer-browser-route',event.id,'Timed route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['timer-browser-assignment',timerTeam,'timer-browser-route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"startedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['timer-browser-visit',event.id,timerTeam,'demo-cipher-room','ACTIVE']);
+ if(process.env.STATION_REQUIREMENTS_BROWSER_ONLY){
+  await pg.query('UPDATE "Station" SET brawn=5,brain=0,"playersRequired"=6 WHERE id=$1',['demo-cipher-room']);
+  await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured) VALUES ($1,$2,$3,$4,$5,$6,true)',['requirements-editor-station',roster.id,'Station requirements editor','Main hall','Meet the facilitator.','Confirm the result.']);
+ }
 
 
  if(process.env.CONTROLLER_BROWSER_ONLY){
@@ -108,7 +112,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -126,6 +130,25 @@ try{
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
+
+  if(process.env.STATION_REQUIREMENTS_BROWSER_ONLY){
+   if(role==='organizer'){
+    await check('station-requirements-editor','/events/'+roster.id+'/stations');
+    await evaluate("const form=document.querySelector('form:has([name=brawn])');form.querySelector('[name=brawn]').value='5';form.querySelector('[name=brain]').value='0';form.querySelector('[name=playersRequired]').value='6';form.requestSubmit()");
+    for(let i=0;i<40;i++){if((await pg.query('SELECT brawn FROM "Station" WHERE id=$1',['requirements-editor-station'])).rows[0].brawn===5)break;await new Promise(r=>setTimeout(r,100));}
+    assert.deepEqual((await pg.query('SELECT brawn,brain,"playersRequired" FROM "Station" WHERE id=$1',['requirements-editor-station'])).rows[0],{brawn:5,brain:0,playersRequired:6});
+   }else if(role==='agent'){
+    await check('station-requirements-mission','/events/'+event.id);
+    assert(await evaluate("document.querySelector('#current-mission .station-requirements').textContent.includes('0/5')"),'Zero rating must display explicitly');
+    assert.equal(await evaluate("document.querySelector('#current-mission .station-rating-icons>span:first-child').textContent"),'👊'.repeat(5));
+    await check('station-requirements-list','/events/'+event.id,"[...document.querySelectorAll('.controller-tabs [role=tab]')].find(t=>t.textContent.includes('Stations')).click()");
+    assert(await evaluate("!!document.querySelector('#route-history .station-requirements')"),'Requirements must appear before selecting the next station');
+    await pg.query('UPDATE "Event" SET "hideStationDetails"=true WHERE id=$1',[event.id]);
+    await check('station-requirements-hidden','/events/'+event.id);
+    assert.equal(await evaluate("document.querySelectorAll('.player-body .station-requirements').length"),0);
+   }
+   continue;
+  }
 
   if(process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY){
    if(role==='organizer'){
@@ -671,7 +694,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

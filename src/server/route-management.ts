@@ -15,8 +15,10 @@ export async function routeCommand(tx:Prisma.TransactionClient,eventId:string,op
   const fixedPoints=integer(data,"fixedPoints",0,100000)!;const minimumPoints=integer(data,"minimumPoints",0,100000)!;const maximumPoints=integer(data,"maximumPoints",0,100000)!;
   if(minimumPoints>maximumPoints)throw new InputError("Minimum points cannot exceed maximum points.");
   const capacity=integer(data,"capacity",1,1000,true);const queueEnabled=data.get("queueEnabled")==="on";if(queueEnabled&&capacity===null)throw new InputError("Set a capacity before enabling the queue.");
+  // Older station forms and scripts leave these fields untouched; blank explicitly clears them.
+  const requirements={brawn:data.has("brawn")?integer(data,"brawn",0,5,true):before.brawn,brain:data.has("brain")?integer(data,"brain",0,5,true):before.brain,playersRequired:data.has("playersRequired")?integer(data,"playersRequired",1,1000,true):before.playersRequired};
   const values={allowAdjustments:data.get("allowAdjustments")==="on",maximumAdjustment:integer(data,"maximumAdjustment",0,100000,true)??before.maximumAdjustment,name:text(data,"name",100,true),location:text(data,"location",160,true),codename:text(data,"codename",80)||null,briefing:text(data,"briefing",2400,true),facilitatorInstructions:text(data,"facilitatorInstructions",4000,true),scoringMode,fixedPoints,minimumPoints,maximumPoints,timeLimitMinutes:integer(data,"timeLimitMinutes",1,1440,true),capacity,queueEnabled,available:data.get("available")==="on",configured:true} as const;
-  await tx.station.update({where:{id:stationId},data:values});return {message:"Station briefing and rules saved.",targetId:stationId,details:{before,after:values}};
+  await tx.station.update({where:{id:stationId},data:{...values,...requirements}});return {message:"Station briefing, requirements and rules saved.",targetId:stationId,details:{before,after:{...values,...requirements}}};
  }
  if(operation==="saveRoute"){
   const name=text(data,"name",100,true);const mode=text(data,"mode",12,true) as RouteMode;const ids=data.getAll("routeStationId").map(String);

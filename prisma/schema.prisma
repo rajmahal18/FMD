@@ -194,6 +194,9 @@ model Station {
  briefing String
  codename String?
  facilitatorInstructions String @default("")
+ brawn Int?
+ brain Int?
+ playersRequired Int?
  configured Boolean @default(false)
  available Boolean @default(true)
  scoringMode ScoringMode @default(FIXED)
