@@ -13,6 +13,7 @@ const origin='https://127.0.0.1:3189';
 const appOrigin='http://127.0.0.1:3188';
 const env={...process.env,DATABASE_URL:'postgresql://postgres:postgres@127.0.0.1:5546/postgres',DIRECT_URL:'postgresql://postgres:postgres@127.0.0.1:5546/postgres',APP_ORIGIN:origin,SEED_PASSWORD:'isolated-stability-password',SEED_AGENT_PASSWORD:'isolated-roster-password',SEED_ORGANIZER_EMAIL:'organizer@example.test',DB_POOL_SIZE:'1'};
 const judgingBrowserCriteria=[{id:'story',name:'Thematic Storyline & Interpretation',description:'Clear espionage narrative.',maximum:30},{id:'quality',name:'Performance Quality & Mastery',description:'Precision, timing and confidence.',maximum:30},{id:'creativity',name:'Creativity & Entertainment Value',description:'Original concept and entertainment impact.',maximum:20},{id:'stage',name:'Costumes, Props & Stage Utilization',description:'Props, costumes and stage presence.',maximum:20}];
+const previewNetwork=[];
 const pg=await PGlite.create();
 for(const dir of fs.readdirSync('prisma/migrations').sort()){const p=path.join('prisma/migrations',dir,'migration.sql');if(fs.existsSync(p))await pg.exec(fs.readFileSync(p,'utf8'));}
 const socket=new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:5546});await socket.start();
@@ -70,6 +71,10 @@ try{
    await pg.query('INSERT INTO "JudgingAssignment" ("eventId","contestId","membershipId") VALUES ($1,$2,$3)',[event.id,id,membership]);
   }
  }
+ if(process.env.SCREEN_PREVIEW_BROWSER_ONLY){
+  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['PREPARING',event.id]);
+  await pg.query('UPDATE "OverallRanking" SET config=$1 WHERE "eventId"=$2',[JSON.stringify({raceRule:'POINTS',events:[]}),event.id]);
+ }
 
 
  if(process.env.CONTROLLER_BROWSER_ONLY){
@@ -102,7 +107,7 @@ try{
  await new Promise(resolve=>proxy.listen(3189,'127.0.0.1',resolve));
  browser=spawn(process.env.CHROMIUM_PATH||(process.platform==='win32'?'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe':'chromium'),['--headless=new','--no-sandbox','--disable-gpu','--no-first-run','--remote-debugging-pipe','--user-data-dir='+path.join(out,'profile'),'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
  let nextId=0,buffer='';const pending=new Map(),errors=[];
- browser.stdio[4].on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\0'))>=0){const m=JSON.parse(buffer.slice(0,end));buffer=buffer.slice(end+1);if(m.id){const p=pending.get(m.id);if(p){pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(Error(JSON.stringify(m.error))):p.resolve(m.result);}}else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.text);}});
+ browser.stdio[4].on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\0'))>=0){const m=JSON.parse(buffer.slice(0,end));buffer=buffer.slice(end+1);if(m.id){const p=pending.get(m.id);if(p){pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(Error(JSON.stringify(m.error))):p.resolve(m.result);}}else if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.text);else if(m.method==='Network.requestWillBeSent'&&process.env.SCREEN_PREVIEW_BROWSER_ONLY)previewNetwork.push({url:m.params.request.url,method:m.params.request.method});}});
  const send=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++nextId;const timer=setTimeout(()=>{pending.delete(id);reject(Error('CDP timeout: '+method));},15000);pending.set(id,{resolve,reject,timer});browser.stdio[3].write(JSON.stringify({id,method,params,...(sessionId?{sessionId}:{})})+'\0');});
  const {targetId}=await send('Target.createTarget',{url:'about:blank'});
  const {sessionId}=await send('Target.attachToTarget',{targetId,flatten:true});
@@ -122,7 +127,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -140,6 +145,29 @@ try{
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
+
+  if(process.env.SCREEN_PREVIEW_BROWSER_ONLY){
+   if(role==='agent'){assert.equal((await fetch(appOrigin+'/events/'+event.id+'/preview',{headers:{cookie},redirect:'manual'})).status,404);continue;}
+   const before=JSON.stringify((await pg.query('SELECT state,(SELECT COUNT(*)::int FROM "StationVisit" WHERE "eventId"=$1) AS visits,(SELECT COUNT(*)::int FROM "AuditEntry" WHERE "eventId"=$1) AS audits,(SELECT COUNT(*)::int FROM "ScoreLedgerEntry" WHERE "eventId"=$1) AS scores FROM "Event" WHERE id=$1',[event.id])).rows);
+   await visit('/events/'+event.id+'/preview');
+   await evaluate("sessionStorage.setItem('spy-field-draft:real-user:sentinel','keep-draft');sessionStorage.setItem('spy-race:real-user:sentinel','keep-pending')");
+   if(role==='organizer'){
+    await check('screen-preview-participant','/events/'+event.id+'/preview?view=participant');
+    await check('screen-preview-empty-setup','/events/'+roster.id+'/preview');
+   }
+   await check('screen-preview-facilitator-'+role,'/events/'+event.id+'/preview?view=facilitator');
+   const trafficStart=previewNetwork.length;
+   await evaluate("(()=>{const s=document.querySelector('.screen-preview-fields select');s.value='AWAITING_CONFIRMATION';s.dispatchEvent(new Event('change',{bubbles:true}));})()");await new Promise(r=>setTimeout(r,100));
+   await evaluate("document.querySelector('.station-team .management-form').requestSubmit()");await new Promise(r=>setTimeout(r,100));
+   assert(await evaluate("[...document.querySelectorAll('.result-review button')].some(b=>b.textContent==='Confirm completion'&&b.disabled)"),'Preview must disable recording even after local result review');
+   await evaluate("document.querySelectorAll('.screen-preview-surface button:disabled').forEach(b=>b.click())");
+   await new Promise(r=>setTimeout(r,10500));
+   assert(!previewNetwork.slice(trafficStart).some(r=>r.url.includes('/api/')),'Preview must not send API mutations or poll live endpoints');
+   assert.equal(await evaluate("sessionStorage.getItem('spy-field-draft:real-user:sentinel')"),'keep-draft');assert.equal(await evaluate("sessionStorage.getItem('spy-race:real-user:sentinel')"),'keep-pending');
+   assert.equal(JSON.stringify((await pg.query('SELECT state,(SELECT COUNT(*)::int FROM "StationVisit" WHERE "eventId"=$1) AS visits,(SELECT COUNT(*)::int FROM "AuditEntry" WHERE "eventId"=$1) AS audits,(SELECT COUNT(*)::int FROM "ScoreLedgerEntry" WHERE "eventId"=$1) AS scores FROM "Event" WHERE id=$1',[event.id])).rows),before);
+   assert(await evaluate("!!document.querySelector('.screen-preview-heading a[href]')"),'Exit preview must remain a real link');
+   continue;
+  }
 
   if(process.env.JUDGING_BROWSER_ONLY){
    if(role==='organizer'){
@@ -737,7 +765,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

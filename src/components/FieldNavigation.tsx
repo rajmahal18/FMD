@@ -1,10 +1,11 @@
 'use client';
+import {useScreenPreviewPath} from './ScreenPreviewContext';
 import {usePathname} from 'next/navigation';
 import {useEffect,useState} from 'react';
 import {AppLink} from './AppLink';
 
 export function FieldNavigation({eventId,judgingEnabled=false}:{eventId:string;judgingEnabled?:boolean}){
- const base=`/events/${eventId}`,path=usePathname();const [history,setHistory]=useState(false);
+ const base=`/events/${eventId}`,actualPath=usePathname(),previewPath=useScreenPreviewPath(),path=previewPath??actualPath;const [history,setHistory]=useState(false);
  useEffect(()=>{const read=()=>setHistory(location.hash==='#field-history');read();window.addEventListener('hashchange',read);window.addEventListener('popstate',read);return()=>{window.removeEventListener('hashchange',read);window.removeEventListener('popstate',read);};},[path]);
  const atStation=path===base||path===`${base}/field`;
  const items=[...(judgingEnabled?[{label:'Judge',href:`${base}/judging`,active:path===`${base}/judging`,kind:'judge'}]:[]),{label:'Station',href:base,active:atStation&&!history,kind:'station'},{label:'Teams',href:`${base}/people`,active:path===`${base}/people`,kind:'teams'},{label:'History',href:`${base}#field-history`,active:atStation&&history,kind:'history'}];

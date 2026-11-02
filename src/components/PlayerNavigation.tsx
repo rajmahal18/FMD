@@ -1,4 +1,5 @@
 "use client";
+import {useScreenPreviewPath} from './ScreenPreviewContext';
 import {AppLink as Link} from './AppLink';
 import {usePathname} from 'next/navigation';
 import {useEffect,useRef,useState} from 'react';
@@ -9,7 +10,7 @@ function Icon({kind}:{kind:'contact'|'mission'|'ranks'|'voting'|'profile'}){
  return <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{kind==='contact'?<><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM20 14v6h-6"/></>:kind==='mission'?<><path d="m12 3 8 5v8l-8 5-8-5V8Z"/><path d="m8 12 3 3 5-6"/></>:<><path d="M4 20h16M7 16v-5M12 16V4M17 16V8"/></>}</svg>;
 }
 export function PlayerNavigation({eventId}:{eventId:string}){
- const base=`/events/${eventId}`,path=usePathname();
+ const base=`/events/${eventId}`,actualPath=usePathname(),previewPath=useScreenPreviewPath(),path=previewPath??actualPath;
  const [open,setOpen]=useState(false);
  const ranks=useRef<HTMLDivElement>(null),trigger=useRef<HTMLButtonElement>(null);
  const mission=path===base||path===`${base}/check-in`,contact=path===`${base}/contact`,ranked=path===`${base}/results`||path===`${base}/overall`;

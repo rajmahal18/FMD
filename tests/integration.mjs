@@ -72,6 +72,16 @@ try{
   for(const [name,value] of Object.entries(values)){if(Array.isArray(value))for(const v of value)form.append(name,v);else form.set(name,value);}
   const response=await fetch(origin+'/api/management',{method:'POST',headers:{origin:originHeader,cookie},body:form});const result=await response.json();return {status:response.status,...result};
  };
+ // Live screen previews require staff identity, do not require readiness and never start a run.
+ const previewRunBefore=(await pg.query('SELECT state,(SELECT COUNT(*)::int FROM "StationVisit" WHERE "eventId"=$1) AS visits FROM "Event" WHERE id=$1',[event.id])).rows[0];
+ await pg.query('UPDATE "Station" SET "facilitatorInstructions"=$1 WHERE id=$2',['UNASSIGNED PREVIEW SECRET','unassigned']);
+ assert.equal((await get('/events/'+event.id+'/preview')).status,307);
+ assert.equal((await get('/events/'+event.id+'/preview',cookies.agent)).status,404);
+ assert.equal((await get('/events/'+event.id+'/preview?view=participant',cookies.facilitator)).status,404);
+ const facilitatorPreview=await get('/events/'+event.id+'/preview',cookies.facilitator);assert.equal(facilitatorPreview.status,200);const facilitatorPreviewHtml=await facilitatorPreview.text();assert(facilitatorPreviewHtml.includes('Live screen preview'));assert(facilitatorPreviewHtml.includes('Sample team'));assert(!facilitatorPreviewHtml.includes('UNASSIGNED PREVIEW SECRET'));
+ const organizerPreview=await get('/events/'+event.id+'/preview?view=participant',cookies.organizer);assert.equal(organizerPreview.status,200);assert((await organizerPreview.text()).includes('Participant screen'));
+ assert.equal((await get('/events/other-event/preview',cookies.facilitator)).status,404);
+ assert.deepEqual((await pg.query('SELECT state,(SELECT COUNT(*)::int FROM "StationVisit" WHERE "eventId"=$1) AS visits FROM "Event" WHERE id=$1',[event.id])).rows[0],previewRunBefore);
  // Participant visibility is server-enforced, independently controlled and organizer-only.
  const visibility=(eventId,values={},cookie=cookies.organizer,key=crypto.randomUUID())=>command('updateParticipantVisibility',{eventId,...values},cookie,key);
  for(const cookie of [cookies.agent,cookies.facilitator])assert.equal((await visibility(event.id,{hideEventDetails:'on'},cookie)).status,403);
@@ -99,6 +109,7 @@ try{
  assert.equal((await command('createEvent',{name:'Forgery',timezone:'Asia/Manila'},cookies.organizer,crypto.randomUUID(),'https://evil.test')).status,403);
  assert.equal((await command('createEvent',{name:'Bad timezone',timezone:'Not/AZone'})).status,400);
  const creationKey=crypto.randomUUID();const newEvent=await command('createEvent',{name:'Operation Aurora',timezone:'Asia/Manila'},cookies.organizer,creationKey);assert.equal(newEvent.status,200);const event2=newEvent.targetId;
+ const emptyPreview=await get('/events/'+event2+'/preview',cookies.organizer);assert.equal(emptyPreview.status,200);assert((await emptyPreview.text()).includes('generic example'));
  const emptyProgram=await get('/events/'+event2+'/program',cookies.organizer);assert.equal(emptyProgram.status,200);const emptyProgramText=await emptyProgram.text();assert(emptyProgramText.includes('Program not published yet'));assert(!emptyProgramText.includes('Private seminar details'));assert.equal((await get('/events/'+event2+'/program',cookies.agent)).status,404);
 
  assert.equal((await command('createEvent',{name:'Operation Aurora',timezone:'Asia/Manila'},cookies.organizer,creationKey)).targetId,event2);
