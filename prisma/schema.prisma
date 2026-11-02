@@ -50,6 +50,16 @@ model Session {
  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
  @@index([expiresAt])
 }
+model EmailOtp {
+ id String @id
+ email String
+ codeHash String
+ playerCode String?
+ returnTo String
+ expiresAt DateTime
+ attempts Int @default(0)
+ @@index([expiresAt])
+}
 model Event {
  id String @id @default(cuid())
  slug String @unique

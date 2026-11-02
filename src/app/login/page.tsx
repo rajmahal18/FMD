@@ -1,6 +1,7 @@
 
 import {ErrorNotice} from '@/components/ErrorNotice';
 import {safeReturnPath} from "@/lib/race";
+import {EmailLogin} from "@/components/EmailLogin";
 
 export default async function Login({searchParams}:{searchParams:Promise<{error?:string;changed?:string;returnTo?:string}>}){
   const {error,changed,returnTo:raw}=await searchParams;
@@ -26,12 +27,15 @@ export default async function Login({searchParams}:{searchParams:Promise<{error?
         <p>Use the individual account issued by your organizer.</p>
         {changed&&<div className="notice" role="status">Password saved. Sign in with your new password.</div>}
         {error&&<ErrorNotice>{error==="rate"?"Too many attempts. Wait 15 minutes, then try again.":"Unable to sign in. Check your email and password."}</ErrorNotice>}
+        <EmailLogin returnTo={returnTo}/>
+        <details open={!!error||!!changed}><summary>Sign in with password</summary>
         <form action="/api/auth/login" method="post">
           {returnTo&&<input type="hidden" name="returnTo" value={returnTo}/>}
           <label>Email<input name="email" type="email" autoComplete="username" required maxLength={254}/></label>
           <label>Password<input name="password" type="password" autoComplete="current-password" required maxLength={128}/></label>
           <button>Sign in</button>
         </form>
+        </details>
         <p className="fine">Need access or a password reset? Contact your event organizer. Public signup is not enabled.</p>
       </section>
     </section>

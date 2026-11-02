@@ -1,4 +1,5 @@
 import {PGlite} from '@electric-sql/pglite';import {PGLiteSocketServer} from '@electric-sql/pglite-socket';import {spawn} from 'node:child_process';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';
+import {randomBytes,createHash} from 'node:crypto';
 const pg=await PGlite.create();for(const folder of fs.readdirSync('prisma/migrations').sort()){const file=path.join('prisma/migrations',folder,'migration.sql');if(fs.existsSync(file))await pg.exec(fs.readFileSync(file,'utf8'));}const socket=new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:5545});await socket.start();
 const origin='http://127.0.0.1:3100';const env={...process.env,DATABASE_URL:'postgresql://postgres:postgres@127.0.0.1:5545/postgres',DIRECT_URL:'postgresql://postgres:postgres@127.0.0.1:5545/postgres',APP_ORIGIN:origin,SEED_PASSWORD:'local-qa-only-password',NEXT_TELEMETRY_DISABLED:'1',DB_POOL_SIZE:'1'};
 const run=(args)=>new Promise((res,rej)=>{const c=spawn(process.execPath,args,{env,stdio:'inherit'});c.on('exit',code=>code===0?res():rej(new Error('child failed '+code)));});
@@ -12,6 +13,27 @@ try{
  for(let i=0;i<50;i++){try{if((await fetch(origin)).ok)break;}catch{}await new Promise(r=>setTimeout(r,300));if(i===49)throw new Error('next did not start');}
  const get=(path,cookie)=>fetch(origin+path,{headers:cookie?{cookie}:{},redirect:'manual'});
  const login=async(email,originHeader=origin,password=env.SEED_PASSWORD)=>fetch(origin+'/api/auth/login',{method:'POST',headers:{origin:originHeader,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email,password}),redirect:'manual'});
+ // Real OTP verification against isolated PostgreSQL; no email provider needed.
+ const otpPost=(body,originHeader=origin)=>fetch(origin+'/api/auth/otp',{method:'POST',headers:{origin:originHeader,'content-type':'application/json'},body:JSON.stringify(body)});
+ const fixture=async({expired=false,playerCode=null,attempts=0}={})=>{
+  const id=randomBytes(32).toString('base64url');const code='042819';
+  await pg.query('INSERT INTO "EmailOtp" (id,email,"codeHash","playerCode","returnTo","expiresAt",attempts) VALUES ($1,$2,$3,$4,$5,$6,$7)',[id,'agent@example.test',createHash('sha256').update(id+':'+code).digest('hex'),playerCode,'/workspace',new Date(Date.now()+(expired?-1000:600000)),attempts]);
+  return {operation:'verify',challenge:id,code};
+ };
+ assert.equal((await otpPost(await fixture(),'https://evil.test')).status,403);
+ assert.equal((await otpPost(await fixture({expired:true}))).status,400);
+ const exhausted=await fixture();for(let i=0;i<5;i++)assert.equal((await otpPost({...exhausted,code:'999999'})).status,400);
+ assert.equal((await otpPost(exhausted)).status,400);
+ assert.equal((await otpPost(await fixture({playerCode:'another-account'}))).status,400);
+ await pg.query('UPDATE "User" SET active=false WHERE email=$1',['agent@example.test']);
+ assert.equal((await otpPost(await fixture())).status,400);
+ await pg.query('UPDATE "User" SET active=true WHERE email=$1',['agent@example.test']);
+ const once=await fixture();const concurrent=await Promise.all([otpPost(once),otpPost(once)]);
+ assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,400]);
+ const signed=concurrent.find(r=>r.status===200);assert(signed.headers.get('set-cookie').includes('HttpOnly'));
+ assert.equal((await signed.json()).redirect,'/workspace');
+ const {rows:[otpAccount]}=await pg.query('SELECT id FROM "User" WHERE email=$1',['agent@example.test']);
+ assert.equal((await otpPost(await fixture({playerCode:otpAccount.id}))).status,200);
  assert.equal((await get('/workspace')).status,307);
  assert.equal((await login('agent@example.test','https://evil.test')).status,403);
  assert.equal((await login('agent@example.test',origin,'bad')).headers.get('location'),origin+'/login?error=credentials');
