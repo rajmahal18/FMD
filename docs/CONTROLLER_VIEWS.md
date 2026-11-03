@@ -17,3 +17,9 @@ After station-code verification, the captain sees avatar/name rows with an expli
 The Team tab, profile and staff roster show confirmed played / team explored with expandable station history. Explored includes admitted, active and completed stations, and excludes queues/cancellations. Facilitator Work shows the lineup alongside each player's station participation; score completion remains facilitator-only. Legacy visits without recorded lineups display Not recorded, never fabricated credit.
 
 Run `PARTICIPATION_BROWSER_ONLY=1 node tests/theme-smoke.mjs` (PowerShell: set `$env:PARTICIPATION_BROWSER_ONLY='1'` first) after building for isolated browser checks at 320/390/768/1440px, including count limits, selected states, sticky action clearance, actual captain start, running timer and facilitator participation.
+
+## Event-day control priority
+
+Captain selection uses a viewport dock rendered outside animated/overflowing page ancestors. It follows the picker visibility, reserves its measured height in the document, and sits above the measured mobile navigation height. Verify it while scrolling the first, middle and last player rows, rather than scrolling the action bar into view. Hidden tab panels must not leave a dock visible.
+
+Facilitator Work prioritizes the active team, running time, large penalty keys and Finish challenge. Player participation and penalty history stay folded below those controls; private instructions live under Tools. A long list of penalty keys scrolls within its own area so it cannot displace the timer and finish action. Penalty taps show inline confirmation instead of opening a modal. Busy states, persisted pending requests, safe retries, server-side checks and explicit final result review remain in place.

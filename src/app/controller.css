@@ -72,3 +72,35 @@
 @media(prefers-reduced-motion:reduce){.controller-shell .controller-panel:not([hidden]),.app-link-pending{animation:none}.controller-shell :is(a,button){transition:none}}
 
 .controller-shell .field-header{margin:0 0 12px;padding-bottom:8px}.controller-shell .field-capacity{padding:8px 0;margin:8px 0 0;border:0;background:transparent}.controller-shell .field-columns>section>h2{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.controller-shell .field-board-controller>.controller-tabs{margin-bottom:8px}
+
+/* Live field console: timing and direct actions precede roster/history disclosures. */
+.controller-shell .field-board-controller .field-header h2{font-size:20px;line-height:1.25}
+.controller-shell .field-board-controller .field-header>p{font-size:13px;margin:4px 0}
+.controller-shell .field-board-controller .station-team{padding-top:4px}
+.controller-shell .field-board-controller .station-team .field-heading h3{font-size:22px;margin:4px 0}
+.controller-shell .field-board-controller .station-timer{padding:12px 0 8px}
+.controller-shell .field-board-controller .station-timer p{margin:3px 0;font-size:13px}
+.controller-shell .field-board-controller .station-timer .challenge-clock{gap:2px}
+.controller-shell .field-board-controller .time-penalty-controls h4{margin:8px 0;font-size:14px}
+.controller-shell .time-penalty-actions .race-action button{min-height:88px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;border-radius:12px;background:#183447;color:#ffe0a6;border:1px solid #8e7950;box-shadow:0 3px 0 #071426;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform 100ms ease,background-color 100ms ease}
+.controller-shell .time-penalty-actions .race-action button:hover{background:#23465a}
+.controller-shell .time-penalty-actions .race-action button:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 #071426;background:#315366}
+.penalty-key-value{display:flex;align-items:baseline;gap:4px;font:700 28px/1 'Source Sans 3',sans-serif;color:#ffe0a6}
+.penalty-key-value small{font:600 13px/1 'Source Sans 3',sans-serif}
+.penalty-key-label{font-size:14px;line-height:1.25;color:#f2f7fa;font-weight:600}
+.controller-shell .time-penalty-actions{margin-bottom:14px}
+.race-action-note{font-size:12px;color:#83d6b2;margin:4px 0}
+.controller-shell .time-penalty-actions .race-action:has([role=alert],.pending-note){grid-column:1/-1}
+.controller-shell .station-lineup{border-top:1px solid var(--line);margin-top:12px}
+@media(prefers-reduced-motion:reduce){.controller-shell .time-penalty-actions .race-action button{transition:none;transform:none!important}}
+
+.controller-shell .field-board-controller .time-penalty-actions{max-height:min(30svh,220px);overflow-y:auto;overscroll-behavior:contain;padding:0 2px 4px}
+
+.player-shell.controller-shell .field-board-controller .field-header{background:transparent;border:0;padding:0 0 8px;margin:0 0 8px}
+.player-shell.controller-shell .field-board-controller .station-team{background:transparent;border:0;padding:4px 0 16px;margin:0}
+.player-shell.controller-shell .field-board-controller .station-timer{margin:8px 0;padding:8px 12px}
+.player-shell.controller-shell .field-board-controller .time-penalty-controls{margin-top:8px;padding-top:0;border:0}
+.player-shell.controller-shell .field-board-controller .time-penalty-actions .race-action button{background:#183447;box-shadow:0 3px 0 #071426;border-color:#8e7950}
+
+.controller-shell .time-penalty-actions>.race-action{margin:0}
+.controller-shell .field-board-controller .station-team>.race-action{margin:8px 0}

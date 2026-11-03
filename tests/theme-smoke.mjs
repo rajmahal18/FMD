@@ -162,7 +162,11 @@ try{
     assert(await evaluate("document.querySelectorAll('.player-option input')[2].disabled"),'Count limit disables unselected players');
     for(const width of [320,390,768,1440]){
      await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});
-     await evaluate("document.querySelector('.player-selection-bar').scrollIntoView({block:'end'})");
+     for(const fraction of [0,.5,1]){
+      await evaluate(`(()=>{const list=document.querySelector('.player-options'),r=list.getBoundingClientRect();window.scrollTo(0,scrollY+r.top+Math.max(0,r.height-innerHeight+250)*${fraction}-90);})()`);await new Promise(r=>setTimeout(r,120));
+      const pinned=await evaluate("(()=>{const bar=document.querySelector('.player-selection-bar'),r=bar.getBoundingClientRect();return {position:getComputedStyle(bar).position,top:r.top,bottom:r.bottom,visible:!!bar.getClientRects().length};})()");
+      assert(pinned.visible&&pinned.top>=0&&pinned.bottom<=900,`Selection count must stay visible while browsing the roster at ${width}px / ${fraction}`);
+     }
      const layout=await evaluate("(()=>{const bar=document.querySelector('.player-selection-bar').getBoundingClientRect(),dock=document.querySelector('.player-bottom-nav').getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,bottom:bar.bottom,top:bar.top,dockTop:dock.top,position:getComputedStyle(document.querySelector('.player-bottom-nav')).position};})()");
      assert(layout.scroll<=width,'Picker must not overflow');assert(layout.top>=0&&layout.bottom<=900,'Selection action remains reachable');if(layout.position==='fixed')assert(layout.bottom<=layout.dockTop,'Selection action stays above bottom navigation');
      const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,'participation-selected-'+width+'.png'),Buffer.from(image.data,'base64'));
@@ -178,6 +182,18 @@ try{
    }else{
     await check('participation-facilitator-lineup','/events/'+event.id+'/field');
     assert(await evaluate("document.querySelector('.station-lineup').textContent.includes('0 played / 1 explored')"));
+    for(const width of [320,390,768,1440]){
+     const height=width<768?740:900;
+     await cmd('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<768});await visit('/events/'+event.id+'/field');
+     const consoleLayout=await evaluate("(()=>{const dock=document.querySelector('.field-bottom-nav'),limit=getComputedStyle(dock).position==='fixed'?dock.getBoundingClientRect().top:innerHeight;const targets=[document.querySelector('.station-team:not([hidden]) .station-timer'),...document.querySelectorAll('.station-team:not([hidden]) .time-penalty-actions button'),[...document.querySelectorAll('.station-team:not([hidden]) button')].find(b=>(b.getAttribute('aria-label')||b.textContent)==='Finish challenge')];return {limit,rects:targets.map(e=>e?{top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom}:null),lineupOpen:document.querySelector('.station-lineup').open};})()");
+     assert.equal(consoleLayout.lineupOpen,false,'Roster stays folded during urgent station work');
+     assert(consoleLayout.rects.every(r=>r&&r.top>=0&&r.bottom<=consoleLayout.limit),`Timer, penalty buttons and Finish must fit without scrolling at ${width}x${height}: ${JSON.stringify(consoleLayout)}`);
+     const shot=await cmd('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,'field-urgent-'+width+'.png'),Buffer.from(shot.data,'base64'));
+    }
+    await evaluate("document.querySelector('.time-penalty-actions button').click()");
+    for(let i=0;i<40;i++){if(await evaluate("!!document.querySelector('.race-action-note')"))break;await new Promise(r=>setTimeout(r,100));}
+    assert(await evaluate("!!document.querySelector('.race-action-note')&&!document.querySelector('.action-feedback-modal[open]')"),'Penalty taps confirm inline without blocking live controls');
+
    }
    continue;
   }
@@ -433,7 +449,7 @@ try{
 
   if(process.env.CONTROLLER_BROWSER_ONLY){
    const base='/events/'+event.id;
-   const click=async label=>evaluate("[...document.querySelectorAll('button')].find(b=>b.getClientRects().length&&b.textContent.trim()==="+JSON.stringify(label)+").click()");
+   const click=async label=>evaluate("[...document.querySelectorAll('button')].find(b=>b.getClientRects().length&&(b.getAttribute('aria-label')||b.textContent.trim())==="+JSON.stringify(label)+").click()");
    const tab=async(label,item)=>evaluate("[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==="+JSON.stringify(label)+").querySelectorAll('button')["+item+"].click()");
    const wait=async fn=>{for(let i=0;i<80;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Controller condition timed out');};
    const closeFeedback=async()=>{await wait(()=>evaluate("!!document.querySelector('.action-feedback-modal[open] button')"));await evaluate("document.querySelector('.action-feedback-modal[open] button').click()");};
@@ -474,8 +490,8 @@ try{
    await evaluate("sessionStorage.setItem("+JSON.stringify(hiddenRetryKey)+","+JSON.stringify(JSON.stringify({body:{operation:'startChallenge',visitId:'controller-second-visit',requestKey:crypto.randomUUID()},description:'Hidden team pending check',endpoint:'race'}))+");window.dispatchEvent(new Event('spy-race-pending'))");
    await wait(()=>evaluate("!!document.querySelector('.pending-requests')&&document.querySelector('.pending-requests').textContent.includes('Hidden team pending check')"));
    await evaluate("sessionStorage.removeItem("+JSON.stringify(hiddenRetryKey)+");window.dispatchEvent(new Event('spy-race-pending'))");
-   await evaluate("[...document.querySelectorAll('.station-team:not([hidden]) button')].find(b=>b.textContent.startsWith('+10 sec')).click()");
-   await wait(async()=>(await pg.query('SELECT COUNT(*)::int AS n FROM "TimePenaltyEntry" WHERE "visitId"=$1',['timer-browser-visit'])).rows[0].n===1);await closeFeedback();
+   await evaluate("[...document.querySelectorAll('.station-team:not([hidden]) button')].find(b=>(b.getAttribute('aria-label')||b.textContent).startsWith('+10 sec')).click()");
+   await wait(async()=>(await pg.query('SELECT COUNT(*)::int AS n FROM "TimePenaltyEntry" WHERE "visitId"=$1',['timer-browser-visit'])).rows[0].n===1);assert(await evaluate("!document.querySelector('.action-feedback-modal[open]')"));
    await click('Finish challenge');await wait(async()=>(await pg.query('SELECT state FROM "StationVisit" WHERE id=$1',['timer-browser-visit'])).rows[0].state==='AWAITING_CONFIRMATION');await closeFeedback();
    await wait(()=>evaluate("!![...document.querySelectorAll('.station-team:not([hidden]) button')].find(b=>b.textContent==='Review station time')"));
    await click('Review station time');await click('Confirm station time');
