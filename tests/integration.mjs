@@ -524,6 +524,13 @@ try{
  };
  // Captain-owned lineups and per-player participation, with real HTTP and isolated SQL.
  const lineupGame=await prepareRace('Player lineup rehearsal');
+ await pg.query('UPDATE "Station" SET name=$1 WHERE id=$2',['Station 3A: Cipher Room',lineupGame.s1]);
+ assert.equal((await command('updateStation',{eventId:lineupGame.e,stationId:lineupGame.s1,name:'Cipher Room',location:'North wing'})).status,200);
+ assert.equal((await pg.query('SELECT name FROM "Station" WHERE id=$1',[lineupGame.s1])).rows[0].name,'Station 3A: Cipher Room');
+ assert.equal((await command('configureStation',{eventId:lineupGame.e,stationId:lineupGame.s1,name:'Cipher Room',location:'North wing',briefing:'Meet the cipher handler.',facilitatorInstructions:'PRIVATE CIPHER INSTRUCTIONS',scoringMode:'FIXED',fixedPoints:'100',minimumPoints:'10',maximumPoints:'200',available:'on',capacity:'1',queueEnabled:'on',timeLimitMinutes:'1',allowAdjustments:'on',maximumAdjustment:'20'})).status,200);
+ assert.equal((await pg.query('SELECT name FROM "Station" WHERE id=$1',[lineupGame.s1])).rows[0].name,'Station 3A: Cipher Room','Editing keeps hidden sorting number');
+ assert.equal((await (await get(`/api/events/${lineupGame.e}/stations/${lineupGame.s1}`,cookies.facilitator)).json()).name,'Cipher Room');
+
  const extraPlayer=await command('addMember',{eventId:lineupGame.e,name:'Scout Player',email:'scout-lineup@example.test',role:'PARTICIPANT',teamId:lineupGame.a});assert.equal(extraPlayer.status,200);
  await pg.query('UPDATE "User" SET "passwordHash"=(SELECT "passwordHash" FROM "User" WHERE email=$1),"mustChangePassword"=false WHERE email=$2',['agent@example.test','scout-lineup@example.test']);
  const scoutCookie=(await login('scout-lineup@example.test')).headers.get('set-cookie').split(';')[0];
@@ -532,7 +539,7 @@ try{
  const lineupCode=async stationId=>(await pg.query('SELECT "arrivalCode" FROM "Station" WHERE id=$1',[stationId])).rows[0].arrivalCode;
  const lineupMission=async(cookie=cookies.agent)=>(await get(`/api/events/${lineupGame.e}/mission`,cookie)).json();
  const beforeLineup=await lineupMission();assert.equal(beforeLineup.stations[0].briefing,'');assert.equal(beforeLineup.team.members[0].explored,0);
- const arrivalLineup=await arrivalPreview(lineupGame.e,await lineupCode(lineupGame.s1),cookies.agent);assert.equal(arrivalLineup.playersRequired,1);assert.equal(arrivalLineup.players.length,2);assert(!JSON.stringify(arrivalLineup).includes('PRIVATE CIPHER'));
+ const arrivalLineup=await arrivalPreview(lineupGame.e,await lineupCode(lineupGame.s1),cookies.agent);assert.equal(arrivalLineup.stationName,'Cipher Room');assert.equal(arrivalLineup.playersRequired,1);assert.equal(arrivalLineup.players.length,2);assert(!JSON.stringify(arrivalLineup).includes('PRIVATE CIPHER'));
  assert.equal((await race(lineupGame.e,'checkIn',{credential:await lineupCode(lineupGame.s1),playerIds:[lineupGame.ma]},scoutCookie)).status,403);
  for(const playerIds of [undefined,[],[lineupGame.ma,extraPlayer.targetId],[lineupGame.mb],[extraPlayer.targetId,extraPlayer.targetId]]){
   assert.equal((await race(lineupGame.e,'checkIn',{credential:await lineupCode(lineupGame.s1),...(playerIds===undefined?{}:{playerIds})},cookies.agent)).status,400);

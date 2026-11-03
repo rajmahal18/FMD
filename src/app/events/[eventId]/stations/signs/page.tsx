@@ -1,3 +1,4 @@
+import {displayStations} from "@/lib/station-name";
 import Link from "next/link";
 import QRCode from "qrcode";
 import {requireOrganizer} from "@/lib/organizer";
@@ -8,7 +9,7 @@ import {PrintStationSign} from "@/components/PrintStationSign";
 export default async function StationSigns({params}:{params:Promise<{eventId:string}>}){
  const {eventId}=await params;
  const {user,m}=await requireOrganizer(eventId);
- const stations=await db().station.findMany({where:{eventId},select:{id:true,name:true,location:true,arrivalCode:true},orderBy:{name:"asc"}});
+ const stations=await db().station.findMany({where:{eventId},select:{id:true,name:true,location:true,arrivalCode:true},orderBy:{name:"asc"}}).then(displayStations);
  const missing=stations.filter(s=>!s.arrivalCode).length;
  const origin=process.env.APP_ORIGIN;
  const signs=origin?await Promise.all(stations.filter(s=>s.arrivalCode).map(async station=>{

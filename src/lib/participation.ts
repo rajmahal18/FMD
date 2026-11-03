@@ -1,3 +1,4 @@
+import {stationDisplayName} from "./station-name";
 export type ParticipationHistory={stationId:string;name:string;status:'Played'|'Playing'|'Awaiting confirmation'|'Not selected'|'Not recorded'|'Choosing players'};
 export type PlayerParticipation={id:string;name:string;avatarUrl?:string|null;squadRole:string|null;isCaptain:boolean;played:number;explored:number;history:ParticipationHistory[]};
 export type ParticipationVisit={stationId:string;state:string;confirmedAt:Date|string|null;startedAt:Date|string|null;station:{name:string};outcome:unknown;players:{membershipId:string}[]};
@@ -8,7 +9,7 @@ export function participationFor(membershipId:string,visits:ParticipationVisit[]
   const selected=v.players.some(p=>p.membershipId===membershipId);
   const confirmed=v.state==='COMPLETED'&&!!v.confirmedAt&&!!v.outcome;
   const status:ParticipationHistory['status']=selected?(confirmed?'Played':v.state==='AWAITING_CONFIRMATION'?'Awaiting confirmation':v.startedAt?'Playing':'Choosing players'):v.state==='ARRIVED'?'Choosing players':v.players.length?'Not selected':'Not recorded';
-  return {stationId:v.stationId,name:v.station.name,status};
+  return {stationId:v.stationId,name:stationDisplayName(v.station.name),status};
  });
  return {played:history.filter(h=>h.status==='Played').length,explored:new Set(history.map(h=>h.stationId)).size,history};
 }

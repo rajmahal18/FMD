@@ -16,7 +16,7 @@
 
 /* Flattened forms use the dark workspace palette, rather than light-paper ink. */
 .record-panel{background:#0b1c2e}
-.record-workspace .record-panel>.paper-file{color:var(--text)}
+.record-workspace .record-panel>.paper-file{color:var(--text);background:transparent;border:0;box-shadow:none;padding:0}
 .record-workspace .record-panel>.paper-file :is(p,.eyebrow,.fine):not(.feedback *){color:var(--muted)}
 .record-workspace .record-panel>.paper-file :is(.secondary,.dark-outline){color:var(--ice);border-color:#789ba6;background:#10243a}
 .record-workspace .record-panel>.paper-file :is(.secondary,.dark-outline):hover{color:var(--text);background:#19364b}

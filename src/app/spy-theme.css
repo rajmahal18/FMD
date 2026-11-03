@@ -125,7 +125,7 @@ button:disabled,.button:disabled{transform:none;box-shadow:none}
 .record-table tbody tr:hover,.record-row:hover{background:#1b354b}
 .record-list-heading,.record-section-heading{border-bottom:2px solid #426078}
 .record-tabs,.roster-tabs{background:#0b1c2e;border-bottom:1px solid #426078;padding:4px;gap:4px}
-:is(.content-body,.player-body) :is(.record-tabs,.roster-tabs) [role=tab]{background:transparent;color:#bdcddb;border-radius:3px;border:0;font-weight:600;box-shadow:none}
+:is(.content-body,.player-body) :is(.record-tabs,.roster-tabs) [role=tab]{background:transparent;color:#bdcddb;border-radius:3px;border:0;font-weight:600;box-shadow:none;transition:none}
 :is(.content-body,.player-body) :is(.record-tabs,.roster-tabs) [role=tab][aria-selected=true]{background:#bdeaf0;color:#071426;box-shadow:inset 0 -3px #72d5e3}
 :is(.content-body,.player-body) :is(.record-tabs,.roster-tabs) [role=tab]:hover{background:#24435a;color:#fff}
 :is(.content-body,.player-body) :is(.record-tabs,.roster-tabs) [role=tab][aria-selected=true]:hover{background:#d4f5f8;color:#071426}

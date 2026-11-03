@@ -1,3 +1,4 @@
+import {stationStoredName} from "@/lib/station-name";
 import "server-only";
 import { routeCommand } from "@/server/route-management";
 import { arrivalAlphabet } from "@/lib/race";
@@ -112,7 +113,7 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
     const values={eventId,name:text(data,"name",100,true),location:text(data,"location",160),briefing:""};const station=await tx.station.create({data:values});details={name:station.name,location:station.location};result={message:"Station location added. Assign its facilitators below.",targetId:station.id};break;
    }
    case "updateStation":{
-    const station=await checkedStation(text(data,"stationId",120,true));const values={name:text(data,"name",100,true),location:text(data,"location",160)};await tx.station.update({where:{id:station.id},data:values});details={before:{name:station.name,location:station.location},after:values};result={message:"Station location saved.",targetId:station.id};break;
+    const station=await checkedStation(text(data,"stationId",120,true));const values={name:stationStoredName(station.name,text(data,"name",100,true)),location:text(data,"location",160)};await tx.station.update({where:{id:station.id},data:values});details={before:{name:station.name,location:station.location},after:values};result={message:"Station location saved.",targetId:station.id};break;
    }
    case "assignFacilitator":{
     const member=await checkedMember(text(data,"membershipId",120,true));if(!member.active||!member.user.active||member.role!=="FACILITATOR")throw new InputError("Choose an active facilitator from this event.");

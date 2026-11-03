@@ -348,6 +348,8 @@ try{
   if(process.env.VISIBILITY_BROWSER_ONLY){
    const expand="document.querySelectorAll('.content-body details,.player-body details').forEach(d=>d.open=true)";
    if(role==='organizer'){
+    await check('visibility-new-event','/events/new');
+    await check('visibility-empty-route','/events/'+roster.id+'/routes',"[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.includes('Create route')).click()");
     for(const section of ['setup','people','stations','routes','staff','ranking-settings','contact-settings','voting-settings','rehearsal','lifecycle'])await check('visibility-'+section,'/events/'+roster.id+'/'+section,expand);
     await check('visibility-new-route','/events/'+roster.id+'/routes',"(async()=>{[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.includes('Create route')).click();await new Promise(r=>setTimeout(r,100));const select=[...document.querySelectorAll('.fields select')].find(e=>e.getClientRects().length);select.value=select.options[1].value;select.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(r=>setTimeout(r,100));})()");
     for(const section of ['','field','results','overall','contact-policy'])await check('visibility-operations-'+(section||'control'),'/events/'+event.id+(section?'/'+section:''),expand);

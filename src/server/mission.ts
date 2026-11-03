@@ -1,3 +1,4 @@
+import {displayStations} from "@/lib/station-name";
 import {teamParticipation} from "./participation";
 import {avatarUrl} from "@/lib/avatar";
 import "server-only";
@@ -16,7 +17,7 @@ export async function readMission(userId:string,eventId:string):Promise<MissionD
   const team=member.teamId?await tx.team.findFirst({where:{id:member.teamId,eventId},include:{routeAssignment:{include:{route:true}},members:{where:{active:true,role:"PARTICIPANT",user:{active:true}},include:{user:{select:{name:true,avatarKey:true}}}}}}):null;
   const assignment=team?.routeAssignment;const ids=assignment&&assignment.route.eventId===eventId&&Array.isArray(assignment.stationIds)&&assignment.stationIds.every(id=>typeof id==="string")?assignment.stationIds as string[]:[];
   // Whitelist public fields. Facilitator notes, credentials and score policy internals never cross this boundary.
-  const stations=await tx.station.findMany({where:{eventId,id:{in:ids}},select:{id:true,name:true,codename:true,location:true,briefing:true,available:true,configured:true,timeLimitMinutes:true,capacity:true,queueEnabled:true,brawn:true,brain:true,playersRequired:true}});
+  const stations=await tx.station.findMany({where:{eventId,id:{in:ids}},select:{id:true,name:true,codename:true,location:true,briefing:true,available:true,configured:true,timeLimitMinutes:true,capacity:true,queueEnabled:true,brawn:true,brain:true,playersRequired:true}}).then(displayStations);
   const stationLoads=await tx.stationVisit.findMany({where:{eventId,stationId:{in:ids},state:{in:["QUEUED","ARRIVED","ACTIVE","AWAITING_CONFIRMATION"]}},select:{id:true,stationId:true,state:true,startedAt:true,queuedAt:true,team:{select:{name:true}}}});
   const arrivals=await tx.auditEntry.findMany({where:{eventId,targetId:{in:stationLoads.filter(v=>v.state!=="QUEUED").map(v=>v.id)},action:{in:["RACE_CHECKIN","RACE_ADMITTEAM","RACE_QUEUE_ADMITTED"]}},select:{targetId:true,action:true,detailsJson:true,createdAt:true},orderBy:{createdAt:"desc"}});
   const publicStations=stations.map(s=>{const loads=stationLoads.filter(v=>v.stationId===s.id);return {...s,occupied:loads.filter(v=>v.state!=="QUEUED").length,queued:loads.filter(v=>v.state==="QUEUED").length,occupants:loads.filter(v=>v.state!=="QUEUED").map(v=>{const arrival=arrivals.find(a=>a.targetId===v.id&&(a.action!=="RACE_CHECKIN"||(a.detailsJson as {state?:string})?.state==="ARRIVED"));return {teamName:v.team.name,since:arrival?.createdAt.toISOString()??v.startedAt?.toISOString()??null};})};});

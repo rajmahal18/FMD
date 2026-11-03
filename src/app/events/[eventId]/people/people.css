@@ -38,7 +38,7 @@
 @media(max-width:600px){.roster-cards{grid-template-columns:minmax(0,1fr)}.roster-row{padding:14px}.roster-tabs [role=tab]{padding:10px 12px}.roster-summary{margin:12px 0}.roster-role-groups{gap:24px}.team-roster{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}}
 
 /* Add forms share the dark roster surface after their paper panels are flattened. */
-.roster-add .paper-file{color:var(--text);background:#0b1c2e}
+.content-body .roster-add .paper-file{color:var(--text);background:#0b1c2e;border:0;padding:0;box-shadow:none}
 .roster-add .paper-file :is(p,.fine,.eyebrow):not(.feedback *){color:var(--muted)}
 .roster-add .paper-file .secondary{color:var(--ice);background:#10243a;border-color:#789ba6}
 .roster-add .paper-file .secondary:hover{color:var(--text);background:#19364b}
