@@ -1,3 +1,5 @@
+import {teamParticipation} from "@/server/participation";
+import {ParticipationList} from "@/components/Participation";
 export const metadata = {robots:{index:false,follow:false}};
 import {Avatar} from "@/components/Avatar";
 import {avatarUrl} from "@/lib/avatar";
@@ -26,6 +28,9 @@ export default async function AgentDossier({params}:{params:Promise<{eventId:str
  if(m.role!=="ORGANIZER"&&m.role!=="FACILITATOR"&&m.id!==membershipId)notFound();
  const agent=await db().eventMembership.findFirst({where:{id:membershipId,eventId,active:true,role:"PARTICIPANT"},include:{user:{select:{name:true,avatarKey:true,sex:true,officeSection:true}},team:{select:{name:true,color:true}}}});
  if(!agent)notFound();
+ const participation=agent.teamId?await db().$transaction(tx=>teamParticipation(tx,eventId,agent.teamId!)):[];
+ const recordedParticipation=participation.find(p=>p.id===agent.id);
+ const ownParticipation=recordedParticipation&&m.role==="PARTICIPANT"&&m.event.hideStationDetails?{...recordedParticipation,history:[]}:recordedParticipation;
  const unit=agent.team?.name??"Unassigned";
  const callsign=`${unit.replace(/\D/g,"").padStart(2,"0")}-${agent.id.slice(-5).toUpperCase()}`;
  return <Shell name={user.name} role={m.role} eventId={eventId} title="Agent dossier">
@@ -39,6 +44,7 @@ export default async function AgentDossier({params}:{params:Promise<{eventId:str
    </div>
    <div className="agent-dossier-bottom"><span>OUTRUN / OUTSMART / OUTLAST</span><span>PERSONNEL RECORD · PRIVATE</span></div>
   </div>
+  {ownParticipation&&<section className="panel"><h2>Station participation</h2><ParticipationList players={[ownParticipation]}/></section>}
   <p className="fine">This record is visible to you and authorized event staff. Profile markers reflect event-provided roster data; no photo or sensitive background profile is required.</p>
   {m.role!=="PARTICIPANT"&&<Link href={`/events/${eventId}/people`} className="secondary button">Back to operation</Link>}
  </Shell>;

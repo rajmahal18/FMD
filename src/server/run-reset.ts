@@ -6,7 +6,7 @@ import type {OverallConfig} from '@/lib/overall';
 export async function captureRun(tx:Prisma.TransactionClient,eventId:string){
  const [event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores]=await Promise.all([
   tx.event.findUniqueOrThrow({where:{id:eventId}}),
-  tx.stationVisit.findMany({where:{eventId},orderBy:{id:'asc'}}),
+  tx.stationVisit.findMany({where:{eventId},orderBy:{id:'asc'},include:{players:true}}),
   tx.stationOutcome.findMany({where:{eventId},orderBy:{id:'asc'}}),
   tx.scoreLedgerEntry.findMany({where:{eventId},orderBy:{id:'asc'}}),
   tx.scoreCorrection.findMany({where:{outcome:{is:{eventId}}},orderBy:{id:'asc'}}),

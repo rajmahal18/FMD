@@ -522,6 +522,47 @@ try{
   let c,mc;if(three){c=await command('addTeam',{eventId:e,name:'Charlie',color:'#f5cb83'});mc=await command('addMember',{eventId:e,name:'Charlie Captain',email:'charlie@example.test',role:'PARTICIPANT',teamId:c.targetId});await command('updateMember',{eventId:e,membershipId:mc.targetId,role:'PARTICIPANT',teamId:c.targetId,isCaptain:'on'});await command('assignRoute',{eventId:e,routeId:r3.targetId,teamId:c.targetId,startStationId:s2.targetId});}
   return {e,a:a.targetId,b:b.targetId,c:c?.targetId,ma:ma.targetId,mb:mb.targetId,mc,mf:mf.targetId,s1:s1.targetId,s2:s2.targetId};
  };
+ // Captain-owned lineups and per-player participation, with real HTTP and isolated SQL.
+ const lineupGame=await prepareRace('Player lineup rehearsal');
+ const extraPlayer=await command('addMember',{eventId:lineupGame.e,name:'Scout Player',email:'scout-lineup@example.test',role:'PARTICIPANT',teamId:lineupGame.a});assert.equal(extraPlayer.status,200);
+ await pg.query('UPDATE "User" SET "passwordHash"=(SELECT "passwordHash" FROM "User" WHERE email=$1),"mustChangePassword"=false WHERE email=$2',['agent@example.test','scout-lineup@example.test']);
+ const scoutCookie=(await login('scout-lineup@example.test')).headers.get('set-cookie').split(';')[0];
+ for(const stationId of [lineupGame.s1,lineupGame.s2]){await command('issueStationCode',{eventId:lineupGame.e,stationId});await pg.query('UPDATE "Station" SET "playersRequired"=1 WHERE id=$1',[stationId]);}
+ assert.equal((await race(lineupGame.e,'startEvent')).status,200);
+ const lineupCode=async stationId=>(await pg.query('SELECT "arrivalCode" FROM "Station" WHERE id=$1',[stationId])).rows[0].arrivalCode;
+ const lineupMission=async(cookie=cookies.agent)=>(await get(`/api/events/${lineupGame.e}/mission`,cookie)).json();
+ const beforeLineup=await lineupMission();assert.equal(beforeLineup.stations[0].briefing,'');assert.equal(beforeLineup.team.members[0].explored,0);
+ const arrivalLineup=await arrivalPreview(lineupGame.e,await lineupCode(lineupGame.s1),cookies.agent);assert.equal(arrivalLineup.playersRequired,1);assert.equal(arrivalLineup.players.length,2);assert(!JSON.stringify(arrivalLineup).includes('PRIVATE CIPHER'));
+ assert.equal((await race(lineupGame.e,'checkIn',{credential:await lineupCode(lineupGame.s1),playerIds:[lineupGame.ma]},scoutCookie)).status,403);
+ for(const playerIds of [undefined,[],[lineupGame.ma,extraPlayer.targetId],[lineupGame.mb],[extraPlayer.targetId,extraPlayer.targetId]]){
+  assert.equal((await race(lineupGame.e,'checkIn',{credential:await lineupCode(lineupGame.s1),...(playerIds===undefined?{}:{playerIds})},cookies.agent)).status,400);
+ }
+ assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "StationVisit" WHERE "eventId"=$1',[lineupGame.e])).rows[0].n,0);
+ const lineupKey=crypto.randomUUID();const lineupRequest={credential:await lineupCode(lineupGame.s1),playerIds:[extraPlayer.targetId]};
+ const startedLineup=await race(lineupGame.e,'checkIn',lineupRequest,cookies.agent,lineupKey);assert.equal(startedLineup.state,'ACTIVE');assert.equal((await race(lineupGame.e,'checkIn',lineupRequest,cookies.agent,lineupKey)).replayed,true);
+ const firstLineupVisit=(await pg.query('SELECT * FROM "StationVisit" WHERE "teamId"=$1 AND "stationId"=$2',[lineupGame.a,lineupGame.s1])).rows[0];assert(firstLineupVisit.startedAt);
+ assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "StationVisitPlayer" WHERE "visitId"=$1',[firstLineupVisit.id])).rows[0].n,1);
+ const activeLineup=await lineupMission();assert.equal(activeLineup.stations.find(s=>s.id===lineupGame.s1).briefing,'Meet the cipher handler.');assert.equal(activeLineup.stations.find(s=>s.id===lineupGame.s2).briefing,'');assert.equal(activeLineup.team.members.find(p=>p.id===lineupGame.ma).explored,1);assert.equal(activeLineup.team.members.find(p=>p.id===extraPlayer.targetId).played,0);
+ assert.equal((await race(lineupGame.e,'startChallenge',{visitId:firstLineupVisit.id,playerIds:[lineupGame.ma]},cookies.agent)).status,409,'A started lineup is locked');
+ assert.equal((await race(lineupGame.e,'finishChallenge',{visitId:firstLineupVisit.id},cookies.agent)).status,403);
+ // A queued lineup reserves no elapsed time or explored credit.
+ const queuedLineup=await race(lineupGame.e,'checkIn',{credential:await lineupCode(lineupGame.s1),playerIds:[lineupGame.mb]},aliceCookie);assert.equal(queuedLineup.state,'QUEUED');
+ const waitingLineup=(await pg.query('SELECT * FROM "StationVisit" WHERE "teamId"=$1 AND "stationId"=$2',[lineupGame.b,lineupGame.s1])).rows[0];assert.equal(waitingLineup.startedAt,null);assert.equal((await lineupMission(aliceCookie)).team.members[0].explored,0);
+ assert.equal((await race(lineupGame.e,'startChallenge',{visitId:waitingLineup.id,playerIds:[lineupGame.mb]},aliceCookie)).status,409);
+ await race(lineupGame.e,'finishChallenge',{visitId:firstLineupVisit.id},cookies.facilitator);assert.equal((await lineupMission()).team.members.find(p=>p.id===extraPlayer.targetId).played,0);
+ const confirmedLineup=await race(lineupGame.e,'confirmResult',{visitId:firstLineupVisit.id,successful:true,expectedPenaltySeconds:0},cookies.facilitator);assert.equal(confirmedLineup.status,200,JSON.stringify(confirmedLineup));
+ let lineupMembers=(await lineupMission()).team.members;assert.equal(lineupMembers.find(p=>p.id===lineupGame.ma).played,0);assert.equal(lineupMembers.find(p=>p.id===extraPlayer.targetId).played,1);
+ assert.equal((await race(lineupGame.e,'startChallenge',{visitId:waitingLineup.id},cookies.facilitator)).status,409,'Handler cannot bypass the captain lineup start');
+ assert.equal((await race(lineupGame.e,'startChallenge',{visitId:waitingLineup.id,playerIds:[lineupGame.mb]},aliceCookie)).state,'ACTIVE');
+ assert.equal((await race(lineupGame.e,'startChallenge',{visitId:waitingLineup.id,playerIds:[lineupGame.mb]},cookies.agent)).status,403,'Captain cannot start another team');
+ assert.equal((await race(lineupGame.e,'checkIn',{credential:await lineupCode(lineupGame.s2),playerIds:[lineupGame.ma]},cookies.agent)).state,'ACTIVE');
+ lineupMembers=(await lineupMission()).team.members;assert.equal(lineupMembers.find(p=>p.id===lineupGame.ma).explored,2);assert.equal(lineupMembers.find(p=>p.id===lineupGame.ma).played,0);assert.equal(lineupMembers.find(p=>p.id===extraPlayer.targetId).played,1);
+ const fieldLineup=await (await get(`/api/events/${lineupGame.e}/field?stationId=${lineupGame.s2}`,cookies.facilitator)).json();assert.equal(fieldLineup.visits[0].playerIds[0],lineupGame.ma);assert.equal(fieldLineup.visits[0].players.find(p=>p.id===extraPlayer.targetId).explored,2);assert.equal(fieldLineup.visits[0].players.find(p=>p.id===extraPlayer.targetId).played,1);
+ const secondLineupVisit=fieldLineup.visits[0];await race(lineupGame.e,'finishChallenge',{visitId:secondLineupVisit.id},cookies.facilitator);
+ assert.equal((await race(lineupGame.e,'confirmResult',{visitId:secondLineupVisit.id,successful:false,points:0},cookies.facilitator)).status,200);
+ assert.equal((await lineupMission()).team.members.find(p=>p.id===lineupGame.ma).played,1,'Completed unsuccessful games still count as played');
+ assert((await (await get(`/events/${lineupGame.e}/agents/me`,cookies.agent)).text()).replace(/<!--.*?-->/g,'').includes('1 played / 2 explored'));
+ console.log('PASS: captain-only exact lineups, foreign/duplicate selection rejection, atomic start/replay, hidden instructions, locked lineup, queue timing/admission, facilitator roster and individual played/team explored history.');
  const batchGame=await prepareRace('Batch station signs rehearsal');
  const batchCode=async id=>(await pg.query('SELECT "arrivalCode" FROM "Station" WHERE id=$1',[id])).rows[0].arrivalCode;
  await command('issueStationCode',{eventId:batchGame.e,stationId:batchGame.s1});const preservedCode=await batchCode(batchGame.s1);
@@ -572,6 +613,8 @@ try{
  const publicRequirements=visibleBefore.stations.find(s=>s.id===game.s1);assert.equal(publicRequirements.brawn,5);assert.equal(publicRequirements.brain,3);assert.equal(publicRequirements.playersRequired,6);assert(!JSON.stringify(visibleBefore).includes('PRIVATE CIPHER INSTRUCTIONS'));
  const requirementsPage=await (await get('/events/'+game.e,cookies.agent)).text();assert(requirementsPage.includes('Station requirements'));assert(requirementsPage.includes('Brawn'));assert(requirementsPage.includes('Brain'));assert(requirementsPage.includes('Players needed'));
  console.log('PASS: station requirements validate whole-number ranges, preserve omitted fields, clear blanks, enforce organizer/event scope and reach participants separately from scoring.');
+ // The remaining legacy handler-start tests intentionally use an unconfigured player count.
+ await pg.query('UPDATE "Station" SET "playersRequired"=NULL WHERE id=$1',[game.s1]);
  assert.equal((await visibility(game.e,{hideStationDetails:'on'})).status,200);
  const concealedResponse=await get('/api/events/'+game.e+'/mission',cookies.agent);assert(concealedResponse.headers.get('cache-control').includes('no-store'));const concealed=await concealedResponse.json();
  assert.equal(concealed.view.status,'DETAILS_HIDDEN');assert.deepEqual(concealed.stations,[]);assert.deepEqual(concealed.stationIds,[]);assert.deepEqual(concealed.visits,[]);assert.equal(concealed.route,null);assert.equal(concealed.view.currentId,null);

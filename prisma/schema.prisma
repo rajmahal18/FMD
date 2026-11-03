@@ -125,6 +125,7 @@ model EventMembership {
  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
  team Team? @relation(fields:[teamId],references:[id])
  assignments FacilitatorAssignment[]
+ stationPlayers StationVisitPlayer[]
  ballots VotingBallot[]
  receivedVotes VotingChoice[]
  judgingAssignments JudgingAssignment[]
@@ -356,12 +357,24 @@ model StationVisit {
  finishedAt DateTime?
  outcome StationOutcome?
  timePenalties TimePenaltyEntry[]
+ players StationVisitPlayer[]
+ @@unique([eventId,id])
  @@unique([eventId,id,teamId,stationId])
  updatedAt DateTime @updatedAt
  team Team @relation(fields:[eventId,teamId],references:[eventId,id],onDelete:Cascade)
  station Station @relation(fields:[eventId,stationId],references:[eventId,id],onDelete:Cascade)
  @@unique([teamId,stationId])
  @@index([stationId,state,queuedAt])
+}
+
+model StationVisitPlayer {
+ eventId String
+ visitId String
+ membershipId String
+ visit StationVisit @relation(fields:[eventId,visitId],references:[eventId,id],onDelete:Cascade)
+ membership EventMembership @relation(fields:[eventId,membershipId],references:[eventId,id],onDelete:Restrict)
+ @@id([visitId,membershipId])
+ @@index([eventId,membershipId])
 }
 
 enum ScoreKind {

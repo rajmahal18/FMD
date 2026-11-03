@@ -22,8 +22,8 @@ Routes support same fixed order, circular order with different starting stations
 
 ## Live station flow
 1. Participant sees one primary current-station card, location and next action.
-2. Captain checks in using the station QR or manual station code. Scanning records arrival only, never success or points.
-3. Assigned facilitator sees the team, starts the physical challenge if timing is enabled, then records its result.
+2. Captain scans the station QR or enters its manual code, selects exactly the configured player count (at least one if no count is configured), and confirms the lineup. If admitted, this atomically records the lineup and starts the official server timer. Timing includes reading instructions and preparation; participant station instructions are withheld until the visit starts. A queued lineup is saved without starting timing; after admission the captain confirms the players and starts. Started lineups are locked. Scanning alone never records success or points.
+3. Assigned facilitator sees the lineup, individual played/explored counts and station history, then finishes and confirms the physical challenge. Legacy visits at stations without a player requirement may still use facilitator start; missing historical lineups are never inferred.
 4. Confirmation shows team, station, points, bonus/penalty and next destination.
 5. One server transaction records the outcome, corresponding score entries and progression. A duplicate request returns the original result. Team screens refresh the confirmed state.
 
@@ -76,3 +76,7 @@ Organizers may create separate voting awards such as Showstealer. Voter eligibil
 ## Judged contests
 
 Organizers may configure team or individual contests with criteria/maxima and assigned facilitator judges. Each judge independently drafts, reviews and submits a score per criterion per entrant. Equal-weight average of submitted judge totals determines the final result; publication requires every assigned judge/entrant sheet, and exact ties share rank. Criteria/entrants/assignments lock after the first draft or score. Judges see only their own sheets; organizers review all submitted breakdowns and can explicitly reopen scores with a reason. Parent pause/archive blocks score entry, while judging can continue after the race ends. Keep judging separate from race points, contact and voting. Preserve idempotent writes, revisions, private projections, publication snapshots and reset checkpoints. See ../JUDGING.md.
+
+## Individual station participation
+
+Played means the player was selected on a completed, facilitator-confirmed visit (including an unsuccessful physical result). Explored means distinct stations their current team was admitted to, including an ongoing visit; queued and cancelled visits are excluded. Display ?1 played / 2 explored? with station history in participant Team/Profile and staff roster/field views. Waiting or unconfirmed results do not earn played credit. Participation remains separate from race scoring; existing completion is the atomic source of confirmation. Reset checkpoints include visit lineups, and reset/deletion cascades visit lineups.

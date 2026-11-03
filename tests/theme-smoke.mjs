@@ -58,6 +58,12 @@ try{
  await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['timer-browser-route',event.id,'Timed route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['timer-browser-assignment',timerTeam,'timer-browser-route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"startedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['timer-browser-visit',event.id,timerTeam,'demo-cipher-room','ACTIVE']);
+ if(process.env.PARTICIPATION_BROWSER_ONLY){
+  await pg.query('DELETE FROM "StationVisit" WHERE id=$1',['timer-browser-visit']);
+  await pg.query('UPDATE "Station" SET "playersRequired"=2,briefing=$1 WHERE id=$2',['Read the cipher and solve the physical challenge.','demo-cipher-room']);
+  const extras=(await pg.query('SELECT id,name FROM "User" WHERE email LIKE $1 ORDER BY name LIMIT 5',['%@agents.invalid'])).rows;
+  for(const [i,u] of extras.entries())await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role,"teamId","squadRole") VALUES ($1,$2,$3,$4,$5,$6)',['lineup-browser-'+i,event.id,u.id,'PARTICIPANT',timerTeam,'Recon Specialist']);
+ }
  if(process.env.STATION_REQUIREMENTS_BROWSER_ONLY){
   await pg.query('UPDATE "Station" SET brawn=5,brain=0,"playersRequired"=6 WHERE id=$1',['demo-cipher-room']);
   await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured) VALUES ($1,$2,$3,$4,$5,$6,true)',['requirements-editor-station',roster.id,'Station requirements editor','Main hall','Meet the facilitator.','Confirm the result.']);
@@ -121,13 +127,13 @@ try{
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
    await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(url);if(setup)await evaluate(setup);
-   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open]")&&!e.closest(".error-modal"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs,.program-tabs,.controller-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav,.field-bottom-nav")&&!e.closest(".player-bottom-nav,.field-bottom-nav"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open]")&&!e.closest(".error-modal"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs,.program-tabs,.controller-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar")&&!e.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
    if(await evaluate("!!document.querySelector('.player-bottom-nav,.field-bottom-nav') && getComputedStyle(document.querySelector('.player-bottom-nav,.field-bottom-nav')).position==='fixed'")){
     await evaluate("window.scrollTo(0,document.documentElement.scrollHeight)");
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -141,11 +147,40 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
+  if(process.env.PARTICIPATION_BROWSER_ONLY){
+   if(role==='agent'){
+    const verifySelection=`document.querySelector('.manual-station-code form').requestSubmit();await new Promise(r=>setTimeout(r,450));document.querySelector('.player-picker')?.scrollIntoView({block:'start'});`;
+    await check('participation-player-picker','/events/'+event.id+'/check-in?code=23456789',`(async()=>{${verifySelection}})()`);
+    assert(await evaluate("!!document.querySelector('.player-picker')"));
+    await evaluate("document.querySelectorAll('.player-option input')[0].click();document.querySelectorAll('.player-option input')[1].click()");await new Promise(r=>setTimeout(r,100));
+    assert.equal(await evaluate("document.querySelectorAll('.player-option.is-selected').length"),2);
+    assert(await evaluate("document.querySelectorAll('.player-option input')[2].disabled"),'Count limit disables unselected players');
+    for(const width of [320,390,768,1440]){
+     await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});
+     await evaluate("document.querySelector('.player-selection-bar').scrollIntoView({block:'end'})");
+     const layout=await evaluate("(()=>{const bar=document.querySelector('.player-selection-bar').getBoundingClientRect(),dock=document.querySelector('.player-bottom-nav').getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,bottom:bar.bottom,top:bar.top,dockTop:dock.top,position:getComputedStyle(document.querySelector('.player-bottom-nav')).position};})()");
+     assert(layout.scroll<=width,'Picker must not overflow');assert(layout.top>=0&&layout.bottom<=900,'Selection action remains reachable');if(layout.position==='fixed')assert(layout.bottom<=layout.dockTop,'Selection action stays above bottom navigation');
+     const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,'participation-selected-'+width+'.png'),Buffer.from(image.data,'base64'));
+    }
+    await evaluate("document.querySelector('.player-selection-bar button').click()");
+    for(let i=0;i<40;i++){if(await evaluate("location.pathname.endsWith('/check-in')===false && !!document.querySelector('.station-timer')"))break;await new Promise(r=>setTimeout(r,200));}
+    assert(await evaluate("!!document.querySelector('.station-timer')"),'Captain confirmation starts a visible timer');
+    await evaluate("document.querySelector('.action-feedback-modal[open] button')?.click()");
+    await check('participation-running-mission','/events/'+event.id);
+    const v=(await pg.query('SELECT id FROM "StationVisit" WHERE "teamId"=$1',[timerTeam])).rows[0];assert(v);
+    assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "StationVisitPlayer" WHERE "visitId"=$1',[v.id])).rows[0].n,2);
+    await check('participation-team-history','/events/'+event.id,"[...document.querySelectorAll('.controller-tabs button')].find(b=>b.textContent==='Team').click()");
+   }else{
+    await check('participation-facilitator-lineup','/events/'+event.id+'/field');
+    assert(await evaluate("document.querySelector('.station-lineup').textContent.includes('0 played / 1 explored')"));
+   }
+   continue;
+  }
   if(process.env.SCREEN_PREVIEW_BROWSER_ONLY){
    if(role==='agent'){assert.equal((await fetch(appOrigin+'/events/'+event.id+'/preview',{headers:{cookie},redirect:'manual'})).status,404);continue;}
    const before=JSON.stringify((await pg.query('SELECT state,(SELECT COUNT(*)::int FROM "StationVisit" WHERE "eventId"=$1) AS visits,(SELECT COUNT(*)::int FROM "AuditEntry" WHERE "eventId"=$1) AS audits,(SELECT COUNT(*)::int FROM "ScoreLedgerEntry" WHERE "eventId"=$1) AS scores FROM "Event" WHERE id=$1',[event.id])).rows);
@@ -767,7 +802,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');
