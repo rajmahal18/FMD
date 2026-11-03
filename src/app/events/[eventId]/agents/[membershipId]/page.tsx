@@ -1,4 +1,6 @@
 export const metadata = {robots:{index:false,follow:false}};
+import {Avatar} from "@/components/Avatar";
+import {avatarUrl} from "@/lib/avatar";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -22,7 +24,7 @@ export default async function AgentDossier({params}:{params:Promise<{eventId:str
  const {user,m}=await requireMembership(eventId);
  const membershipId=requestedId==="me"?m.id:requestedId;
  if(m.role!=="ORGANIZER"&&m.role!=="FACILITATOR"&&m.id!==membershipId)notFound();
- const agent=await db().eventMembership.findFirst({where:{id:membershipId,eventId,active:true,role:"PARTICIPANT"},include:{user:{select:{name:true,sex:true,officeSection:true}},team:{select:{name:true,color:true}}}});
+ const agent=await db().eventMembership.findFirst({where:{id:membershipId,eventId,active:true,role:"PARTICIPANT"},include:{user:{select:{name:true,avatarKey:true,sex:true,officeSection:true}},team:{select:{name:true,color:true}}}});
  if(!agent)notFound();
  const unit=agent.team?.name??"Unassigned";
  const callsign=`${unit.replace(/\D/g,"").padStart(2,"0")}-${agent.id.slice(-5).toUpperCase()}`;
@@ -31,7 +33,7 @@ export default async function AgentDossier({params}:{params:Promise<{eventId:str
   <div className="agent-dossier-shell">
    <div className="agent-dossier-top"><span>OPERATION: CLASSIFIED</span><span>AUTHORIZED PERSONNEL FILE</span></div>
    <div className="agent-dossier-main">
-    <div className="agent-monogram"><span className="agent-crosshair">＋</span><strong>{agent.user.name.split(/[\s,]+/).filter(Boolean).slice(0,2).map(x=>x[0]?.toUpperCase()).join("")}</strong><small>IDENTITY VERIFIED</small></div>
+    <div className="agent-monogram"><span className="agent-crosshair">＋</span><Avatar name={agent.user.name} src={avatarUrl(agent.user.avatarKey)} size="portrait" label/><small>IDENTITY VERIFIED</small></div>
     <div className="agent-biography"><div className="eyebrow">FIELD AGENT / ACTIVE DOSSIER</div><h2>{agent.user.name}</h2><div className="agent-callsign">CALLSIGN {callsign}</div><div className="agent-divider"/><dl><div><dt>Assigned unit</dt><dd><span className="team-swatch" style={{background:agent.team?.color??"#d8b96d"}}/>{unit}</dd></div><div><dt>Office / Section</dt><dd>{agent.user.officeSection??"Not recorded"}</dd></div><div><dt>Squad role</dt><dd>{agent.squadRole??"Not assigned"}</dd></div><div><dt>Clearance</dt><dd>Participant · Active</dd></div></dl></div>
     <div className="agent-gender"><span>IDENTITY MARKER</span><Insignia sex={agent.user.sex}/></div>
    </div>

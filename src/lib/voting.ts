@@ -1,7 +1,7 @@
 import {InputError} from './validation';
 export type VotingRole='PARTICIPANT'|'FACILITATOR'|'ORGANIZER';
 export type VotingConfig={voterMode:'PARTICIPANTS'|'ROLES'|'TEAMS'|'PEOPLE';voterRoles:VotingRole[];voterTeamIds:string[];voterMembershipIds:string[];candidateIds:string[];maxChoices:number;allowSelf:boolean;allowSameTeam:boolean};
-export type VotingPerson={id:string;name:string;role:VotingRole;teamId:string|null;teamName:string|null;active:boolean};
+export type VotingPerson={id:string;name:string;avatarUrl?:string|null;role:VotingRole;teamId:string|null;teamName:string|null;active:boolean};
 export type VotingInput={name:string;instructions:string;opensAt:string;closesAt:string;config:VotingConfig};
 export type VotingPoll={id:string;revision:number;name:string;instructions:string;opensAt:string;closesAt:string;enabled:boolean;publishedAt:string|null;config:VotingConfig|null;status:string;eligible:boolean;maxChoices:number;allowSelf:boolean;allowSameTeam:boolean;candidateIds:string[];ownChoices:string[]|null;ballotCount:number|null;results:{id:string;name:string;votes:number;rank:number|null}[]|null};
 export type VotingData={eventId:string;actorId:string;membershipId:string;organizer:boolean;timezone:string;archived:boolean;eventState:string;people:VotingPerson[];teams:{id:string;name:string}[];polls:VotingPoll[];checkedAt:string};
