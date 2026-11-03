@@ -1,3 +1,4 @@
+import {verifySquadHandlers} from "./squad-handlers-integration.mjs";
 import {verifyRaceFlows} from "./race-flow-integration.mjs";
 import {PGlite} from '@electric-sql/pglite';import {PGLiteSocketServer} from '@electric-sql/pglite-socket';import {spawn} from 'node:child_process';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';
 import {randomBytes,createHash} from 'node:crypto';
@@ -214,17 +215,33 @@ try{
  const ownJudging=(await judgingData(cookies.facilitator)).contests[0];assert.equal(ownJudging.ownSheets.length,2);assert.equal(ownJudging.breakdown,undefined);assert.deepEqual(ownJudging.results,[]);assert.equal(ownJudging.judgeIds,undefined);
  const adminJudging=(await judgingData(cookies.organizer)).contests[0];assert.deepEqual(adminJudging.results.map(r=>[r.average,r.rank]),[[22,1],[22,1]]);assert.equal(adminJudging.breakdown.length,4);
  const beforePublishParticipant=await judgingData(cookies.agent);assert.deepEqual(beforePublishParticipant.contests,[]);
+ const judgedOverallConfig={events:[{id:'gala-auto',name:'Gala',weight:100,source:'JUDGING',contestId,credits:[100,90],ranks:{}}]};
+ const judgedOverall=async(operation,revision,patch={})=>postJson('/api/events/'+judgedEvent+'/overall',{operation,revision,config:judgedOverallConfig,expectedJudgingRevisions:{[contestId]:(await pg.query('SELECT revision FROM "JudgingContest" WHERE id=$1',[contestId])).rows[0].revision},...patch});
+ assert.equal((await judgedOverall('save',0,{config:{events:[{...judgedOverallConfig.events[0],contestId:'foreign-or-missing'}]}})).status,400);
+ assert.equal((await judgedOverall('save',0)).status,200);
+ assert.equal((await judgedOverall('finalize',1)).status,400,'Complete but unpublished judge sheets cannot finalize overall');
+ assert.equal((await get('/api/events/'+judgedEvent+'/overall?view=draft',cookies.agent)).status,403);
  assert.equal((await jc('close')).status,200);const judgingPublishKey=crypto.randomUUID();assert.equal((await jc('publish',{},cookies.organizer,judgingPublishKey)).status,200);
  const publishedJudging=(await judgingData(cookies.agent)).contests[0];assert.equal(publishedJudging.published.rows[0].average,22);assert.equal(publishedJudging.breakdown,undefined);assert.deepEqual(publishedJudging.ownSheets,[]);assert.deepEqual(publishedJudging.candidates,[]);
  assert(!JSON.stringify(publishedJudging).includes('Judge Two'));assert.equal((await get('/events/'+judgedEvent+'/judging',cookies.agent)).status,200);
  const firstPublication=(await pg.query('SELECT "publishedResults" FROM "JudgingContest" WHERE id=$1',[contestId])).rows[0].publishedResults;
+ const autoOverall=await judgedOverall('finalize',1);assert.equal(autoOverall.status,200,JSON.stringify(autoOverall));assert.deepEqual(autoOverall.finalized.rows.map(r=>[r.value,r.rank]),[[88,1],[88,1]],'Overall uses actual 22/25 averages, not 100/90 credits');
+ const autoPublic=await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json();assert(autoPublic.published);assert(!JSON.stringify(autoPublic).includes('Judge Two'));assert(!JSON.stringify(autoPublic).includes('judgeMembershipId'));
+
  assert.equal((await jc('unpublish',{reason:'Correct a judging entry'})).status,200);assert.deepEqual((await judgingData(cookies.agent)).contests,[]);
+ assert.equal((await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json()).published,false,'Withdrawing a linked judging publication seals overall immediately');
  assert.equal((await jc('reopenScore',{judgeId:judge1,candidateId:jt1,reason:'Correct the impact score'})).status,200);
  assert.equal((await jc('open')).status,200);
  assert.equal((await jc('submitScore',{candidateId:jt1,version:2,scores:{impact:10,harmony:10}},cookies.facilitator)).status,409);
  assert.equal((await jc('submitScore',{candidateId:jt1,version:3,scores:{impact:10,harmony:10}},cookies.facilitator)).status,200);
  assert.equal((await jc('close')).status,200);assert.equal((await jc('publish')).status,200);
  const secondPublication=(await judgingData(cookies.agent)).contests[0].published;assert.equal(secondPublication.rows[0].average,22.5);assert.equal(firstPublication.rows[0].average,22);
+ const staleJudged=await (await get('/api/events/'+judgedEvent+'/overall?view=draft',cookies.organizer)).json();assert(staleJudged.stale);assert.equal((await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json()).published,false,'Re-publication does not silently republish an old overall snapshot');
+ const reopenedJudged=await judgedOverall('reopen',staleJudged.revision);assert.equal(reopenedJudged.status,200);
+ assert.equal((await judgedOverall('finalize',reopenedJudged.revision,{expectedJudgingRevisions:{[contestId]:1}})).status,409,'A stale judging revision cannot be finalized');
+ const revisedJudged=await judgedOverall('finalize',reopenedJudged.revision);assert.equal(revisedJudged.status,200);assert.deepEqual(revisedJudged.finalized.rows.map(r=>r.value),[90,88]);
+ console.log('PASS: published judging-to-overall auto ranking/normalization, unpublished/private source guards, source revision checks and correction invalidation/re-finalization.');
+
  const individualNominee=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[judgedEvent,'PARTICIPANT'])).rows[0].id;
  const individualJudging=await jc('createContest',{...newContest,name:'Agent of the Night',config:{target:'INDIVIDUAL',candidateIds:[individualNominee],criteria:[judgingConfig.criteria[0]]},judgeIds:[judge1]});assert.equal(individualJudging.status,200);
  assert.equal((await jc('open',{contestId:individualJudging.targetId,revision:1})).status,200);
@@ -539,6 +556,7 @@ try{
   let c,mc;if(three){c=await command('addTeam',{eventId:e,name:'Charlie',color:'#f5cb83'});mc=await command('addMember',{eventId:e,name:'Charlie Captain',email:'charlie@example.test',role:'PARTICIPANT',teamId:c.targetId});await command('updateMember',{eventId:e,membershipId:mc.targetId,role:'PARTICIPANT',teamId:c.targetId,isCaptain:'on'});await command('assignRoute',{eventId:e,routeId:r3.targetId,teamId:c.targetId,startStationId:s2.targetId});}
   return {e,a:a.targetId,b:b.targetId,c:c?.targetId,ma:ma.targetId,mb:mb.targetId,mc,mf:mf.targetId,s1:s1.targetId,s2:s2.targetId};
  };
+ await verifySquadHandlers({pg,prepareRace,command,get,cookies,aliceCookie,origin});
  await verifyRaceFlows({pg,prepareRace,command,race,cookies,aliceCookie,get});
  // Captain-owned lineups and per-player participation, with real HTTP and isolated SQL.
  const lineupGame=await prepareRace('Player lineup rehearsal');

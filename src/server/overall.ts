@@ -2,7 +2,7 @@ import 'server-only';
 import {db} from '@/lib/db';
 import {InputError} from '@/lib/validation';
 import {Prisma} from '@/generated/prisma/client';
-import {defaultOverall,overallStandings,validateOverall,weightStatus,type OverallConfig} from '@/lib/overall';
+import {defaultOverall,resolveOverallJudging,overallStandings,validateOverall,weightStatus,type OverallConfig,type OverallJudgingSource} from '@/lib/overall';
 import {teamTotal} from './score';
 type Tx=Prisma.TransactionClient;
 async function scope(tx:Tx,actorId:string,eventId:string){const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:true,event:true}});if(!m?.active||!m.user.active||m.user.mustChangePassword||m.role!=='ORGANIZER')throw new InputError('Active organizer access is required.',403);return m;}
@@ -12,11 +12,14 @@ async function snapshot(tx:Tx,eventId:string){
  const roster=await tx.team.findMany({where:{eventId},orderBy:{name:'asc'}});
  const raceRows=(race?.teamStandingsJson??[]) as {id:string;rank:number;pending?:boolean}[];
  const teams=await Promise.all(roster.map(async t=>({id:t.id,name:t.name,color:t.color,points:await teamTotal(tx,eventId,t.id),raceRank:event.state==='FINALIZED'?raceRows.find(r=>r.id===t.id&&!r.pending)?.rank||null:null})));
- const config=(record?.config??{...defaultOverall(teams.length),...(event.state!=='PREPARING'?{raceRule:'POINTS'}:{})}) as OverallConfig;
+ const config=resolveOverallJudging((record?.config??{...defaultOverall(teams.length),...(event.state!=='PREPARING'?{raceRule:'POINTS'}:{})}) as OverallConfig);
+ const contests=await tx.judgingContest.findMany({where:{eventId},select:{id:true,name:true,state:true,revision:true,config:true,publishedAt:true,publishedResults:true}});
+ const judgingSources:OverallJudgingSource[]=contests.filter(c=>(c.config as {target?:string}).target==='TEAM').map(c=>{const published=c.state==='PUBLISHED'&&!!c.publishedAt;const snapshot=c.publishedResults as {rows?:OverallJudgingSource['rows']}|null;return {id:c.id,name:c.name,revision:c.revision,published,rows:published&&Array.isArray(snapshot?.rows)?snapshot.rows.map(r=>({id:r.id,rank:r.rank,average:r.average,maximum:r.maximum})):[]};});
  const savedRaceRule=(record?.config as OverallConfig|undefined)?.raceRule??'POINTS';
- const final=record?.finalized as {stale?:boolean;sourceRevision?:number|null}|null;
- const stale=!!final&&(!!final.stale||(config.events.some(e=>e.source==='SPY')&&(event.state!=='FINALIZED'||!race||final.sourceRevision!==race.revision)));
- return {revision:record?.revision??0,config,finalized:record?.finalized??null,teams,stale,raceState:event.state,savedRaceRule,sourceRevision:race?.revision??null};
+ const final=record?.finalized as {stale?:boolean;sourceRevision?:number|null;judgingRevisions?:Record<string,number>}|null;
+ const judgingStale=!!final&&config.events.some(e=>e.source==='JUDGING'&&!judgingSources.some(s=>s.id===e.contestId&&s.published&&s.revision===final.judgingRevisions?.[s.id]));
+ const stale=!!final&&(judgingStale||!!final.stale||(config.events.some(e=>e.source==='SPY')&&(event.state!=='FINALIZED'||!race||final.sourceRevision!==race.revision)));
+ return {revision:record?.revision??0,config,finalized:record?.finalized??null,teams,judgingSources,stale,raceState:event.state,savedRaceRule,sourceRevision:race?.revision??null};
 }
 export async function readOverall(actorId:string,eventId:string){return db().$transaction(async tx=>{await scope(tx,actorId,eventId);return snapshot(tx,eventId);},{isolationLevel:'RepeatableRead'});}
 export async function readPublishedOverall(actorId:string,eventId:string){return db().$transaction(async tx=>{
@@ -31,15 +34,16 @@ export async function readPublishedOverall(actorId:string,eventId:string){return
 export async function saveOverall(actorId:string,eventId:string,value:unknown){return db().$transaction(async tx=>{
  await tx.$queryRaw`SELECT id FROM "Event" WHERE id=${eventId} FOR UPDATE`;
  const m=await scope(tx,actorId,eventId);if(m.event.archivedAt)throw new InputError('Restore this event before changing overall rankings.',409);
- const v=value as {operation?:string;revision?:number;config?:unknown};if(!v||!['save','finalize','reopen'].includes(v.operation??''))throw new InputError('Choose a valid overall ranking action.');
+ const v=value as {operation?:string;revision?:number;config?:unknown;expectedJudgingRevisions?:Record<string,number>};if(!v||!['save','finalize','reopen'].includes(v.operation??''))throw new InputError('Choose a valid overall ranking action.');
  const before=await snapshot(tx,eventId);if(v.revision!==before.revision)throw new InputError('Another organizer saved changes. Reload before editing again.',409);
  if(before.finalized&&v.operation!=='reopen')throw new InputError('Reopen overall results before making changes.',409);
  if(v.operation==='reopen'&&!before.finalized)throw new InputError('Overall results are not finalized.',409);
  let config:OverallConfig;try{config=validateOverall(v.operation==='reopen'?before.config:v.config,before.teams.map(t=>t.id));}catch(e){throw new InputError((e as Error).message);}
  if((config.raceRule??'POINTS')!==before.savedRaceRule&&m.event.state!=='PREPARING')throw new InputError('Choose the Amazing Race winning rule while the event is Preparing. It cannot change after the race is ready or started.',409);
- const rows=overallStandings(config,before.teams);const finalizing=v.operation==='finalize';
- if(finalizing){if(!weightStatus(config.events).valid)throw new InputError(weightStatus(config.events).message);if(before.teams.length<2)throw new InputError('Add at least two teams before finalizing.');if(config.events.some(e=>e.source==='SPY')&&m.event.state!=='FINALIZED')throw new InputError('Finalize Amazing Race results first so its placements are confirmed.',409);if(rows.some(r=>r.contributions.some(c=>c.rank===null)))throw new InputError('Complete all activity results before finalizing.');}
- const finalized=finalizing?{rows,config,finalizedAt:new Date().toISOString(),actorId,sourceRevision:before.sourceRevision}:Prisma.DbNull;
+ for(const component of config.events)if(component.source==='JUDGING'&&!before.judgingSources.some(c=>c.id===component.contestId))throw new InputError('Choose a team judging contest from this event.');
+ const rows=overallStandings(config,before.teams,before.judgingSources);const finalizing=v.operation==='finalize';
+ if(finalizing){for(const component of config.events)if(component.source==='JUDGING'&&v.expectedJudgingRevisions?.[component.contestId!]!==before.judgingSources.find(s=>s.id===component.contestId)?.revision)throw new InputError('Judging results changed after review. Refresh the overall results before finalizing.',409);if(!weightStatus(config.events).valid)throw new InputError(weightStatus(config.events).message);if(before.teams.length<2)throw new InputError('Add at least two teams before finalizing.');if(config.events.some(e=>e.source==='SPY')&&m.event.state!=='FINALIZED')throw new InputError('Finalize Amazing Race results first so its placements are confirmed.',409);if(rows.some(r=>r.contributions.some(c=>c.rank===null)))throw new InputError('Complete all activity results before finalizing.');}
+ const finalized=finalizing?{rows,config,finalizedAt:new Date().toISOString(),actorId,sourceRevision:before.sourceRevision,judgingRevisions:Object.fromEntries(before.judgingSources.filter(s=>config.events.some(e=>e.source==='JUDGING'&&e.contestId===s.id)).map(s=>[s.id,s.revision]))}:Prisma.DbNull;
  await tx.overallRanking.upsert({where:{eventId},create:{eventId,revision:1,config:config as unknown as Prisma.InputJsonValue,finalized},update:{revision:{increment:1},config:config as unknown as Prisma.InputJsonValue,finalized}});
  await tx.auditEntry.create({data:{eventId,actorId,action:`OVERALL_${v.operation!.toUpperCase()}`,detailsJson:{previousRevision:before.revision,previousFinal:before.finalized,config:config as unknown as Prisma.InputJsonValue}}});
  return snapshot(tx,eventId);

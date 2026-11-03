@@ -38,6 +38,17 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
   const checkedMember=async(id:string)=>{const m=await tx.eventMembership.findFirst({where:{id,eventId},include:{user:true}});if(!m)throw new InputError("This person does not belong to this event.",404);return m;};
   const checkedStation=async(id:string)=>{const s=await tx.station.findFirst({where:{id,eventId}});if(!s)throw new InputError("Choose a station from this event.");return s;};
   switch(operation){
+   case "assignSquadHandler":{
+    const team=await checkedTeam(text(data,"teamId",120,true));const membershipId=text(data,"membershipId");
+    const previous=await tx.squadHandler.findUnique({where:{teamId:team!.id}});
+    if(text(data,"previousMembershipId")!==(previous?.membershipId??''))throw new InputError("Squad handler changed. Refresh before saving.",409);
+    if(membershipId){const member=await checkedMember(membershipId);if(!member.active||!member.user.active||member.role!=="FACILITATOR")throw new InputError("Choose an active facilitator from this event.");
+     const assigned=await tx.squadHandler.findUnique({where:{membershipId}});if(assigned&&assigned.teamId!==team!.id)throw new InputError("This facilitator already handles another squad. Remove that assignment first.",409);
+     await tx.squadHandler.upsert({where:{teamId:team!.id},create:{eventId,teamId:team!.id,membershipId},update:{membershipId}});targetUserId=member.userId;
+    }else await tx.squadHandler.deleteMany({where:{teamId:team!.id,eventId}});
+    details={before:previous?.membershipId??null,after:membershipId||null,teamId:team!.id};result={message:membershipId?"Squad handler assigned.":"Squad handler removed.",targetId:team!.id};break;
+   }
+
    case "updateScreenPreviewVisibility":{
     const value=data.get("screenPreviewEnabled");if(value!==null&&value!=="on")throw new InputError("Choose a valid preview visibility setting.");
     const before=await tx.event.findUniqueOrThrow({where:{id:eventId},select:{screenPreviewEnabled:true}});
@@ -120,13 +131,13 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
     if(data.get("isCaptain")==="on"&&!isCaptain)throw new InputError("A captain must be an active participant assigned to a team.");
     if(!member.active||!member.user.active)throw new InputError("Restore this person’s access before changing their assignment.",409);
     if(isCaptain)await tx.eventMembership.updateMany({where:{eventId,teamId,isCaptain:true,id:{not:member.id}},data:{isCaptain:false}});
-    await tx.eventMembership.update({where:{id:member.id},data:{role,teamId:teamId||null,isCaptain,squadRole}});if(role!=="FACILITATOR")await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});
+    await tx.eventMembership.update({where:{id:member.id},data:{role,teamId:teamId||null,isCaptain,squadRole}});if(role!=="FACILITATOR"){await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});await tx.squadHandler.deleteMany({where:{membershipId:member.id}});}
     targetUserId=member.userId;details={before:{role:member.role,teamId:member.teamId,isCaptain:member.isCaptain,squadRole:member.squadRole},after:{role,teamId:teamId||null,isCaptain,squadRole}};result={message:"Event assignment saved.",targetId:member.id};break;
    }
    case "removeMember":{
     const member=await checkedMember(text(data,"membershipId",120,true));if(member.userId===actorId)throw new InputError("You cannot remove your own event access.",409);
     if(member.active&&member.role==="ORGANIZER"&&await tx.eventMembership.count({where:{eventId,active:true,role:"ORGANIZER",user:{active:true}}})<=1)throw new InputError("Keep at least one active organizer.",409);
-    await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});await tx.eventMembership.update({where:{id:member.id},data:{active:false,teamId:null,isCaptain:false,squadRole:null}});targetUserId=member.userId;details={role:member.role,teamId:member.teamId};result={message:"Event access removed. Their account and other events are preserved.",targetId:member.id};break;
+    await tx.squadHandler.deleteMany({where:{membershipId:member.id}});await tx.facilitatorAssignment.deleteMany({where:{membershipId:member.id}});await tx.eventMembership.update({where:{id:member.id},data:{active:false,teamId:null,isCaptain:false,squadRole:null}});targetUserId=member.userId;details={role:member.role,teamId:member.teamId};result={message:"Event access removed. Their account and other events are preserved.",targetId:member.id};break;
    }
    case "addStation":{
     const values={eventId,name:text(data,"name",100,true),location:text(data,"location",160),briefing:""};const station=await tx.station.create({data:values});details={name:station.name,location:station.location};result={message:"Station location added. Assign its facilitators below.",targetId:station.id};break;

@@ -1,3 +1,5 @@
+import {judgedOverallBrowser} from "./judged-overall-browser.mjs";
+import {squadHandlersBrowser} from "./squad-handlers-browser.mjs";
 import {raceFlowBrowser} from "./race-flow-browser.mjs";
 import {auditContrast} from './browser-contrast.mjs';
 import {PGlite} from '@electric-sql/pglite';
@@ -80,6 +82,12 @@ try{
   for(const [i,state] of ['ARRIVED','QUEUED'].entries()){const teamId='tile-fixture-team-'+i;await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',[teamId,event.id,'Other team '+(i+1)]);await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"queuedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['tile-fixture-visit-'+i,event.id,teamId,'tile-station-0',state]);}
   await pg.query('UPDATE "TeamRouteAssignment" SET "stationIds"=$1 WHERE "teamId"=$2',[JSON.stringify(ids),timerTeam]);
  }
+ if(process.env.JUDGED_OVERALL_BROWSER_ONLY){
+  const ids=[timerTeam];for(let i=1;i<5;i++){const id='auto-overall-team-'+i;ids.push(id);await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',[id,event.id,'Squad '+(i+1)]);}
+  const config={target:'TEAM',candidateIds:ids,criteria:[{id:'total',name:'Total',description:'Judging criterion',maximum:100}]};
+  await pg.query('INSERT INTO "JudgingContest" (id,"eventId",name,config,state) VALUES ($1,$2,$3,$4,$5)',['overall-auto-judging',event.id,'Banner judging',JSON.stringify(config),'CLOSED']);
+  await pg.query('UPDATE "OverallRanking" SET config=$1 WHERE "eventId"=$2',[JSON.stringify({raceRule:'TIME',events:[{id:'banner-auto',name:'Banner',source:'JUDGING',contestId:'overall-auto-judging',weight:100,credits:[100,90,80,70,60],ranks:{}}]}),event.id]);
+ }
  if(process.env.STATION_REQUIREMENTS_BROWSER_ONLY){
   await pg.query('UPDATE "Station" SET brawn=5,brain=0,"playersRequired"=6 WHERE id=$1',['demo-cipher-room']);
   await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured) VALUES ($1,$2,$3,$4,$5,$6,true)',['requirements-editor-station',roster.id,'Station requirements editor','Main hall','Meet the facilitator.','Confirm the result.']);
@@ -93,6 +101,7 @@ try{
    await pg.query('INSERT INTO "JudgingAssignment" ("eventId","contestId","membershipId") VALUES ($1,$2,$3)',[event.id,id,membership]);
   }
  }
+ if(process.env.SQUAD_HANDLERS_BROWSER_ONLY)await pg.query('UPDATE "Event" SET state=$2 WHERE id=$1',[event.id,'PREPARING']);
  if(process.env.SCREEN_PREVIEW_BROWSER_ONLY){
   await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['PREPARING',event.id]);
   await pg.query('UPDATE "OverallRanking" SET config=$1 WHERE "eventId"=$2',[JSON.stringify({raceRule:'POINTS',events:[]}),event.id]);
@@ -149,7 +158,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -163,11 +172,13 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.PREVIEW_TOGGLE_BROWSER_ONLY?['organizer','facilitator']:process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.JUDGED_OVERALL_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.SQUAD_HANDLERS_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PREVIEW_TOGGLE_BROWSER_ONLY?['organizer','facilitator']:process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
+  if(process.env.JUDGED_OVERALL_BROWSER_ONLY){await judgedOverallBrowser({role,pg,event,evaluate,visit,check});continue;}
+  if(process.env.SQUAD_HANDLERS_BROWSER_ONLY){await squadHandlersBrowser({role,pg,event,timerTeam,evaluate,visit,check});continue;}
   if(process.env.PREVIEW_TOGGLE_BROWSER_ONLY){
    const base='/events/'+event.id;const setup="document.querySelector('#screen-preview-visibility').open=true";
    const saveToggle=async(enabled)=>{await visit(base+'/setup');await evaluate(setup);await evaluate("document.querySelector('#screen-preview-visibility input[type=checkbox]').click();document.querySelector('#screen-preview-visibility form').requestSubmit()");for(let i=0;i<60;i++){if((await pg.query('SELECT "screenPreviewEnabled" FROM "Event" WHERE id=$1',[event.id])).rows[0].screenPreviewEnabled===enabled)return;await new Promise(r=>setTimeout(r,100));}throw Error('Preview toggle save did not complete');};
@@ -873,7 +884,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

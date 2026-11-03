@@ -22,3 +22,7 @@
 .final-station-status{padding:12px 0;min-width:0;overflow-wrap:anywhere}.final-station-status h3{font-size:18px;margin:0 0 8px}.final-countdown{display:block;font-size:36px;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--warning,#f5cb83)}#race-flow select{width:100%;min-width:0;max-width:100%;white-space:normal}#race-flow fieldset{min-width:0}.field-team .final-station-status{padding:0 0 12px}
 
 .field-team .final-station-status h3{display:none}.field-team .final-station-status p{font-size:14px;margin:6px 0}.field-team .final-station-status{padding-bottom:8px}
+
+.squad-handler-assignment{padding:12px 0 18px;margin-bottom:16px;border-bottom:1px solid #385166;min-width:0}.squad-handler-assignment h3{font-size:16px;margin:0 0 8px}.squad-handler-assignment details{margin-top:10px}.squad-handler-assignment select{max-width:100%;min-width:0}.team-handler-identity{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 0}.team-handler-identity>span:first-child{color:#b0c2d1;font-size:14px}
+
+.overall-judge-rows{list-style:none;padding:0;margin:12px 0}.overall-judge-rows li{display:flex;align-items:baseline;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid #385166}.overall-judge-rows span{font-size:14px;color:#b0c2d1}.overall-judging-source{min-width:0;overflow-wrap:anywhere}

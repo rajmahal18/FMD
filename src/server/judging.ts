@@ -1,3 +1,4 @@
+import {invalidateOverall} from "./overall-invalidation";
 import 'server-only';
 import {db} from '@/lib/db';
 import {Prisma} from '@/generated/prisma/client';
@@ -102,6 +103,7 @@ export async function judgingCommand(actorId:string,eventId:string,value:unknown
     await tx.judgingScore.update({where:{id:sheet.id},data:{submittedAt:null,version:{increment:1}}});await tx.judgingContest.update({where:{id:c.id},data:{revision:{increment:1}}});details={reason,previousScore:{...sheet,updatedAt:sheet.updatedAt.toISOString(),submittedAt:sheet.submittedAt!.toISOString()}};message='Score reopened as a draft. Open scoring so that judge can correct and resubmit.';
    }
   }
+  if(operation==='unpublish'||operation==='publish')await invalidateOverall(tx,eventId,actorId,'A linked judging publication changed. Review and finalize the overall results again.',targetId);
   await tx.auditEntry.create({data:{eventId,actorId,action:`JUDGING_${operation.toUpperCase()}`,targetId,detailsJson:JSON.parse(JSON.stringify(details))}});
   const response={message,targetId};await tx.managementReceipt.create({data:{actorId,requestKey,requestHash,operation:`judging:${operation}`,responseJson:response}});return response;
  },{timeout:20000,maxWait:10000});

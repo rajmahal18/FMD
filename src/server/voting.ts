@@ -11,8 +11,8 @@ async function scope(tx:Tx,actorId:string,eventId:string){
  if(!m?.active||!m.user.active||m.user.mustChangePassword)throw new InputError('Active event membership is required.',403);return m;
 }
 async function roster(tx:Tx,eventId:string):Promise<VotingPerson[]>{
- const people=await tx.eventMembership.findMany({where:{eventId},select:{id:true,role:true,teamId:true,active:true,user:{select:{name:true,avatarKey:true,active:true}},team:{select:{name:true}}},orderBy:{user:{name:'asc'}}});
- return people.map(p=>({id:p.id,name:p.user.name,avatarUrl:avatarUrl(p.user.avatarKey),role:p.role,teamId:p.teamId,teamName:p.team?.name??null,active:p.active&&p.user.active}));
+ const people=await tx.eventMembership.findMany({where:{eventId},select:{id:true,role:true,teamId:true,active:true,user:{select:{name:true,avatarKey:true,active:true}},team:{select:{name:true}},handledSquad:{select:{teamId:true,team:{select:{name:true}}}}},orderBy:{user:{name:'asc'}}});
+ return people.map(p=>({id:p.id,name:p.user.name,avatarUrl:avatarUrl(p.user.avatarKey),role:p.role,squadHandlerTeamId:p.active&&p.user.active&&p.role==='FACILITATOR'?p.handledSquad?.teamId??null:null,squadHandlerTeamName:p.active&&p.user.active&&p.role==='FACILITATOR'?p.handledSquad?.team.name??null:null,teamId:p.teamId,teamName:p.team?.name??null,active:p.active&&p.user.active}));
 }
 function standings(candidateIds:string[],people:VotingPerson[],choices:{candidateMembershipId:string}[]):NonNullable<VotingPoll['results']>{
  const rows=candidateIds.map(id=>({id,name:people.find(p=>p.id===id)?.name??'Former event member',votes:choices.filter(v=>v.candidateMembershipId===id).length,rank:null as number|null})).sort((a,b)=>b.votes-a.votes||a.name.localeCompare(b.name));

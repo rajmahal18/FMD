@@ -5,6 +5,18 @@ const config:VotingConfig={voterMode:'PARTICIPANTS',voterRoles:[],voterTeamIds:[
 const one:VotingPerson={id:'one',name:'One',role:'PARTICIPANT',teamId:'red',teamName:'Red',active:true};
 const two:VotingPerson={...one,id:'two',name:'Two',teamId:'blue'};
 const faci:VotingPerson={...one,id:'faci',role:'FACILITATOR',teamId:null};
+
+test('assigned squad handlers can be candidates or explicit voters without becoming participants',()=>{
+ const handler={...faci,squadHandlerTeamId:'red',squadHandlerTeamName:'Red'};
+ assert(eligibleCandidate(config,one,handler));
+ assert(!eligibleCandidate({...config,allowSameTeam:false},one,handler));
+ assert(eligibleCandidate({...config,allowSameTeam:false},two,handler));
+ assert(!eligibleVoter(config,handler));
+ assert(eligibleVoter({...config,voterMode:'SQUAD_HANDLERS'},handler));
+ assert(!eligibleVoter({...config,voterMode:'SQUAD_HANDLERS'},faci));
+ assert(!eligibleVoter({...config,voterMode:'SQUAD_HANDLERS'},{...handler,active:false}));
+ assert(!eligibleVoter({...config,voterMode:'TEAMS',voterTeamIds:['red']},handler));
+});
 test('voter scopes support participants, roles, teams and explicit individuals',()=>{
  assert(eligibleVoter(config,one));assert(!eligibleVoter(config,faci));
  assert(eligibleVoter({...config,voterMode:'ROLES',voterRoles:['FACILITATOR']},faci));

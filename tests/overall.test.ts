@@ -1,8 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {defaultOverall,overallComplete,overallStandings,validateOverall,weightStatus,type ComponentEvent} from '../src/lib/overall';
+import {resolveOverallJudging,defaultOverall,overallComplete,overallStandings,validateOverall,weightStatus,type ComponentEvent} from '../src/lib/overall';
 const teams=Array.from({length:6},(_,i)=>({id:`t${i+1}`,name:`Team ${i+1}`,color:'#72D5E3',points:600-i*100}));
 const event=(patch:Partial<ComponentEvent>={}):ComponentEvent=>({id:'spy',name:'Spy Chase',weight:40,source:'SPY',credits:[100,90,80,70,60],ranks:{},...patch});
+
+test('judged components use normalized actual averages instead of placement credits',()=>{
+ const config={events:[event({source:'JUDGING',contestId:'gala',weight:45})]};
+ const judging=[{id:'gala',name:'Gala',revision:5,published:true,rows:[{id:'t1',rank:1,average:92,maximum:100},{id:'t2',rank:2,average:88,maximum:100}]}];
+ const rows=overallStandings(config,teams.slice(0,2),judging);
+ assert.deepEqual(rows.map(r=>r.value),[41.4,39.6]);
+ assert.equal(rows[0].contributions[0].credit,92);
+ assert.equal(rows[0].contributions[0].average,92);
+ assert.equal(overallStandings(config,teams.slice(0,2),[{...judging[0],published:false}])[0].contributions[0].rank,null);
+});
+
+test('judged ties preserve actual equal scores and differing contest maxima normalize fairly',()=>{
+ const config={events:[event({source:'JUDGING',contestId:'banner',weight:100})]};
+ const source={id:'banner',name:'Banner',revision:3,published:true,rows:[{id:'t1',rank:1,average:22,maximum:25},{id:'t2',rank:1,average:22,maximum:25}]};
+ const rows=overallStandings(config,teams.slice(0,2),[source]);
+ assert.deepEqual(rows.map(r=>[r.rank,r.value]),[[1,88],[1,88]]);
+ const missing=overallStandings(config,teams,[source]);assert(!overallComplete(config,missing));
+ assert.throws(()=>validateOverall({events:[event({source:'JUDGING'})]},teams.map(t=>t.id)));
+ assert.throws(()=>validateOverall({events:[event({source:'JUDGING',contestId:'same'}),event({id:'other',source:'JUDGING',contestId:'same'})]},teams.map(t=>t.id)));
+});
 
 test('saved race ties average occupied credits and preserve third place',()=>{
  const rows=overallStandings({events:[event({weight:100})]},teams.slice(0,5).map((t,i)=>({...t,raceRank:[1,1,3,4,5][i]})));
@@ -36,3 +56,9 @@ test('manual ranks, shared ties and weighted aggregation',()=>{const config={eve
 test('missing placements remain pending and equal point totals share ranks',()=>{const rows=overallStandings({events:[event(),event({id:'manual',source:'MANUAL'})]},teams.map(t=>({...t,points:100})));assert(rows.every(t=>t.contributions[0].rank===1));assert(rows.every(t=>t.contributions[1].rank===null));});
 test('reject invalid percentages, upward credits, foreign teams and invalid tie sequences',()=>{for(const patch of ([{weight:NaN},{weight:100.001},{credits:[80,90]},{source:'MANUAL' as const,ranks:{other:1}},{source:'MANUAL' as const,ranks:{t1:1,t2:1,t3:2}}] as Partial<ComponentEvent>[]))assert.throws(()=>validateOverall({events:[event(patch)]},teams.map(t=>t.id)));assert.throws(()=>validateOverall({events:[event(),event({id:'duplicate'})]},teams.map(t=>t.id)));});
 
+
+
+test('explicit staged judging links activate without changing unlinked legacy activities',()=>{
+ const saved={raceRule:'TIME' as const,events:[event({source:'MANUAL',contestId:'gala',ranks:{t1:2}}),event({id:'legacy',source:'MANUAL',ranks:{t1:1}})]};
+ const resolved=resolveOverallJudging(saved);assert.equal(resolved.events[0].source,'JUDGING');assert.deepEqual(resolved.events[0].ranks,{});assert.equal(resolved.events[1].source,'MANUAL');assert.equal(saved.events[0].source,'MANUAL');assert.equal(resolved.raceRule,'TIME');
+});

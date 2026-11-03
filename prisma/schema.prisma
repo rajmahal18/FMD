@@ -118,6 +118,7 @@ model EventProgram {
  event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
 }
 model EventMembership {
+ handledSquad SquadHandler?
  id String @id @default(cuid())
  eventId String
  userId String
@@ -228,6 +229,7 @@ model VotingChoice {
  @@id([ballotId,candidateMembershipId])
 }
 model Team {
+ squadHandler SquadHandler?
  id String @id @default(cuid())
  eventId String
  name String
@@ -241,6 +243,16 @@ model Team {
  routeAssignment TeamRouteAssignment?
  @@unique([eventId,name])
 }
+model SquadHandler {
+ eventId String
+ teamId String @id
+ membershipId String @unique
+ team Team @relation(fields:[eventId,teamId],references:[eventId,id],onDelete:Cascade)
+ membership EventMembership @relation(fields:[eventId,membershipId],references:[eventId,id],onDelete:Cascade)
+ @@unique([eventId,teamId])
+ @@unique([eventId,membershipId])
+}
+
 model Station {
  id String @id @default(cuid())
  eventId String
