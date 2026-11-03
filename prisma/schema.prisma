@@ -74,6 +74,7 @@ model Event {
  briefing String @default("")
  hideEventDetails Boolean @default(false)
  hideStationDetails Boolean @default(false)
+ screenPreviewEnabled Boolean @default(true)
  arrivalPolicy String @default("CAPTAIN_CONFIRM")
  finalStationId String?
  finalStartedAt DateTime?

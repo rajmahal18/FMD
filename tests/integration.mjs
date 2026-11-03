@@ -82,6 +82,22 @@ try{
  const facilitatorPreview=await get('/events/'+event.id+'/preview',cookies.facilitator);assert.equal(facilitatorPreview.status,200);const facilitatorPreviewHtml=await facilitatorPreview.text();assert(facilitatorPreviewHtml.includes('Live screen preview'));assert(facilitatorPreviewHtml.includes('Sample team'));assert(!facilitatorPreviewHtml.includes('UNASSIGNED PREVIEW SECRET'));
  const organizerPreview=await get('/events/'+event.id+'/preview?view=participant',cookies.organizer);assert.equal(organizerPreview.status,200);assert((await organizerPreview.text()).includes('Participant screen'));
  assert.equal((await get('/events/other-event/preview',cookies.facilitator)).status,404);
+ const previewSetting={eventId:event.id,previousEnabled:'true'};
+ assert.equal((await command('updateScreenPreviewVisibility',previewSetting,cookies.agent)).status,403);
+ assert.equal((await command('updateScreenPreviewVisibility',previewSetting,cookies.facilitator)).status,403);
+ const priorPreviewStage=(await pg.query('SELECT state FROM "Event" WHERE id=$1',[event.id])).rows[0].state;
+ await pg.query('UPDATE "Event" SET state=$2 WHERE id=$1',[event.id,'LIVE']);
+ const previewOffKey=crypto.randomUUID();assert.equal((await command('updateScreenPreviewVisibility',previewSetting,cookies.organizer,previewOffKey)).status,200);
+ assert.equal((await command('updateScreenPreviewVisibility',previewSetting,cookies.organizer,previewOffKey)).replayed,true);
+ assert.equal((await command('updateScreenPreviewVisibility',previewSetting)).status,409,'Stale setting cannot overwrite');
+ for(const role of ['organizer','facilitator']){const page=await get('/events/'+event.id+'/preview',cookies[role]);assert.equal(page.status,200);const html=await page.text();assert(html.includes('Live screen previews are disabled'));assert(!html.includes('Sample team'));}
+ const disabledNav=await (await get('/events/'+event.id+'/setup',cookies.organizer)).text();assert(!disabledNav.includes('href="/events/'+event.id+'/preview"'));
+ assert.equal((await get('/events/'+event.id+'/field',cookies.facilitator)).status,200,'Actual station work stays available');
+ assert.equal((await command('updateScreenPreviewVisibility',{eventId:event.id,previousEnabled:'false',screenPreviewEnabled:'on'})).status,200);
+ assert((await (await get('/events/'+event.id+'/preview',cookies.facilitator)).text()).includes('Sample team'));
+ await pg.query('UPDATE "Event" SET state=$2 WHERE id=$1',[event.id,priorPreviewStage]);
+ console.log('PASS: organizer-only preview switch, live-stage update, stale/replay protection, hidden navigation, disabled direct preview and preserved real station work.');
+
  assert.deepEqual((await pg.query('SELECT state,(SELECT COUNT(*)::int FROM "StationVisit" WHERE "eventId"=$1) AS visits FROM "Event" WHERE id=$1',[event.id])).rows[0],previewRunBefore);
  // Participant visibility is server-enforced, independently controlled and organizer-only.
  const visibility=(eventId,values={},cookie=cookies.organizer,key=crypto.randomUUID())=>command('updateParticipantVisibility',{eventId,...values},cookie,key);

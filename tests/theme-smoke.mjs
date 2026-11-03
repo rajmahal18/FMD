@@ -149,7 +149,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -163,11 +163,26 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.PREVIEW_TOGGLE_BROWSER_ONLY?['organizer','facilitator']:process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
+  if(process.env.PREVIEW_TOGGLE_BROWSER_ONLY){
+   const base='/events/'+event.id;const setup="document.querySelector('#screen-preview-visibility').open=true";
+   const saveToggle=async(enabled)=>{await visit(base+'/setup');await evaluate(setup);await evaluate("document.querySelector('#screen-preview-visibility input[type=checkbox]').click();document.querySelector('#screen-preview-visibility form').requestSubmit()");for(let i=0;i<60;i++){if((await pg.query('SELECT "screenPreviewEnabled" FROM "Event" WHERE id=$1',[event.id])).rows[0].screenPreviewEnabled===enabled)return;await new Promise(r=>setTimeout(r,100));}throw Error('Preview toggle save did not complete');};
+   if(role==='organizer'){
+    await check('preview-toggle-on',base+'/setup',setup);assert(await evaluate(`!!document.querySelector('a[href="${base}/preview"]')`));
+    await saveToggle(false);await check('preview-toggle-off',base+'/setup',setup);assert.equal(await evaluate(`!!document.querySelector('a[href="${base}/preview"]')`),false);
+    await check('preview-disabled-organizer',base+'/preview');assert(await evaluate("document.body.textContent.includes('Live screen previews are disabled')"));
+    await saveToggle(true);await visit(base+'/preview');assert(await evaluate("document.body.textContent.includes('Sample team')"));
+    await saveToggle(false);
+   }else{
+    await check('preview-hidden-facilitator',base+'/field');await evaluate("document.querySelector('.player-account').open=true");assert.equal(await evaluate(`!!document.querySelector('a[href="${base}/preview"]')`),false);assert(await evaluate("!!document.querySelector('.station-timer')"),'Actual live timer remains available');
+    await check('preview-disabled-facilitator',base+'/preview');assert(await evaluate("document.body.textContent.includes('Return to station work')"));
+   }
+   console.log('PASS: '+role+' organizer preview-toggle UI, persistence, event-day link hiding and recovery.');continue;
+  }
   if(process.env.STATION_TILES_BROWSER_ONLY){
    const base='/events/'+event.id;
    const tabs=role==='agent'?"[...document.querySelectorAll('.controller-tabs [role=tab]')].find(t=>t.textContent.includes('Stations')).click();":"";
@@ -858,7 +873,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

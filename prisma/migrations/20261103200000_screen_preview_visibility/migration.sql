@@ -1,0 +1,1 @@
+ALTER TABLE "Event" ADD COLUMN "screenPreviewEnabled" BOOLEAN NOT NULL DEFAULT true;

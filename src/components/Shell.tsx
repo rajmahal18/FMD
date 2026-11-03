@@ -13,8 +13,9 @@ import {PlayerShell} from "./PlayerShell";
 export async function Shell({name,title,role,children,eventId}:{name:string;title:string;role:string;children:React.ReactNode;eventId?:string}){
   const account=await currentUser();
   const photo=avatarUrl(account?.avatarKey);
+  const previewEnabled=eventId?(await db().event.findUnique({where:{id:eventId},select:{screenPreviewEnabled:true}}))?.screenPreviewEnabled??true:true;
   children=<RunRevisionProvider revision={eventId?await runRevision(db(),eventId):0}>{children}</RunRevisionProvider>;
-  if(role==="FACILITATOR"){const hasJudging=!!eventId&&!!account&&await db().judgingAssignment.count({where:{eventId,active:true,membership:{userId:account.id,active:true,role:"FACILITATOR"}}})>0;return <PlayerShell avatarUrl={photo} judgingEnabled={hasJudging} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell>;}
+  if(role==="FACILITATOR"){const hasJudging=!!eventId&&!!account&&await db().judgingAssignment.count({where:{eventId,active:true,membership:{userId:account.id,active:true,role:"FACILITATOR"}}})>0;return <PlayerShell avatarUrl={photo} previewEnabled={previewEnabled} judgingEnabled={hasJudging} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell>;}
   if(role==="PARTICIPANT"||role==="AGENT")return <PlayerShell avatarUrl={photo} name={name} title={title} eventId={eventId}>{children}</PlayerShell>;
   const roleLabel=role.replaceAll("_"," ");
   return <div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":role==="FACILITATOR"?"facilitator-shell":""}`}>
@@ -29,7 +30,7 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
       </Link>
       <div className="rail-label">FIELD NETWORK</div>
       <nav className={`shell-links${role==="ORGANIZER"&&eventId?" organizer-shell-links":""}`} aria-label="Event navigation">
-        {role==="ORGANIZER"&&eventId?<OrganizerNav eventId={eventId}/>:eventId?<NavigationLink href={`/events/${eventId}`} activePaths={[`/events/${eventId}/${role==="FACILITATOR"?"field":"check-in"}`]}>{role==="FACILITATOR"?"Assigned stations":"Current mission"}</NavigationLink>:null}
+        {role==="ORGANIZER"&&eventId?<OrganizerNav eventId={eventId} previewEnabled={previewEnabled}/>:eventId?<NavigationLink href={`/events/${eventId}`} activePaths={[`/events/${eventId}/${role==="FACILITATOR"?"field":"check-in"}`]}>{role==="FACILITATOR"?"Assigned stations":"Current mission"}</NavigationLink>:null}
         {role==="PARTICIPANT"&&eventId&&<>
           <NavigationLink href={`/events/${eventId}/agents/me`} section={`/events/${eventId}/agents/`}>My agent dossier</NavigationLink>
           <NavigationLink href={`/events/${eventId}/contact`}>Agent Contact</NavigationLink>

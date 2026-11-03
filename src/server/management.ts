@@ -29,7 +29,7 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
    const membership=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{event:true}});
    if(!membership?.active||membership.role!=="ORGANIZER")throw new InputError("Organizer access is required for this event.",403);
    if(membership.event.archivedAt)throw new InputError("This operation is archived and read-only. Restore it from Lifecycle before making changes.",409);
-   if(operation!=="updateParticipantVisibility"&&membership.event.state!=="PREPARING")throw new InputError("Roster and setup changes are available while the event is Preparing.",409);
+   if(!["updateParticipantVisibility","updateScreenPreviewVisibility"].includes(operation)&&membership.event.state!=="PREPARING")throw new InputError("Roster and setup changes are available while the event is Preparing.",409);
   }else if(!actor.canCreateEvents)throw new InputError("You do not have permission to create events.",403);
   const receipt=await tx.managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}});
   if(receipt){if(receipt.requestHash!==requestHash||receipt.operation!==operation)throw new InputError("This request was already saved with different details. Refresh before trying again.",409);return {...receipt.responseJson as ManagementResult,replayed:true,message:operation==="addMember"?"Already saved. Temporary passwords are not displayed again; ask the platform operator if recovery is needed.":"Already saved. No duplicate change was made."};}
@@ -38,6 +38,14 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
   const checkedMember=async(id:string)=>{const m=await tx.eventMembership.findFirst({where:{id,eventId},include:{user:true}});if(!m)throw new InputError("This person does not belong to this event.",404);return m;};
   const checkedStation=async(id:string)=>{const s=await tx.station.findFirst({where:{id,eventId}});if(!s)throw new InputError("Choose a station from this event.");return s;};
   switch(operation){
+   case "updateScreenPreviewVisibility":{
+    const value=data.get("screenPreviewEnabled");if(value!==null&&value!=="on")throw new InputError("Choose a valid preview visibility setting.");
+    const before=await tx.event.findUniqueOrThrow({where:{id:eventId},select:{screenPreviewEnabled:true}});
+    if(text(data,"previousEnabled",5,true)!==String(before.screenPreviewEnabled))throw new InputError("Preview visibility changed. Refresh before saving.",409);
+    const enabled=value==="on";await tx.event.update({where:{id:eventId},data:{screenPreviewEnabled:enabled}});
+    details={before:before.screenPreviewEnabled,after:enabled};result={message:enabled?"Live screen previews enabled for staff.":"Live screen previews hidden from staff navigation.",targetId:eventId};break;
+   }
+
    case "updateRaceFlow":{
     const policy=text(data,'arrivalPolicy',40,true);if(!Object.hasOwn(arrivalPolicies,policy))throw new InputError('Choose a supported arrival policy.');
     const finalStationId=text(data,'finalStationId')||null;
