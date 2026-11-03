@@ -8,6 +8,21 @@ export type JudgingContestData={id:string;name:string;instructions:string;state:
 export type JudgingData={eventId:string;actorMembershipId:string;role:string;eventState:string;archived:boolean;runRevision:number;contests:JudgingContestData[];teams:JudgingCandidate[];people:{id:string;name:string;role:string;teamName:string|null;active:boolean;sex:string|null}[]};
 
 const precise=(value:number)=>Number.isFinite(value)&&Math.abs(value*100-Math.round(value*100))<0.000001;
+export function judgingInputError(raw:string,maximum:number,required=false):string|null{
+ if(!raw.trim())return required?`Enter a score from 0 to ${maximum}.`:null;
+ const value=Number(raw);
+ if(!Number.isFinite(value))return 'Enter a valid number.';
+ if(value<0)return 'Number cannot be less than 0.';
+ if(value>maximum)return `Number cannot be more than ${maximum}.`;
+ if(!precise(value))return 'Use no more than two decimal places.';
+ return null;
+}
+export function judgingInputState(values:Record<string,string>,criteria:JudgingCriterion[]){
+ const errors:Record<string,string>={},scores:Record<string,number>={};
+ for(const c of criteria){const raw=values[c.id]??'',error=judgingInputError(raw,c.maximum);if(error)errors[c.id]=error;else if(raw.trim())scores[c.id]=Number(raw);}
+ const count=Object.keys(scores).length;
+ return {errors,scores,count,invalid:Object.keys(errors).length>0,complete:count===criteria.length&&Object.keys(errors).length===0,total:Object.values(scores).reduce((n,v)=>n+Math.round(v*100),0)/100};
+}
 export function validateJudgingConfig(value:unknown):JudgingConfig{
  if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Provide the judging rules.');
  const c=value as JudgingConfig;

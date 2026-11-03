@@ -10,6 +10,7 @@ Judge flow:
 
 - Assigned facilitators receive **Judge** in their event navigation and can also open the Judging desk from Account. Unassigned facilitators cannot access private contests or submit scores.
 - Select a contest and team/nominee. Enter each criterion's points, such as Stage impact `9 / 10` and Harmony `10 / 15`.
+- Each criterion offers a synchronized number input and slider. Inline validation checks its own maximum, nonnegative values and two decimal places as the judge edits. Invalid values cannot be saved or submitted and are excluded from the running total. Blank scores stay incomplete; zero is an explicit valid score.
 - **Save draft** preserves incomplete work without counting it. Unsaved input can also be retained in tab-local session storage scoped to identity, event run, contest revision, entrant and score version; it is never treated as confirmed data.
 - **Review score → Confirm & submit score** validates every criterion and locks the sheet. Judges see only their own sheets, even after publication. Only organizers see the full breakdown.
 
@@ -21,7 +22,13 @@ Scores accept zero and up to two decimal places within `0..criterion maximum`. I
 
 Criteria, entrants and judge assignments lock after the first saved draft or score. Before scoring, close the contest before changing its configuration. An organizer may close scoring, withdraw a publication with a reason, reopen a specific submitted judge/entrant sheet with a reason, and open scoring for resubmission. Previous scores and publication snapshots are preserved in the audit. Publishing saves an aggregate snapshot; event members see published totals, never private judge sheets.
 
-Judging does not write to the Spy Chase score ledger, Agent Contact, or voting ballots. Published judging ranks can be used as the basis for existing manual component placements in Overall ranking; this feature does not invent overall activity weights or automatically change those placements.
+Judging does not write to the Spy Chase score ledger, Agent Contact, or voting ballots. Linked Overall ranking components use published judges' actual average scores; see `docs/OVERALL_RANKING.md` for component weights and publication behavior.
+
+## Keeping the screen awake
+
+Protected app screens automatically request the browser's Screen Wake Lock while visible. Account includes **Keep screen awake**, with an on/off preference saved on this device, current status, and retry when released or declined. Leaving the app screen or hiding the page releases the lock; returning reacquires it. A late request is also released if the user has already turned the option off.
+
+This requires HTTPS and browser support. Phone power settings or browser policy may release or refuse the lock; the app reports that state rather than promising a permanent override. Unsupported browsers retain normal phone screen-timeout behavior. No database migration is needed for the screen-awake control or score-entry improvements.
 
 ## Security and lifecycle
 

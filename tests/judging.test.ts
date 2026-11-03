@@ -1,7 +1,22 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {galaJudgingTemplates,validateJudgingConfig,validateJudgingScores,judgingStandings} from '../src/lib/judging';
+import {galaJudgingTemplates,validateJudgingConfig,validateJudgingScores,judgingStandings,judgingInputError,judgingInputState} from '../src/lib/judging';
 const criteria=[{id:'impact',name:'Stage impact',description:'',maximum:10},{id:'harmony',name:'Harmony',description:'',maximum:15}];
+
+test('live score validation explains maximum, minimum and precision without silently changing input',()=>{
+ assert.match(judgingInputError('31',30)!,/more than 30/);
+ assert.match(judgingInputError('-1',30)!,/less than 0/);
+ assert.match(judgingInputError('1.234',30)!,/two decimal/);
+ assert.match(judgingInputError('Infinity',30)!,/valid number/);
+ assert.equal(judgingInputError('0',30),null);assert.equal(judgingInputError('29.99',30),null);
+ assert.equal(judgingInputError('',30),null);assert.match(judgingInputError('',30,true)!,/Enter a score/);
+});
+
+test('partial and invalid score sheets never treat missing or out-of-range scores as valid totals',()=>{
+ const partial=judgingInputState({impact:'0'},criteria);assert.equal(partial.count,1);assert(!partial.complete);assert(!partial.invalid);assert.equal(partial.total,0);
+ const invalid=judgingInputState({impact:'11',harmony:'12.25'},criteria);assert(invalid.invalid);assert(!invalid.complete);assert.equal(invalid.total,12.25);assert.deepEqual(invalid.scores,{harmony:12.25});
+ const valid=judgingInputState({impact:'9.25',harmony:'15'},criteria);assert(valid.complete);assert.equal(valid.total,24.25);assert.equal(validateJudgingScores(valid.scores,criteria,true).totalHundredths,2425);
+});
 test('gala templates preserve the supplied point weights and separate individual awards',()=>{
  assert.equal(galaJudgingTemplates.length,6);
  for(const template of galaJudgingTemplates)assert.equal(template.criteria.reduce((n,c)=>n+c.maximum,0),100);
