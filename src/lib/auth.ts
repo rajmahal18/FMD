@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { db } from "./db";
 import { tokenHash } from "./password";
+export const sessionLifetimeMs=30*24*60*60*1000;
 export const sessionCookie=process.env.NODE_ENV==="production"?"__Host-spy-session":"spy-session";
 export async function currentUser(){const token=(await cookies()).get(sessionCookie)?.value;if(!token)return null;const session=await db().session.findUnique({where:{tokenHash:tokenHash(token)},include:{user:true}});return session&&session.expiresAt>new Date()&&session.user.active?session.user:null;}
 export async function requireUser(){const user=await currentUser();if(!user)redirect("/login");if(user.mustChangePassword)redirect("/account/password");return user;}

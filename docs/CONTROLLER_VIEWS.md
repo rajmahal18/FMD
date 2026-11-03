@@ -31,3 +31,11 @@ Captain check-in shows three steps: verify station, choose players, start timer.
 Mission guidance distinguishes captain responsibilities, selected players, supporting teammates, queue waiting and stopped timers awaiting facilitator confirmation. Active instructions open by default. Facilitators can switch assigned stations in the Work header; Finish explains that it stops timing before result review. Confirmation shows the station, team and consequences. Completed one-time actions disable repeat submission while penalty keys remain repeatable and uncertain requests retain their saved retry.
 
 Search empty states in shared lists and ballots offer a reset. Voting explains the review requirement, email sign-in guards rapid duplicate submissions, already-counted contacts offer a fresh scan, and free-roam route setup explains station inclusion without suggesting a required playing order.
+
+## POS station board
+
+Participant Stations and organizer station status use compact, responsive tiles with a colored status label, station name and occupancy/queue summary. Details move into one native dialog: location, requirements, current teams, confirmed result and relevant actions. Participant instruction text remains limited to the server-authorized projection; arrival is distinct from active play. Tile/modal content follows live refreshes. Final Station gating and captain eligibility continue to come from server mission state.
+
+The modal uses no extra data fetch or animation library. It supports keyboard focus containment, Escape, backdrop dismissal, focus restoration and body scroll lock. Height is bounded to the viewport with safe-area space. Free-roam selection closes the dialog and returns to the Mission action. Organizer availability changes retain their existing permission checks and confirmation review inside the detail view.
+
+Verify with `STATION_TILES_BROWSER_ONLY=1 node tests/theme-smoke.mjs` after building for 320/390/768/1440px layouts, long station names, modal contrast/focus/dismissal and a seven-station board. `FREE_ROAM_BROWSER_ONLY=1` checks selecting a destination through tile details. The live schema migration was deployed on 2026-11-03; the UI still follows the normal app deployment workflow.

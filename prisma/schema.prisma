@@ -74,6 +74,10 @@ model Event {
  briefing String @default("")
  hideEventDetails Boolean @default(false)
  hideStationDetails Boolean @default(false)
+ arrivalPolicy String @default("CAPTAIN_CONFIRM")
+ finalStationId String?
+ finalStartedAt DateTime?
+ finalDeadlineAt DateTime?
  accentColor String @default("#72D5E3")
  archivedAt DateTime?
  overallRanking OverallRanking?
@@ -230,6 +234,7 @@ model Team {
  event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
  members EventMembership[]
  visits StationVisit[]
+ lineups StationLineup[]
  @@unique([eventId,id])
  routeChanges RouteChange[]
  routeAssignment TeamRouteAssignment?
@@ -264,6 +269,7 @@ model Station {
  event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
  assignments FacilitatorAssignment[]
  visits StationVisit[]
+ lineups StationLineup[]
  @@unique([eventId,id])
 }
 model FacilitatorAssignment {
@@ -355,6 +361,9 @@ model StationVisit {
  startedAt DateTime?
  confirmedAt DateTime?
  finishedAt DateTime?
+ arrivalAt DateTime?
+ arrivalApprovedAt DateTime?
+ lineupSubmittedAt DateTime?
  outcome StationOutcome?
  timePenalties TimePenaltyEntry[]
  players StationVisitPlayer[]
@@ -365,6 +374,17 @@ model StationVisit {
  station Station @relation(fields:[eventId,stationId],references:[eventId,id],onDelete:Cascade)
  @@unique([teamId,stationId])
  @@index([stationId,state,queuedAt])
+}
+
+model StationLineup {
+ eventId String
+ teamId String
+ stationId String
+ playerIds Json
+ updatedAt DateTime @updatedAt
+ team Team @relation(fields:[eventId,teamId],references:[eventId,id],onDelete:Cascade)
+ station Station @relation(fields:[eventId,stationId],references:[eventId,id],onDelete:Cascade)
+ @@id([teamId,stationId])
 }
 
 model StationVisitPlayer {
@@ -385,6 +405,7 @@ enum ScoreKind {
  REPLACEMENT
 }
 model StationOutcome {
+ isFinal Boolean @default(false)
  id String @id @default(cuid())
  eventId String
  teamId String

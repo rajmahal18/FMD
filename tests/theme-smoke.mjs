@@ -1,3 +1,4 @@
+import {raceFlowBrowser} from "./race-flow-browser.mjs";
 import {auditContrast} from './browser-contrast.mjs';
 import {PGlite} from '@electric-sql/pglite';
 import {PGLiteSocketServer} from '@electric-sql/pglite-socket';
@@ -58,11 +59,26 @@ try{
  await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['timer-browser-route',event.id,'Timed route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['timer-browser-assignment',timerTeam,'timer-browser-route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"startedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['timer-browser-visit',event.id,timerTeam,'demo-cipher-room','ACTIVE']);
- if(process.env.PARTICIPATION_BROWSER_ONLY){
+ if(process.env.PARTICIPATION_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY){
   await pg.query('DELETE FROM "StationVisit" WHERE id=$1',['timer-browser-visit']);
   await pg.query('UPDATE "Station" SET "playersRequired"=2,briefing=$1 WHERE id=$2',['Read the cipher and solve the physical challenge.','demo-cipher-room']);
   const extras=(await pg.query('SELECT id,name FROM "User" WHERE email LIKE $1 ORDER BY name LIMIT 5',['%@agents.invalid'])).rows;
   for(const [i,u] of extras.entries())await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role,"teamId","squadRole") VALUES ($1,$2,$3,$4,$5,$6)',['lineup-browser-'+i,event.id,u.id,'PARTICIPANT',timerTeam,'Recon Specialist']);
+ }
+ if(process.env.ARRIVAL_FLOW_BROWSER_ONLY){
+  await pg.query('UPDATE "Event" SET "arrivalPolicy"=$2,"finalStationId"=$3 WHERE id=$1',[event.id,process.env.ARRIVAL_FLOW_BROWSER_ONLY,'flow-final-station']);
+  await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured,"timeLimitMinutes",available) VALUES ($1,$2,$3,$4,$5,$6,true,5,true)',['flow-final-station',event.id,'HQ Final Station','Headquarters','Physical finale instructions.','Confirm physical defusal.',]);
+  const faci=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event.id,'FACILITATOR'])).rows[0].id;
+  await pg.query('INSERT INTO "FacilitatorAssignment" (id,"membershipId","stationId") VALUES ($3,$1,$2)',[faci,'flow-final-station','flow-final-handler']);
+  const ids=JSON.stringify(['demo-cipher-room','flow-final-station']);
+  await pg.query('UPDATE "RoutePlan" SET "stationIds"=$1 WHERE id=$2',[ids,'timer-browser-route']);
+  await pg.query('UPDATE "TeamRouteAssignment" SET "stationIds"=$1 WHERE "teamId"=$2',[ids,timerTeam]);
+ }
+ if(process.env.STATION_TILES_BROWSER_ONLY){
+  const ids=['demo-cipher-room'];
+  for(let i=0;i<6;i++){const id='tile-station-'+i;ids.push(id);await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured,available,capacity) VALUES ($1,$2,$3,$4,$6,$7,true,$5,1)',[id,event.id,['Minefield Matrix','Signal Station with a longer physical challenge name','Laser Crossing','Puzzle Vault','Rope Bridge','HQ Briefing Point'][i],'Station venue '+(i+1),i!==4,'Physical challenge instructions.','Facilitator notes.']);}
+  for(const [i,state] of ['ARRIVED','QUEUED'].entries()){const teamId='tile-fixture-team-'+i;await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',[teamId,event.id,'Other team '+(i+1)]);await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"queuedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['tile-fixture-visit-'+i,event.id,teamId,'tile-station-0',state]);}
+  await pg.query('UPDATE "TeamRouteAssignment" SET "stationIds"=$1 WHERE "teamId"=$2',[JSON.stringify(ids),timerTeam]);
  }
  if(process.env.STATION_REQUIREMENTS_BROWSER_ONLY){
   await pg.query('UPDATE "Station" SET brawn=5,brain=0,"playersRequired"=6 WHERE id=$1',['demo-cipher-room']);
@@ -127,13 +143,13 @@ try{
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
    await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(url);if(setup)await evaluate(setup);
-   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open]")&&!e.closest(".error-modal"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs,.program-tabs,.controller-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar")&&!e.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open],.station-detail-modal[open]")&&!e.closest(".error-modal,.station-detail-modal"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth||y<0||y>=innerHeight)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs,.program-tabs,.controller-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar")&&!e.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
    if(await evaluate("!!document.querySelector('.player-bottom-nav,.field-bottom-nav') && getComputedStyle(document.querySelector('.player-bottom-nav,.field-bottom-nav')).position==='fixed'")){
     await evaluate("window.scrollTo(0,document.documentElement.scrollHeight)");
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -147,11 +163,26 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
+  if(process.env.STATION_TILES_BROWSER_ONLY){
+   const base='/events/'+event.id;
+   const tabs=role==='agent'?"[...document.querySelectorAll('.controller-tabs [role=tab]')].find(t=>t.textContent.includes('Stations')).click();":"";
+   await check('station-tiles-'+role,base,tabs);
+   assert(await evaluate("document.querySelectorAll('.station-tile').length>0"));
+   const open=tabs+"await new Promise(r=>setTimeout(r,100));document.querySelector('.station-tile').click();await new Promise(r=>setTimeout(r,150));";
+   await check('station-modal-'+role,base,`(async()=>{${open}})()`);
+   assert(await evaluate("document.querySelector('.station-detail-modal').open&&document.querySelector('.station-detail-modal').contains(document.activeElement)"),'Native modal traps keyboard focus');
+   for(const width of [320,390,768,1440]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:740,deviceScaleFactor:1,mobile:width<768});const rect=await evaluate("(()=>{const r=document.querySelector('.station-detail-modal').getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom};})()");assert(rect.x>=0&&rect.y>=0&&rect.right<=width&&rect.bottom<=740,'Modal stays within the phone viewport');}
+   await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await new Promise(r=>setTimeout(r,100));
+   assert(await evaluate("!document.querySelector('.station-detail-modal[open]')&&document.activeElement.classList.contains('station-tile')&&document.body.style.overflow!=='hidden'"),'Escape closes modal, restores focus and unlocks page scroll');
+   await evaluate("document.querySelector('.station-tile').click()");await new Promise(r=>setTimeout(r,100));await cmd('Input.dispatchMouseEvent',{type:'mousePressed',x:1,y:1,button:'left',clickCount:1});await cmd('Input.dispatchMouseEvent',{type:'mouseReleased',x:1,y:1,button:'left',clickCount:1});await new Promise(r=>setTimeout(r,100));assert(await evaluate("!document.querySelector('.station-detail-modal[open]')"),'Backdrop click closes modal');
+   console.log('PASS: '+role+' POS station tiles, lightweight modal, viewport bounds, keyboard focus/Escape and backdrop recovery.');continue;
+  }
+  if(process.env.ARRIVAL_FLOW_BROWSER_ONLY){await raceFlowBrowser({role,cookie,pg,event,timerTeam,evaluate,visit,check,cmd,origin,appOrigin,policy:process.env.ARRIVAL_FLOW_BROWSER_ONLY});continue;}
   if(process.env.PARTICIPATION_BROWSER_ONLY){
    if(role==='agent'){
     const verifySelection=`for(let i=0;i<40&&!document.querySelector('.player-picker');i++)await new Promise(r=>setTimeout(r,100));document.querySelector('.player-picker')?.scrollIntoView({block:'start'});`;
@@ -269,7 +300,7 @@ try{
     assert(await evaluate("document.querySelector('#current-mission .station-requirements').textContent.includes('0/5')"),'Zero rating must display explicitly');
     assert.equal(await evaluate("document.querySelector('#current-mission .station-rating-icons>span:first-child').textContent"),'👊'.repeat(5));
     await check('station-requirements-list','/events/'+event.id,"[...document.querySelectorAll('.controller-tabs [role=tab]')].find(t=>t.textContent.includes('Stations')).click()");
-    assert(await evaluate("!!document.querySelector('#route-history .station-requirements')"),'Requirements must appear before selecting the next station');
+    assert(await evaluate("!!document.querySelector('.station-tiles')"),'Requirements must appear before selecting the next station');
     await pg.query('UPDATE "Event" SET "hideStationDetails"=true WHERE id=$1',[event.id]);
     await check('station-requirements-hidden','/events/'+event.id);
     assert.equal(await evaluate("document.querySelectorAll('.player-body .station-requirements').length"),0);
@@ -360,8 +391,9 @@ try{
     await pg.query('UPDATE "TeamRouteAssignment" SET "startStationId"=NULL WHERE "teamId"=$1',[team.id]);
     await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['roam-busy-team',event.id,'Busy team']);await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"updatedAt") VALUES ($1,$2,$3,$4,$5,now())',['roam-busy-visit',event.id,'roam-busy-team','demo-cipher-room','ARRIVED']);
     await pg.query('INSERT INTO "AuditEntry" (id,"eventId","actorId",action,"targetId","detailsJson") SELECT $1,$2,id,$3,$4,$5 FROM "User" WHERE email=$6',['roam-busy-arrival',event.id,'RACE_CHECKIN','roam-busy-visit',JSON.stringify({state:'ARRIVED'}),'agent@example.test']);
-    await check('roam-station-choice','/events/'+event.id);assert(await evaluate("document.querySelector('.station-availability').textContent.includes('Full')"));assert(await evaluate("document.querySelector('.station-availability').textContent.includes('Busy team')&&document.querySelector('.station-availability').textContent.includes('since')"));
-    await evaluate("const select=document.querySelector('.station-choice select');select.value='roam-browser-second';select.dispatchEvent(new Event('change',{bubbles:true}))");assert(await evaluate("document.querySelector('.destination').textContent.includes('Signal Station')"));
+    await check('roam-station-choice','/events/'+event.id,"[...document.querySelectorAll('.controller-tabs [role=tab]')].find(t=>t.textContent.includes('Stations')).click()");assert(await evaluate("document.querySelector('.station-tiles').textContent.includes('Full')"));
+    await evaluate("[...document.querySelectorAll('.station-tile')].find(t=>t.textContent.includes('Full')).click()");await new Promise(r=>setTimeout(r,100));assert(await evaluate("document.querySelector('.station-detail-modal').textContent.includes('Busy team')&&document.querySelector('.station-detail-modal').textContent.includes('Since')"));
+    await evaluate("document.querySelector('.station-modal-close').click()");await new Promise(r=>setTimeout(r,100));await evaluate("[...document.querySelectorAll('.station-tile')].find(t=>t.textContent.includes('Signal Station')).click()");await new Promise(r=>setTimeout(r,100));await evaluate("[...document.querySelectorAll('.station-detail-modal button')].find(b=>b.textContent==='Go to this station').click()");await new Promise(r=>setTimeout(r,100));assert(await evaluate("!document.querySelector('.station-detail-modal[open]')&&document.querySelector('.destination').textContent.includes('Signal Station')"));
     await cmd('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});await check('roam-reduced-motion','/events/'+event.id);
    }
    console.log('PASS: free roam '+role+' preview/save or required first/availability/choice at all viewport sizes.');continue;
@@ -826,7 +858,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

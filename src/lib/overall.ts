@@ -1,4 +1,5 @@
 import {sharedRanks} from './results';
+import {placementCredit} from './placement-credit';
 import {raceRules,type RaceRule} from './race-ranking';
 export type ComponentEvent={id:string;name:string;weight:number;source:'MANUAL'|'SPY';credits:number[];ranks:Record<string,number>};
 export type OverallConfig={events:ComponentEvent[];raceRule?:RaceRule};
@@ -29,5 +30,7 @@ export function validateOverall(value:unknown,teamIds:string[]):OverallConfig {
 }
 export function overallStandings(config:OverallConfig,teams:OverallTeam[]){
  const spy=sharedRanks([...teams].sort((a,b)=>b.points-a.points||a.name.localeCompare(b.name)).map(t=>({...t,value:t.points})));
- return sharedRanks(teams.map(t=>{const contributions=config.events.map(e=>{const rank=e.source==='SPY'?(t.raceRank===undefined?spy.find(s=>s.id===t.id)!.rank:t.raceRank):e.ranks[t.id];const credit=rank?e.credits[Math.min(rank-1,e.credits.length-1)]:null;return {eventId:e.id,rank:rank??null,credit,contribution:credit===null?null:basis(e.weight)*basis(credit)/1000000};});return {...t,contributions,value:Math.round(contributions.reduce((n,c)=>n+(c.contribution??0),0)*1000000)/1000000};}).sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name)));
+ const rankFor=(e:ComponentEvent,t:OverallTeam)=>e.source==='SPY'?(t.raceRank===undefined?spy.find(s=>s.id===t.id)!.rank:t.raceRank):e.ranks[t.id];
+ const tieSizes=new Map(config.events.map(e=>{const counts=new Map<number,number>();for(const team of teams){const rank=rankFor(e,team);if(rank)counts.set(rank,(counts.get(rank)??0)+1);}return [e.id,counts];}));
+ return sharedRanks(teams.map(t=>{const contributions=config.events.map(e=>{const rank=rankFor(e,t);const credit=rank?placementCredit(e.credits,rank,tieSizes.get(e.id)!.get(rank)!):null;return {eventId:e.id,rank:rank??null,credit,contribution:credit===null?null:basis(e.weight)*credit/10000};});return {...t,contributions,value:Math.round(contributions.reduce((n,c)=>n+(c.contribution??0),0)*1000000)/1000000};}).sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name)));
 }

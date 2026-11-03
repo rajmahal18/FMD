@@ -5,7 +5,7 @@ import {tokenHash} from "@/lib/password";
 import {isSameOrigin} from "@/lib/policy";
 import {safeReturnPath} from "@/lib/race";
 import {accountQrRoles,validPlayerCode,playerAccessPath} from "@/lib/player-access";
-import {sessionCookie} from "@/lib/auth";
+import {sessionCookie,sessionLifetimeMs} from "@/lib/auth";
 import nodemailer from "nodemailer";
 
 export const runtime="nodejs";
@@ -66,7 +66,7 @@ export async function POST(request:NextRequest){
   }
   if(body.operation!=="verify"||typeof body.challenge!=="string"||! /^[A-Za-z0-9_-]{43}$/.test(body.challenge)||typeof body.code!=="string"||! /^\d{6}$/.test(body.code))return failure("Enter the 6-digit email code.");
   const id=body.challenge;const codeHash=tokenHash(`${id}:${body.code}`);
-  const token=randomBytes(32).toString("base64url");const expiresAt=new Date(Date.now()+43200000);
+  const token=randomBytes(32).toString("base64url");const expiresAt=new Date(Date.now()+sessionLifetimeMs);
   const result=await db().$transaction(async tx=>{
    // This update locks the challenge until commit, serializing retries and double taps.
    const changed=await tx.emailOtp.updateMany({where:{id,expiresAt:{gt:new Date()},attempts:{lt:5}},data:{attempts:{increment:1}}});

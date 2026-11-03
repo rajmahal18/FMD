@@ -2,7 +2,9 @@
 
 Amazing Race is the app-managed station activity. Overall Ranking combines its saved placements with manually entered placements from other team building activities, using the same registered teams.
 
-New configurations start with an editable Amazing Race activity at 40%. Activity weights must total exactly 100% to finalize. Drafts may be incomplete; live feedback states the amount still needed or exceeding 100%. Placement credits default to 100/90/80/70/60, remain editable, and the last rule covers all lower places. Contribution = activity weight * placement credit / 100. Input precision is two decimal places; calculated contributions retain six decimal places.
+New configurations start with an editable Amazing Race activity at 40%. Activity weights must total exactly 100% to finalize. Drafts may be incomplete; live feedback states the amount still needed or exceeding 100%. Placement credits default to 100/90/80/70/60, remain editable, and the last rule covers all lower places. Tied placements receive the average credit of their occupied rank slots: two teams tied first receive (100 + 90) / 2 = 95 each, and third receives 80. Three teams tied first receive 90 each, and fourth receives 70. The last configured credit still covers lower slots. Pending/missing placements do not occupy tie slots. Published snapshots remain immutable; reopen, review and finalize to apply changed computations to previously published results. This tie-credit change does not convert total-time race scoring into per-station rank scoring.
+
+Contribution = activity weight * placement credit / 100. Input precision is two decimal places; calculated contributions retain six decimal places.
 
 ## Amazing Race winning rule
 

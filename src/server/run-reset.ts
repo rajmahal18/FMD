@@ -4,7 +4,7 @@ import type {OverallConfig} from '@/lib/overall';
 
 // Event-scoped recovery record. Never include User/Session records or passwords.
 export async function captureRun(tx:Prisma.TransactionClient,eventId:string){
- const [event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores]=await Promise.all([
+ const [event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores,plannedLineups]=await Promise.all([
   tx.event.findUniqueOrThrow({where:{id:eventId}}),
   tx.stationVisit.findMany({where:{eventId},orderBy:{id:'asc'},include:{players:true}}),
   tx.stationOutcome.findMany({where:{eventId},orderBy:{id:'asc'}}),
@@ -23,8 +23,9 @@ export async function captureRun(tx:Prisma.TransactionClient,eventId:string){
   tx.judgingContest.findMany({where:{eventId},orderBy:{id:"asc"}}),
   tx.judgingAssignment.findMany({where:{eventId}}),
   tx.judgingScore.findMany({where:{eventId},orderBy:{id:"asc"}}),
+  tx.stationLineup.findMany({where:{eventId}}),
  ]);
- return JSON.parse(JSON.stringify({version:1,event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores})) as Prisma.InputJsonObject;
+ return JSON.parse(JSON.stringify({version:1,event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores,plannedLineups})) as Prisma.InputJsonObject;
 }
 
 export async function clearOverallRun(tx:Prisma.TransactionClient,eventId:string){

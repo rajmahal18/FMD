@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import {missionState,type MissionInput,type MissionVisit} from "../src/lib/mission";
 const base:MissionInput={eventState:"LIVE",hasTeam:true,mode:"FIXED",stationIds:["a","b"],stations:["a","b"].map(id=>({id,name:id,codename:null,location:"Venue",briefing:"Go here",available:true,configured:true,timeLimitMinutes:null})),visits:[]};
 const visit=(stationId:string,state:MissionVisit['state'],confirmedAt:string|null=null):MissionVisit=>({stationId,state,confirmedAt,startedAt:null,updatedAt:"2026-10-06T00:00:00Z",queuePosition:null});
+
+test('a designated finale never blocks unfinished regular stops because of its position in a fixed route',()=>{
+ const input={...base,stationIds:['b','a'],finalStationId:'b',stations:base.stations.map(s=>({...s,available:s.id!=='b'}))};
+ assert.deepEqual(missionState(input).progress.unlocked,['a']);
+ const ready=missionState({...input,visits:[visit('a','COMPLETED','2026-10-06T00:00:00Z')]});
+ assert.equal(ready.progress.complete,false);assert.deepEqual(ready.progress.unlocked,[]);
+ const started=missionState({...input,stations:base.stations,visits:[visit('a','COMPLETED','2026-10-06T00:00:00Z'),visit('b','ACTIVE')]});
+ assert.equal(started.status,'ACTIVE');assert.equal(started.currentId,'b');
+});
 test("preparation, roster and route gates never pretend a race has started",()=>{assert.equal(missionState({...base,hasTeam:false}).status,"NO_TEAM");assert.equal(missionState({...base,mode:null,stationIds:[]}).status,"NO_ROUTE");assert.equal(missionState({...base,stationIds:["foreign"]}).status,"NO_ROUTE");for(const eventState of ["PREPARING","READY"] as const)assert.equal(missionState({...base,eventState}).status,"NOT_STARTED");assert.equal(missionState(base).status,"HEAD_TO_STATION");});
 test("arrival and queued/active states never unlock another stop",()=>{for(const state of ["QUEUED","ARRIVED","ACTIVE","AWAITING_CONFIRMATION"] as const){const view=missionState({...base,visits:[visit("a",state)]});assert.equal(view.status,state);assert.equal(view.progress.completedCount,0);assert.deepEqual(view.progress.locked,["b"]);}assert.equal(missionState({...base,visits:[visit("a","COMPLETED")]}).progress.completedCount,0);const view=missionState({...base,visits:[visit("a","COMPLETED","2026-10-06T00:00:00Z")]});assert.equal(view.currentId,"b");assert.equal(view.progress.completedCount,1);});
 test("complete route is explicit, end is separate and pause preserves visit progress",()=>{const visits=[visit("a","COMPLETED","2026-10-06T00:00:00Z"),visit("b","COMPLETED","2026-10-06T00:01:00Z")];assert.equal(missionState({...base,visits}).status,"COMPLETE");assert.equal(missionState({...base,visits,eventState:"ENDED"}).status,"COMPLETE");assert.equal(missionState({...base,eventState:"ENDED"}).status,"ENDED");assert.equal(missionState({...base,eventState:"PAUSED",visits:[visit("a","ACTIVE")]}).status,"EVENT_PAUSED");assert.equal(missionState({...base,stations:base.stations.map(s=>({...s,available:false}))}).status,"STATION_PAUSED");});

@@ -8,6 +8,7 @@ import { hashPassword,tokenHash } from "@/lib/password";
 import { InputError,text,color,timezone,dateOnly,emailAddress,roleValue,logoType } from "@/lib/validation";
 import { Prisma } from "@/generated/prisma/client";
 import {squadRoleValue} from '@/lib/squad-roles';
+import {arrivalPolicies} from '@/lib/arrival-policy';
 export type ManagementResult={message:string;targetId?:string;redirect?:string;temporaryPassword?:string;email?:string;replayed?:boolean};
 export async function manage(actorId:string,data:FormData):Promise<ManagementResult>{
  const operation=text(data,"operation",40,true);const eventId=text(data,"eventId");const requestKey=text(data,"requestKey",40,true);
@@ -37,6 +38,16 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
   const checkedMember=async(id:string)=>{const m=await tx.eventMembership.findFirst({where:{id,eventId},include:{user:true}});if(!m)throw new InputError("This person does not belong to this event.",404);return m;};
   const checkedStation=async(id:string)=>{const s=await tx.station.findFirst({where:{id,eventId}});if(!s)throw new InputError("Choose a station from this event.");return s;};
   switch(operation){
+   case "updateRaceFlow":{
+    const policy=text(data,'arrivalPolicy',40,true);if(!Object.hasOwn(arrivalPolicies,policy))throw new InputError('Choose a supported arrival policy.');
+    const finalStationId=text(data,'finalStationId')||null;
+    const event=await tx.event.findUniqueOrThrow({where:{id:eventId}});
+    if(text(data,'previousPolicy',40,true)!==event.arrivalPolicy||text(data,'previousFinalStationId')!==(event.finalStationId??''))throw new InputError('Race flow changed. Refresh before saving.',409);
+    if(finalStationId){const station=await checkedStation(finalStationId);if(!station.configured||!station.timeLimitMinutes)throw new InputError('Configure the Final Station and its time limit before selecting it.');}
+    if(await tx.stationVisit.count({where:{eventId}}))throw new InputError('Race-flow settings are locked once visits exist. Use the audited run reset for a fresh event run.',409);
+    await tx.event.update({where:{id:eventId},data:{arrivalPolicy:policy,finalStationId}});
+    details={before:{arrivalPolicy:event.arrivalPolicy,finalStationId:event.finalStationId},after:{arrivalPolicy:policy,finalStationId}};result={message:'Arrival policy and Final Station saved.',targetId:eventId};break;
+   }
    case "updateParticipantVisibility":{
     for(const key of ["hideEventDetails","hideStationDetails"]){const value=data.get(key);if(value!==null&&value!=="on")throw new InputError("Choose valid visibility settings.");}
     const before=await tx.event.findUniqueOrThrow({where:{id:eventId},select:{hideEventDetails:true,hideStationDetails:true}});

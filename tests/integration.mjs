@@ -1,3 +1,4 @@
+import {verifyRaceFlows} from "./race-flow-integration.mjs";
 import {PGlite} from '@electric-sql/pglite';import {PGLiteSocketServer} from '@electric-sql/pglite-socket';import {spawn} from 'node:child_process';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';
 import {randomBytes,createHash} from 'node:crypto';
 const pg=await PGlite.create();for(const folder of fs.readdirSync('prisma/migrations').sort()){const file=path.join('prisma/migrations',folder,'migration.sql');if(fs.existsSync(file))await pg.exec(fs.readFileSync(file,'utf8'));}const socket=new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:5545});await socket.start();
@@ -522,6 +523,7 @@ try{
   let c,mc;if(three){c=await command('addTeam',{eventId:e,name:'Charlie',color:'#f5cb83'});mc=await command('addMember',{eventId:e,name:'Charlie Captain',email:'charlie@example.test',role:'PARTICIPANT',teamId:c.targetId});await command('updateMember',{eventId:e,membershipId:mc.targetId,role:'PARTICIPANT',teamId:c.targetId,isCaptain:'on'});await command('assignRoute',{eventId:e,routeId:r3.targetId,teamId:c.targetId,startStationId:s2.targetId});}
   return {e,a:a.targetId,b:b.targetId,c:c?.targetId,ma:ma.targetId,mb:mb.targetId,mc,mf:mf.targetId,s1:s1.targetId,s2:s2.targetId};
  };
+ await verifyRaceFlows({pg,prepareRace,command,race,cookies,aliceCookie,get});
  // Captain-owned lineups and per-player participation, with real HTTP and isolated SQL.
  const lineupGame=await prepareRace('Player lineup rehearsal');
  await pg.query('UPDATE "Station" SET name=$1 WHERE id=$2',['Station 3A: Cipher Room',lineupGame.s1]);

@@ -37,6 +37,8 @@ Default scoring policy for a legacy points-based event: configured fixed points 
 
 Team total = confirmed station points + confirmed bonuses − confirmed penalties. One canonical calculation drives participant totals, Mission Control and standings. Retries do not sum points automatically; choose the attempt policy before starting. Default is one accepted outcome per team per station. Corrections append reversals/replacements with attribution; no destructive edits to history.
 
+Additional organizer-selected arrival/approval policies and the event-wide Final Station gate/countdown are documented in [RACE_FLOW.md](../RACE_FLOW.md). Existing captain-confirmation timing remains the default; deployment never silently switches a live event policy.
+
 ## Event controls
 Visible stages: Preparing, Ready, Live, Paused, Ended, Finalized. Start validates setup on the server. Pause blocks normal race mutations and contact issuance/redemption; authorized corrections remain available with an explanation. End closes new submissions; review results before finalizing. Final results are saved revisions. Reopening requires an explicit organizer action and reason; supersede rather than overwrite a prior final revision.
 
