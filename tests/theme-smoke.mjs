@@ -154,12 +154,17 @@ try{
 
   if(process.env.PARTICIPATION_BROWSER_ONLY){
    if(role==='agent'){
-    const verifySelection=`document.querySelector('.manual-station-code form').requestSubmit();await new Promise(r=>setTimeout(r,450));document.querySelector('.player-picker')?.scrollIntoView({block:'start'});`;
+    const verifySelection=`for(let i=0;i<40&&!document.querySelector('.player-picker');i++)await new Promise(r=>setTimeout(r,100));document.querySelector('.player-picker')?.scrollIntoView({block:'start'});`;
     await check('participation-player-picker','/events/'+event.id+'/check-in?code=23456789',`(async()=>{${verifySelection}})()`);
     assert(await evaluate("!!document.querySelector('.player-picker')"));
     await evaluate("document.querySelectorAll('.player-option input')[0].click();document.querySelectorAll('.player-option input')[1].click()");await new Promise(r=>setTimeout(r,100));
     assert.equal(await evaluate("document.querySelectorAll('.player-option.is-selected').length"),2);
     assert(await evaluate("document.querySelectorAll('.player-option input')[2].disabled"),'Count limit disables unselected players');
+    assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "StationVisit" WHERE "teamId"=$1',[timerTeam])).rows[0].n,0,'QR verification must not start timing or record a visit');
+    await evaluate("(()=>{const input=document.querySelector('.player-picker-tools input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'no-such-teammate');input.dispatchEvent(new Event('input',{bubbles:true}));})()");await new Promise(r=>setTimeout(r,100));
+    assert(await evaluate("!document.querySelector('.player-option')&&document.querySelector('.player-selection-bar').textContent.includes('2 of 2')"),'Search preserves selection and shows no-match recovery');
+    await evaluate("document.querySelector('.player-picker .notice button').click()");await new Promise(r=>setTimeout(r,100));
+    assert.equal(await evaluate("document.querySelectorAll('.player-option.is-selected').length"),2,'Clearing search restores selected rows');
     for(const width of [320,390,768,1440]){
      await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});
      for(const fraction of [0,.5,1]){
@@ -625,6 +630,7 @@ try{
     assert(votingPollId,await evaluate('document.body.innerText'));
     await check('voting-controls',voteUrl);await evaluate('window.confirm=()=>true');
     await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Enable voting').click()");
+    await evaluate("document.querySelector('.action-feedback-modal[open] .action-feedback-actions button:last-child').click()");
     for(let i=0;i<50;i++){if((await pg.query('SELECT enabled FROM "VotingEvent" WHERE id=$1',[votingPollId])).rows[0].enabled)break;await new Promise(r=>setTimeout(r,100));}
     assert.equal((await pg.query('SELECT enabled FROM "VotingEvent" WHERE id=$1',[votingPollId])).rows[0].enabled,true);
     await check('voting-roster-setup','/events/'+roster.id+'/voting-settings',"(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Create voting event').click();await new Promise(r=>setTimeout(r,100));[...document.querySelectorAll('button')].find(b=>b.textContent==='Select all participants').click();})()");

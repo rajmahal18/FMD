@@ -13,6 +13,7 @@ import "./screen-preview.css";
 import "./spy-theme.css";
 import "./avatars.css";
 import "./participation.css";
+import "./interaction-guidance.css";
 import {SpyAtmosphere} from "@/components/SpyAtmosphere";
 export const metadata:Metadata={title:"Spy Chase | Operation Classified",description:"Field operations for station-based team events",robots:{index:false,follow:false}};
 export default function Layout({children}:{children:React.ReactNode}){return <html lang="en"><head><link rel="stylesheet" href="/fonts/fonts.css"/></head><body><SpyAtmosphere/><ErrorModalProvider><ActionFeedbackProvider>{children}</ActionFeedbackProvider></ErrorModalProvider></body></html>;}

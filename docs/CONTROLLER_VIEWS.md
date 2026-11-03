@@ -23,3 +23,11 @@ Run `PARTICIPATION_BROWSER_ONLY=1 node tests/theme-smoke.mjs` (PowerShell: set `
 Captain selection uses a viewport dock rendered outside animated/overflowing page ancestors. It follows the picker visibility, reserves its measured height in the document, and sits above the measured mobile navigation height. Verify it while scrolling the first, middle and last player rows, rather than scrolling the action bar into view. Hidden tab panels must not leave a dock visible.
 
 Facilitator Work prioritizes the active team, running time, large penalty keys and Finish challenge. Player participation and penalty history stay folded below those controls; private instructions live under Tools. A long list of penalty keys scrolls within its own area so it cannot displace the timer and finish action. Penalty taps show inline confirmation instead of opening a modal. Busy states, persisted pending requests, safe retries, server-side checks and explicit final result review remain in place.
+
+## Action guidance and recovery
+
+Captain check-in shows three steps: verify station, choose players, start timer. QR and direct-code links verify automatically without creating a visit. Full stations offer an availability retry. The roster supports name/role search without dropping selected players, a clear-selection action, exact remaining counts and a ready-to-start explanation in the fixed dock.
+
+Mission guidance distinguishes captain responsibilities, selected players, supporting teammates, queue waiting and stopped timers awaiting facilitator confirmation. Active instructions open by default. Facilitators can switch assigned stations in the Work header; Finish explains that it stops timing before result review. Confirmation shows the station, team and consequences. Completed one-time actions disable repeat submission while penalty keys remain repeatable and uncertain requests retain their saved retry.
+
+Search empty states in shared lists and ballots offer a reset. Voting explains the review requirement, email sign-in guards rapid duplicate submissions, already-counted contacts offer a fresh scan, and free-roam route setup explains station inclusion without suggesting a required playing order.

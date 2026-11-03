@@ -1,4 +1,5 @@
 "use client";
+import {missionInstruction} from "@/lib/mission-guidance";
 import {ParticipationList} from "./Participation";
 import {PlayerPicker} from "./PlayerPicker";
 import {VisitTimer} from "./TimePenalties";
@@ -28,7 +29,7 @@ const copy:Record<string,{title:string;instruction:string}>={
  QUEUED:{title:"Waiting for your turn",instruction:"Stay near the station. The facilitator will call your team when a place is available."},
  ARRIVED:{title:"Choose your station players",instruction:"Your captain confirms the lineup and starts the timer before instructions are revealed."},
  ACTIVE:{title:"Challenge in progress",instruction:"Timing includes reading instructions and preparation. Follow the facilitator’s instructions. Your next stop unlocks after their result confirmation."},
- AWAITING_CONFIRMATION:{title:"Awaiting confirmation",instruction:"Your team is waiting for the facilitator’s confirmed result. Stay at the station until it is recorded."}
+ AWAITING_CONFIRMATION:{title:"Timer stopped — awaiting result",instruction:"Your team is waiting for the facilitator’s confirmed result. Stay at the station until it is recorded."}
 };
 function time(value:string){return new Date(value).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
 export function ParticipantMission({initial,briefing="",voting=false}:{initial:MissionData;briefing?:string;voting?:boolean}){
@@ -41,15 +42,17 @@ export function ParticipantMission({initial,briefing="",voting=false}:{initial:M
  },[initial.eventId,preview]);
  useEffect(()=>{if(preview)return;alive.current=true;const interval=setInterval(()=>{if(document.visibilityState==="visible")void refresh();},10000);const online=()=>void refresh();const offline=()=>setError("Connection lost. Showing your last confirmed update.");const visible=()=>{if(document.visibilityState==="visible")void refresh();};window.addEventListener("online",online);window.addEventListener("offline",offline);document.addEventListener("visibilitychange",visible);if(!navigator.onLine)offline();return()=>{alive.current=false;clearInterval(interval);window.removeEventListener("online",online);window.removeEventListener("offline",offline);document.removeEventListener("visibilitychange",visible);};},[refresh,preview]);
  if(!data)return <section className="panel"><h2>Mission access unavailable</h2><ErrorNotice>{error}</ErrorNotice><a className="button" href="/login">Sign in again</a></section>;
+ const memberId=data.agent.membershipId;
+ const playing=memberId&&data.view.active?.playerIds?.length?data.view.active.playerIds.includes(memberId):undefined;
  const visibleBriefing=data.eventDetailsHidden?"":data.eventBriefing??briefing;
  const {view,stations,stationIds}=data;const state=copy[view.status];const requiredFirst=!!data.route?.startStationId&&!data.visits.some(v=>v.stationId===data.route?.startStationId&&v.state==="COMPLETED"&&v.confirmedAt);const freeChoice=data.route?.mode==="FREE"&&!requiredFirst&&!view.active&&["HEAD_TO_STATION","NOT_STARTED"].includes(view.status);const currentId=freeChoice&&view.progress.unlocked.includes(selected)?selected:view.currentId;const current=stations.find(s=>s.id===currentId);const isFinished=view.status==="COMPLETE";const showStation=current&&!['NO_TEAM','NO_ROUTE','COMPLETE','REVIEW_REQUIRED'].includes(view.status);
  return <div className="participant-controller"><ControllerTabs id={tabsId} label="Mission sections" items={[{id:"mission",label:"Mission"},{id:"route",label:"Stations",count:stationIds.length},{id:"team",label:"Team"}]} selected={panel} onChange={setPanel}/><div className="participant-layout"><div className="mission-main controller-panel" role="tabpanel" id={`${tabsId}-panel-mission`} aria-labelledby={`${tabsId}-tab-mission`} hidden={panel!=="mission"}>
  <Announcements items={data.announcements}/><PendingRaceRequests eventId={data.eventId} actorId={data.agent.id} onSuccess={()=>void refresh()}/>
- <div className="agent-strip"><strong>{data.team?.name??"No team assigned"}</strong><span className="tag">{data.agent.squadRole??(data.agent.isCaptain?"Team captain":"Team member")}</span></div>
+ <div className="agent-strip"><strong>{data.team?.name??"No team assigned"}</strong><span className="tag">{data.agent.isCaptain?`Captain${data.agent.squadRole?` · ${data.agent.squadRole}`:""}`:data.agent.squadRole??"Team member"}</span></div>
  <section id="current-mission" data-status={view.status} className={`mission participant-card ${isFinished?"mission-complete":""}`} aria-labelledby="mission-state">
- <h2 id="mission-state">{freeChoice?"Choose your next station":state.title}</h2>
+ <h2 id="mission-state">{freeChoice?(data.agent.isCaptain?"Choose your next station":"Station preview"):view.status==="ARRIVED"&&!data.agent.isCaptain?"Waiting for your captain":state.title}</h2>
  {showStation&&<div className="destination"><h3>{current.name}</h3><div className="destination-location"><strong>{current.location||"Ask the organizer for the location"}</strong></div><StationRequirements station={current}/></div>}
- <p className="next-action">{state.instruction}</p>
+ <p className="next-action">{missionInstruction(view.status,data.agent.isCaptain,playing,state.instruction)}</p>{view.status==='ACTIVE'&&playing!==undefined&&<p className="mission-lineup-status">{playing?"You are selected to play this station.":"You are supporting this station; you are not in the playing lineup."}</p>}
  {view.active?.startedAt&&<VisitTimer visit={{startedAt:view.active.startedAt,finishedAt:view.active.finishedAt??null,timePenaltySeconds:view.active.timePenaltySeconds??0}} checkedAt={data.checkedAt} limit={current?.timeLimitMinutes??null}/>}
  {view.status==='ARRIVED'&&data.agent.isCaptain&&current&&view.active?.visitId&&<PlayerPicker key={view.active.visitId} eventId={data.eventId} actorId={data.agent.id} stationId={current.id} stationName={current.name} visitId={view.active.visitId} required={current.playersRequired??null} players={(data.team?.members??[]).filter(m=>!!m.id).map(m=>({id:m.id!,name:m.name,avatarUrl:m.avatarUrl,squadRole:m.squadRole??null,isCaptain:m.isCaptain,played:m.played??0,explored:m.explored??0,history:m.history??[]}))} initialIds={view.active.playerIds??[]} disabled={data.eventState!=='LIVE'||!current.available} onSuccess={()=>void refresh()}/>}
  {showStation&&!view.active?.startedAt&&!current.briefing&&<p className="fine">Station instructions unlock when your captain confirms the players and starts the timer.</p>}
@@ -62,7 +65,7 @@ export function ParticipantMission({initial,briefing="",voting=false}:{initial:M
  {view.status==="HEAD_TO_STATION"&&!data.agent.isCaptain&&<p>{data.team?.captainName??"Your captain"} handles team check-in.</p>}
  {view.status==="QUEUED"&&data.agent.isCaptain&&view.active?.visitId&&<RaceAction eventId={data.eventId} actorId={data.agent.id} input={{operation:"leaveQueue",visitId:view.active.visitId}} label="Leave waiting queue" description={`Leave queue: ${data.team?.name} at ${current.name}`} confirm="Leave this station's waiting queue?" onSuccess={()=>void refresh()}/>}
  {!!view.active?.timePenaltySeconds&&<p className="notice">Recorded time penalties: +{view.active.timePenaltySeconds} seconds</p>}
- {(current.briefing||current.timeLimitMinutes)&&<details className="mission-directions"><summary>Station instructions</summary>{current.briefing&&<p>{current.briefing}</p>}{current.timeLimitMinutes&&<p>Time limit: {current.timeLimitMinutes} minutes. The facilitator starts the timer.</p>}</details>}
+ {(current.briefing||current.timeLimitMinutes)&&<details key={current.id} className="mission-directions" open={view.status==='ACTIVE'}><summary>Station instructions</summary>{current.briefing&&<p>{current.briefing}</p>}{current.timeLimitMinutes&&<p>Time limit: {current.timeLimitMinutes} minutes. Timing starts when your captain confirms the lineup.</p>}</details>}
  </>}
  {stationIds.length>0&&<div className="mission-progress"><label htmlFor="mission-progress">{view.progress.completedCount} of {stationIds.length} stations completed</label><progress id="mission-progress" max={stationIds.length} value={view.progress.completedCount}/></div>}
  </section>
