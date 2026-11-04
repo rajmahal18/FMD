@@ -1,0 +1,80 @@
+/* Handheld task hierarchy. Keep operational colors consistent across roles. */
+.role-label{display:inline-flex;align-items:center;gap:6px;max-width:100%;vertical-align:middle;font-size:inherit;line-height:1.4}
+.role-label>span{min-width:0;overflow-wrap:anywhere}
+.role-icon{display:inline-block;flex:none;vertical-align:middle}
+.role-icon-gold{color:#8a5c13}.role-icon-cyan{color:#176779}.role-icon-green{color:#24734f}.role-icon-violet{color:#7150a3}
+:is(.player-shell,.themed-shell) .role-icon-gold{color:#f5cb83}
+:is(.player-shell,.themed-shell) .role-icon-cyan{color:#72d5e3}
+:is(.player-shell,.themed-shell) .role-icon-green{color:#83d6b2}
+:is(.player-shell,.themed-shell) .role-icon-violet{color:#c9b5f3}
+.player-account-menu .role-icon-cyan{color:#176779}
+.mission-roles,.participation-roles,.player-option-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.mission-roles{font-size:13px;color:#b0c2d1;min-width:0}
+.participation-roles:empty{display:none}
+.participation-roles{font-size:14px;padding-top:8px}
+.player-shell.controller-shell{--task:#72d5e3;--waiting:#f5cb83;--confirmed:#83d6b2}
+.controller-shell .player-topbar{background:#071426;border-bottom-color:#243d52}
+.controller-shell .controller-event-label{font-size:13px;margin-bottom:16px;color:#b0c2d1}
+.controller-shell :is(button,.button,summary,select){touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.controller-shell :is(button,.button){min-height:48px;border-radius:8px}
+.controller-shell :is(button,.button):disabled{opacity:.5;box-shadow:none;cursor:default}
+.controller-shell :is(button,.button):focus-visible{outline:3px solid #f5cb83;outline-offset:4px}
+.player-shell.controller-shell .mission.participant-card{border:0;border-top:3px solid var(--state-color,var(--task));border-radius:0;background:#10243a;padding:20px;margin:0;box-shadow:none}
+.controller-shell .mission:is([data-status=QUEUED],[data-status=ARRIVED],[data-status=AWAITING_CONFIRMATION],[data-status=NOT_STARTED]){--state-color:var(--waiting)}
+.controller-shell .mission[data-status=COMPLETE]{--state-color:var(--confirmed)}
+.controller-shell .mission:is([data-status=EVENT_PAUSED],[data-status=STATION_PAUSED],[data-status=REVIEW_REQUIRED]){--state-color:#ffa4a8}
+.player-shell.controller-shell .mission.participant-card>h2{display:flex;align-items:center;gap:10px;margin:0 0 20px;color:var(--state-color,var(--task));font:600 16px/1.4 'Source Sans 3',Arial,sans-serif;letter-spacing:0;text-transform:none}
+.controller-shell .mission.participant-card>h2::before{display:none}
+.controller-shell .mission>h2>.spy-icon{flex:none;width:24px;height:24px}
+.player-shell.controller-shell .mission.participant-card #mission-state{display:flex;background:transparent;color:var(--state-color,var(--task));border:0;border-radius:0;padding:0;font:600 16px/1.4 'Source Sans 3',Arial,sans-serif}
+.controller-shell .mission .destination{margin:0 0 16px;padding:0 0 16px;border-bottom:1px solid #385166}
+.controller-shell .mission .destination h3{font:700 clamp(28px,6vw,36px)/1.15 'Source Sans 3',Arial,sans-serif;margin:0 0 12px;color:#fff;letter-spacing:-.025em}
+.controller-shell .destination-location{display:flex;align-items:flex-start;gap:8px}
+.controller-shell .destination-location>.spy-icon{flex:none;color:#72d5e3;margin-top:3px}
+.controller-shell .mission .destination-location strong{font-size:16px;font-weight:400;color:#d6e4ed}
+.player-shell.controller-shell .mission .next-action{color:#f2f7fa;font-size:17px;line-height:1.55;margin:0 0 16px}
+.player-shell.controller-shell .mission-arrival{display:flex;align-items:center;justify-content:center;gap:12px;background:#72d5e3;color:#071426;border:0;min-height:58px;font-size:18px;margin:20px 0 8px;box-shadow:none}
+.controller-shell .mission-arrival>.spy-icon{width:24px;height:24px}
+.controller-shell .mission-progress{border:0;padding:0;margin-top:20px}
+.controller-shell .mission-progress label{font-size:14px;color:#b0c2d1}
+.controller-shell .mission-progress progress{accent-color:#83d6b2;height:8px}
+.controller-shell .agent-strip{margin:0 0 12px}
+.controller-shell .agent-strip strong{font-size:16px}
+.controller-shell .agent-strip .tag{background:transparent;border:0;color:#b0c2d1}
+.controller-shell .mission-support{margin-top:20px}
+.controller-shell .mission-section>summary{display:flex;align-items:center;gap:12px;font:600 17px/1.4 'Source Sans 3',Arial,sans-serif;min-height:60px;color:#eaf4f5;border-bottom:0;margin:0}
+.controller-shell .mission-section>summary::after{content:'+';margin-left:auto;color:#72d5e3;font-size:24px;font-weight:400}
+.controller-shell .mission-section[open]>summary::after{content:'−'}
+.controller-shell .mission-section>summary>.spy-icon{color:#72d5e3;flex:none}
+.controller-shell .mission-section>summary>span{float:none;margin-left:auto;font-size:13px;color:#b0c2d1}
+.controller-shell .mission-section>summary::-webkit-details-marker{display:none}
+.controller-shell .field-header{padding:0 0 16px;margin:0 0 16px;border-bottom:1px solid #385166}
+.controller-shell .field-header .field-heading h2{font:600 22px/1.3 'Source Sans 3',Arial,sans-serif}
+.controller-shell .field-header .tag{font-size:12px;background:transparent;color:#b0c2d1;border:0}
+.controller-shell .station-team .field-heading{margin-bottom:16px;align-items:flex-start}
+.controller-shell .station-team .field-heading h3{font:700 28px/1.2 'Source Sans 3',Arial,sans-serif;letter-spacing:-.02em;margin:0;flex:1;min-width:0}
+.controller-shell .station-team .field-heading .tag{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:6px 10px;font:600 13px/1.3 'Source Sans 3',Arial,sans-serif;border:0;border-radius:6px;white-space:normal}
+.controller-shell .station-team[data-visit-state=ACTIVE]>.field-heading .tag{background:#173e49;color:#a7edf5}
+.controller-shell .station-team:is([data-visit-state=ARRIVED],[data-visit-state=AWAITING_CONFIRMATION])>.field-heading .tag{background:#49391f;color:#ffe0a6}
+.controller-shell .station-team .tag>.spy-icon{width:16px;height:16px;flex:none}
+.controller-shell .station-team .field-next-step{background:#302a1e;border-left:3px solid #f5cb83;padding:12px;color:#ffe0a6;font-size:16px;line-height:1.5}
+.player-shell.controller-shell .station-timer{background:#0a192b;border:0;border-radius:8px;padding:16px;margin:16px 0}
+.controller-shell .station-timer .challenge-clock{color:#b0c2d1;font-size:14px;gap:8px}
+.controller-shell .station-timer .challenge-clock strong{font-size:clamp(36px,9vw,52px);color:#f2f7fa;letter-spacing:-.04em}
+.controller-shell .station-timer[data-running=true] .challenge-clock strong{color:#a7edf5}
+.controller-shell .station-timer[data-running=false] .challenge-clock strong{color:#b8f2d4}
+.player-shell.controller-shell .station-team>.race-action>button,.player-shell.controller-shell .station-team>button,.player-shell.controller-shell .station-team>.management-form button[type=submit]{display:flex;align-items:center;justify-content:center;gap:12px;min-height:58px;background:#72d5e3;color:#071426;border:0;box-shadow:none;font-size:18px}
+.player-shell.controller-shell .station-team[data-visit-state=AWAITING_CONFIRMATION]>button,.player-shell.controller-shell .result-review>.race-action>button{background:#83d6b2;color:#071426;min-height:58px;box-shadow:none}
+.controller-shell .field-board-controller .time-penalty-actions .race-action button{background:#49351d;color:#ffe0a6;border:1px solid #927643;box-shadow:none;border-radius:8px;min-height:76px}
+.controller-shell .penalty-key-label{color:#ffe9c4}
+.controller-shell .time-penalty-controls h4{font:600 16px 'Source Sans 3',Arial,sans-serif;color:#f5cb83}
+.controller-shell .field-tools>summary{display:flex;align-items:center;gap:10px;color:#b0c2d1;font:600 16px 'Source Sans 3',Arial,sans-serif;min-height:56px}
+.controller-shell .field-tools>summary::after{content:'+';margin-left:auto;color:#72d5e3;font-size:24px}
+.controller-shell .field-tools[open]>summary::after{content:'−'}
+.controller-shell .field-tools>summary::-webkit-details-marker{display:none}
+.player-shell.controller-shell .player-bottom-item.active{color:#a7edf5;background:#15374a}
+.controller-shell .player-mission-icon{border:0;box-shadow:none;border-radius:12px;background:#72d5e3}
+.controller-shell .field-bottom-nav>a[aria-current=page]{background:#15374a;color:#a7edf5}
+.controller-shell .field-bottom-nav>a{font-weight:600}
+@media(max-width:480px){.player-shell.controller-shell .mission.participant-card{padding:20px 16px}.controller-shell .station-team .field-heading{flex-direction:column;gap:10px}.controller-shell .field-header .field-heading{flex-wrap:wrap}.controller-shell .agent-strip .tag{max-width:100%}}
+@media(prefers-reduced-motion:no-preference){.controller-shell :is(button,.button):active:not(:disabled){transform:translateY(1px)}}

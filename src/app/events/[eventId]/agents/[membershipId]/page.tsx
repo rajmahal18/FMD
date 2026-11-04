@@ -1,3 +1,4 @@
+import {RoleLabel} from "@/components/RoleLabel";
 import {teamParticipation} from "@/server/participation";
 import {ParticipationList} from "@/components/Participation";
 export const metadata = {robots:{index:false,follow:false}};
@@ -39,7 +40,7 @@ export default async function AgentDossier({params}:{params:Promise<{eventId:str
    <div className="agent-dossier-top"><span>OPERATION: CLASSIFIED</span><span>AUTHORIZED PERSONNEL FILE</span></div>
    <div className="agent-dossier-main">
     <div className="agent-monogram"><span className="agent-crosshair">＋</span><Avatar name={agent.user.name} src={avatarUrl(agent.user.avatarKey)} size="portrait" label/><small>IDENTITY VERIFIED</small></div>
-    <div className="agent-biography"><div className="eyebrow">FIELD AGENT / ACTIVE DOSSIER</div><h2>{agent.user.name}</h2><div className="agent-callsign">CALLSIGN {callsign}</div><div className="agent-divider"/><dl><div><dt>Assigned unit</dt><dd><span className="team-swatch" style={{background:agent.team?.color??"#d8b96d"}}/>{unit}</dd></div><div><dt>Office / Section</dt><dd>{agent.user.officeSection??"Not recorded"}</dd></div><div><dt>Squad role</dt><dd>{agent.squadRole??"Not assigned"}</dd></div><div><dt>Clearance</dt><dd>Participant · Active</dd></div></dl></div>
+    <div className="agent-biography"><div className="eyebrow">FIELD AGENT / ACTIVE DOSSIER</div><h2>{agent.user.name}</h2><div className="agent-callsign">CALLSIGN {callsign}</div><div className="agent-divider"/><dl><div><dt>Assigned unit</dt><dd><span className="team-swatch" style={{background:agent.team?.color??"#d8b96d"}}/>{unit}</dd></div><div><dt>Office / Section</dt><dd>{agent.user.officeSection??"Not recorded"}</dd></div><div><dt>Squad role</dt><dd>{agent.squadRole?<RoleLabel role={agent.squadRole}/>:"Not assigned"}</dd></div><div><dt>Clearance</dt><dd>Participant · Active</dd></div></dl></div>
     <div className="agent-gender"><span>IDENTITY MARKER</span><Insignia sex={agent.user.sex}/></div>
    </div>
    <div className="agent-dossier-bottom"><span>OUTRUN / OUTSMART / OUTLAST</span><span>PERSONNEL RECORD · PRIVATE</span></div>

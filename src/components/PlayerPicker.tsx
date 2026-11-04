@@ -1,4 +1,5 @@
 "use client";
+import {RoleLabel} from "./RoleLabel";
 import type {ArrivalPolicy} from "@/lib/arrival-policy";
 
 
@@ -31,7 +32,7 @@ export function PlayerPicker({eventId,actorId,stationId,stationName,players,requ
   {!visiblePlayers.length&&<p className="notice">No teammates match this search. <button type="button" className="secondary" onClick={()=>setSearch('')}>Clear search</button></p>}
   <fieldset className="player-options" disabled={disabled||pending}><legend className="sr-only">Team players</legend>{visiblePlayers.map(player=>{const selected=ids.includes(player.id);return <label key={player.id} className={`player-option${selected?' is-selected':''}`}>
    <input type="checkbox" checked={selected} disabled={!selected&&full} onChange={()=>setDraft({ids:JSON.stringify(selected?ids.filter(id=>id!==player.id):[...ids,player.id])})}/>
-   <span className="player-option-person"><PersonName name={player.name} avatarUrl={player.avatarUrl} size="medium"/><span className="player-option-meta">{player.squadRole??'Team member'}{player.isCaptain?' · Captain':''}</span><span className="participation-count">{player.played} played / {player.explored} explored</span></span>
+   <span className="player-option-person"><PersonName name={player.name} avatarUrl={player.avatarUrl} size="medium"/><span className="player-option-meta"><RoleLabel role={player.squadRole??'Team member'}/>{player.isCaptain&&<RoleLabel role="Captain"/>}</span><span className="participation-count">{player.played} played / {player.explored} explored</span></span>
    <span className="player-selection-state">{selected?'✓ Selected':'Not selected'}</span>
   </label>;})}</fieldset>
   <SelectionDock anchor={picker}><div role="status" aria-live="polite"><strong>{ids.length}{required!==null?` of ${required}`:''} selected</strong><span>{pending?'Waiting for server confirmation. Retry the saved request if needed.':valid?approval?hint:queued?'Ready to join the queue. Timing has not started.':'Ready. Confirming locks the lineup and starts timing.':`Choose ${remaining} more ${remaining===1?'player':'players'} to continue.`}</span></div>

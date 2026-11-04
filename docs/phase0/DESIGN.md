@@ -68,3 +68,6 @@ Participant and facilitator views use a compact app-style shell, client navigati
 ## Simplified participant and facilitator navigation
 
 Participant mission opens directly without local navigation tabs. Stations and Team use collapsed sections below the current task; station selection returns focus to the mission. Keep the existing event dock and mobile safe space. Facilitator Station, Teams and History remain the main navigation; remove the repeated Work/History/Tools bar. Station tools fold below active work, and a labeled team select replaces team tabs. Keep result forms mounted, explicit review, pending retries and existing authorization. Preview helpers belong to organizer setup rather than staff work screens. Use concise task-specific copy; omit technical implementation subtitles and repeated explanatory text.
+
+
+Handheld task hierarchy uses a navy shell with cyan primary actions, amber waiting/approval cues, green confirmed results and muted secondary tools. Current station/team names use readable body-family display weight; status text includes an icon. Participant location and scan action include station/QR icons. Facilitator timing separates running cyan from stopped green; review and confirmation remain explicit. Avoid duplicate progress steppers. Touch targets remain at least 44px and fixed navigation keeps safe-area clearance.

@@ -829,7 +829,7 @@ try{
    await evaluate(`document.querySelector('.time-penalty-history article:last-child button').click()`);
    for(let i=0;i<40;i++){if((await pg.query('SELECT COUNT(*)::int AS n FROM "TimePenaltyEntry" WHERE "visitId"=$1 AND "voidedAt" IS NOT NULL',['timer-browser-visit'])).rows[0].n===1)break;await new Promise(r=>setTimeout(r,100));}
    assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "TimePenaltyEntry" WHERE "visitId"=$1 AND "voidedAt" IS NOT NULL',['timer-browser-visit'])).rows[0].n,1);
-   await visit(fieldUrl);await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Finish challenge').click()`);
+   await visit(fieldUrl);await evaluate(`[...document.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')||b.textContent)==='Finish challenge').click()`);
    for(let i=0;i<40;i++){if((await pg.query('SELECT state FROM "StationVisit" WHERE id=$1',['timer-browser-visit'])).rows[0].state==='AWAITING_CONFIRMATION')break;await new Promise(r=>setTimeout(r,100));}
    await pg.query('UPDATE "StationVisit" SET "startedAt"=$1,"finishedAt"=$2 WHERE id=$3',['2026-10-20T01:00:00Z','2026-10-20T01:02:00Z','timer-browser-visit']);
    await check('time-result-review',fieldUrl);
