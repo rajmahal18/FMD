@@ -63,3 +63,8 @@ Voting setup belongs to Event setup; collection controls and publication belong 
 ## Handheld controller direction
 
 Participant and facilitator views use a compact app-style shell, client navigation, reachable controls, and safe bottom space. Participants switch between Mission, Stations, and Team; their existing event dock stays intact. Facilitators use Station, Teams, and History navigation, with Work, History, and Tools inside their station. Show one team action panel at a time while keeping other forms mounted. Preserve the selected team through result confirmation. Result drafts may be restored from tab-local, identity/event/run/visit-scoped storage; drafts never count as confirmed actions. Keep explicit result review, retries, offline feedback, server permissions, and reduced-motion support. Organizer dashboard layouts are unchanged. See ../CONTROLLER_VIEWS.md.
+
+
+## Simplified participant and facilitator navigation
+
+Participant mission opens directly without local navigation tabs. Stations and Team use collapsed sections below the current task; station selection returns focus to the mission. Keep the existing event dock and mobile safe space. Facilitator Station, Teams and History remain the main navigation; remove the repeated Work/History/Tools bar. Station tools fold below active work, and a labeled team select replaces team tabs. Keep result forms mounted, explicit review, pending retries and existing authorization. Preview helpers belong to organizer setup rather than staff work screens. Use concise task-specific copy; omit technical implementation subtitles and repeated explanatory text.

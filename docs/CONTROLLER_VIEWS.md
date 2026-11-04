@@ -1,8 +1,8 @@
 # Participant and facilitator controllers
 
-Participants use Mission, Stations, and Team tabs within their existing event navigation. Mission prioritizes the current destination and the captain's check-in action. Stations contains availability and route history; choosing an available station returns to Mission. Team contains the roster, briefing, voting entry, and program link. These panels stay mounted during tab changes.
+Participants open their current mission directly. Stations and Team are collapsed sections below the mission, within the existing event navigation. Mission prioritizes the current destination and the captain's check-in action. Stations contains availability and route history; choosing an available station returns to Mission. Team contains the roster, briefing, voting entry, and program link. These sections stay mounted while collapsed.
 
-Facilitators use a compact field shell with Station, Teams, and History navigation. Their board has Work, History, and Tools tabs, and a team selector when multiple teams are present. One team action panel is visible at a time, while the remaining panels stay mounted to preserve inputs. Organizer boards retain their original presentation.
+Facilitators use a compact field shell with Station, Teams, and History navigation. Station opens current work; History opens confirmed results through the main navigation. Tools are folded below station work, and a labeled select switches teams when multiple teams are present. One team action panel is visible at a time, while the remaining panels stay mounted to preserve inputs. Organizer boards retain their original presentation.
 
 Internal controller links use client navigation and show pending feedback. Result drafts are stored in sessionStorage, scoped to actor, event, run revision, and visit. They restore after navigation/reload and clear on confirmation or sign-out. Drafts never confirm scores; existing server validation, result review, idempotent requests, and permissions remain authoritative. Pending requests from hidden panels remain available in the global retry section.
 

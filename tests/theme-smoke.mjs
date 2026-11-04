@@ -199,7 +199,7 @@ try{
   }
   if(process.env.STATION_TILES_BROWSER_ONLY){
    const base='/events/'+event.id;
-   const tabs=role==='agent'?"[...document.querySelectorAll('.controller-tabs [role=tab]')].find(t=>t.textContent.includes('Stations')).click();":"";
+   const tabs=role==='agent'?"document.querySelector('.mission-section').open=true;":"";
    await check('station-tiles-'+role,base,tabs);
    assert(await evaluate("document.querySelectorAll('.station-tile').length>0"));
    const open=tabs+"await new Promise(r=>setTimeout(r,100));document.querySelector('.station-tile').click();await new Promise(r=>setTimeout(r,150));";
@@ -243,7 +243,7 @@ try{
     await check('participation-running-mission','/events/'+event.id);
     const v=(await pg.query('SELECT id FROM "StationVisit" WHERE "teamId"=$1',[timerTeam])).rows[0];assert(v);
     assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "StationVisitPlayer" WHERE "visitId"=$1',[v.id])).rows[0].n,2);
-    await check('participation-team-history','/events/'+event.id,"[...document.querySelectorAll('.controller-tabs button')].find(b=>b.textContent==='Team').click()");
+    await check('participation-team-history','/events/'+event.id,"document.querySelector('#team-file').open=true");
    }else{
     await check('participation-facilitator-lineup','/events/'+event.id+'/field');
     assert(await evaluate("document.querySelector('.station-lineup').textContent.includes('0 played / 1 explored')"));
@@ -329,7 +329,7 @@ try{
     await check('station-requirements-mission','/events/'+event.id);
     assert(await evaluate("document.querySelector('#current-mission .station-requirements').textContent.includes('0/5')"),'Zero rating must display explicitly');
     assert.equal(await evaluate("document.querySelector('#current-mission .station-rating-icons>span:first-child').textContent"),'👊'.repeat(5));
-    await check('station-requirements-list','/events/'+event.id,"[...document.querySelectorAll('.controller-tabs [role=tab]')].find(t=>t.textContent.includes('Stations')).click()");
+    await check('station-requirements-list','/events/'+event.id,"document.querySelector('.mission-section').open=true");
     assert(await evaluate("!!document.querySelector('.station-tiles')"),'Requirements must appear before selecting the next station');
     await pg.query('UPDATE "Event" SET "hideStationDetails"=true WHERE id=$1',[event.id]);
     await check('station-requirements-hidden','/events/'+event.id);
@@ -380,10 +380,10 @@ try{
    if(role==='agent'){
     await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});
     await visit('/events/'+event.id);
-    await evaluate("document.querySelector('.controller-tabs [aria-selected=true]').focus()");
-    await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
-    await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
-    assert(await evaluate("document.activeElement.getAttribute('aria-selected')==='true' && document.querySelectorAll('.controller-tabs [aria-selected=true]').length===1"),'Tab keyboard selection must remain intact');
+    await evaluate("document.querySelector('.mission-section>summary').focus()");
+    await cmd('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+    assert(await evaluate("document.querySelector('.mission-section').open"),'Station disclosure must support the keyboard');
     assert(await evaluate("getComputedStyle(document.querySelector('.player-bottom-item:not(.active)')).backgroundColor==='rgba(0, 0, 0, 0)'"),'Inactive dock destinations must remain visually secondary');
    }
    await cmd('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
@@ -421,7 +421,7 @@ try{
     await pg.query('UPDATE "TeamRouteAssignment" SET "startStationId"=NULL WHERE "teamId"=$1',[team.id]);
     await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['roam-busy-team',event.id,'Busy team']);await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"updatedAt") VALUES ($1,$2,$3,$4,$5,now())',['roam-busy-visit',event.id,'roam-busy-team','demo-cipher-room','ARRIVED']);
     await pg.query('INSERT INTO "AuditEntry" (id,"eventId","actorId",action,"targetId","detailsJson") SELECT $1,$2,id,$3,$4,$5 FROM "User" WHERE email=$6',['roam-busy-arrival',event.id,'RACE_CHECKIN','roam-busy-visit',JSON.stringify({state:'ARRIVED'}),'agent@example.test']);
-    await check('roam-station-choice','/events/'+event.id,"[...document.querySelectorAll('.controller-tabs [role=tab]')].find(t=>t.textContent.includes('Stations')).click()");assert(await evaluate("document.querySelector('.station-tiles').textContent.includes('Full')"));
+    await check('roam-station-choice','/events/'+event.id,"document.querySelector('.mission-section').open=true");assert(await evaluate("document.querySelector('.station-tiles').textContent.includes('Full')"));
     await evaluate("[...document.querySelectorAll('.station-tile')].find(t=>t.textContent.includes('Full')).click()");await new Promise(r=>setTimeout(r,100));assert(await evaluate("document.querySelector('.station-detail-modal').textContent.includes('Busy team')&&document.querySelector('.station-detail-modal').textContent.includes('Since')"));
     await evaluate("document.querySelector('.station-modal-close').click()");await new Promise(r=>setTimeout(r,100));await evaluate("[...document.querySelectorAll('.station-tile')].find(t=>t.textContent.includes('Signal Station')).click()");await new Promise(r=>setTimeout(r,100));await evaluate("[...document.querySelectorAll('.station-detail-modal button')].find(b=>b.textContent==='Go to this station').click()");await new Promise(r=>setTimeout(r,100));assert(await evaluate("!document.querySelector('.station-detail-modal[open]')&&document.querySelector('.destination').textContent.includes('Signal Station')"));
     await cmd('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});await check('roam-reduced-motion','/events/'+event.id);
@@ -527,11 +527,11 @@ try{
     await check('controller-player-mission',base);
     assert(await evaluate("!!document.querySelector('.participant-controller')"));
     assert.equal(await evaluate("document.querySelector('.mission-main').hidden"),false);
-    await tab('Mission sections',1);assert.equal(await evaluate("document.querySelector('.mission-main').hidden"),true);
-    await check('controller-player-stations',base,"document.querySelectorAll('[aria-label=\"Mission sections\"] button')[1].click()");
-    await check('controller-player-team',base,"document.querySelectorAll('[aria-label=\"Mission sections\"] button')[2].click()");
-    assert(await evaluate("document.querySelector('#team-file').getClientRects().length>0"));
-    await tab('Mission sections',0);
+    assert.equal(await evaluate("document.querySelectorAll('.participant-controller [role=tablist]').length"),0);
+    await check('controller-player-stations',base,"document.querySelector('.mission-section').open=true");
+    assert.equal(await evaluate("document.querySelector('.mission-main').hidden"),false);
+    await check('controller-player-team',base,"document.querySelector('#team-file').open=true");
+    assert(await evaluate("document.querySelector('#team-file').open"));
     await evaluate("window.__controllerNavigation='same-document';document.querySelector('.player-bottom-nav a[href$=\"/agents/me\"]').click()");
     await wait(()=>evaluate("!!document.querySelector('.agent-dossier-shell')"));
     assert.equal(await evaluate('window.__controllerNavigation'),'same-document');
@@ -540,18 +540,18 @@ try{
     await pg.query('UPDATE "StationVisit" SET state=$1,"startedAt"=NULL WHERE id=$2',['CANCELLED','timer-browser-visit']);
     await visit(base);assert(await evaluate("document.querySelector('.mission-arrival').getBoundingClientRect().height>=56"));
     await pg.query('UPDATE "StationVisit" SET state=$1,"startedAt"=NOW() WHERE id=$2',['ACTIVE','timer-browser-visit']);
-    console.log('PASS: participant controller tabs, large captain action, full profile, mobile safe area and client navigation.');continue;
+    console.log('PASS: participant mission and disclosures, large captain action, full profile, mobile safe area and client navigation.');continue;
    }
    await check('controller-field-work',base);
    assert.equal(await evaluate("[...document.querySelectorAll('.station-team')].filter(e=>e.getClientRects().length).length"),1);
-   await tab('Teams at station',0);await tab('Teams at station',1);
+   assert.equal(await evaluate("document.querySelectorAll('.field-board-controller [role=tablist]').length"),0);
    // Return to the active timer regardless of database row ordering.
-   await evaluate("const id=document.querySelector('.station-team[data-visit-state=ACTIVE]').id;document.querySelector('button[aria-controls=\"'+id+'\"]').click()");
-   await check('controller-field-tools',base,"document.querySelectorAll('[aria-label=\"Station sections\"] button')[2].click();document.querySelector('.time-penalty-editor').open=true");
+   await evaluate("const select=document.querySelector('.field-columns .station-choice select');select.value=document.querySelector('.station-team[data-visit-state=ACTIVE]').id.split('-teams-panel-')[1];select.dispatchEvent(new Event('change',{bubbles:true}))");
+   await check('controller-field-tools',base,"document.querySelector('.field-tools').open=true;document.querySelector('.time-penalty-editor').open=true");
    await visit(base);await evaluate("window.__controllerNavigation='same-document';document.querySelector('.field-bottom-nav a[href$=\"#field-history\"]').click()");
    await wait(()=>evaluate("document.querySelector('#field-history').getClientRects().length>0"));
    assert.equal(await evaluate('window.__controllerNavigation'),'same-document');
-   await tab('Station sections',0);
+   await evaluate("document.querySelector('.field-bottom-nav a:not([href*=judging])').click()");
    const actorId=(await pg.query('SELECT id FROM "User" WHERE email=$1',['facilitator@example.test'])).rows[0].id;
    const hiddenRetryKey='spy-race:'+actorId+':'+event.id+':startChallenge:controller-second-visit';
    await evaluate("sessionStorage.setItem("+JSON.stringify(hiddenRetryKey)+","+JSON.stringify(JSON.stringify({body:{operation:'startChallenge',visitId:'controller-second-visit',requestKey:crypto.randomUUID()},description:'Hidden team pending check',endpoint:'race'}))+");window.dispatchEvent(new Event('spy-race-pending'))");
@@ -569,7 +569,7 @@ try{
    await pg.query('UPDATE "Station" SET "allowAdjustments"=true WHERE id=$1',['demo-cipher-room']);
    await pg.query('UPDATE "StationVisit" SET state=$1,"startedAt"=NOW(),"finishedAt"=NOW() WHERE id=$2',['AWAITING_CONFIRMATION','controller-second-visit']);
    await visit(base);await evaluate("document.querySelector('.station-team:not([hidden]) textarea').focus()");await cmd('Input.insertText',{text:'Keep this facilitator draft'});
-   await tab('Station sections',2);await tab('Station sections',0);
+   await evaluate("document.querySelector('.field-bottom-nav a[href$=\"#field-history\"]').click()");await evaluate("document.querySelector('.field-bottom-nav a:not([href*=judging])').click()");
    assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');
    await evaluate("window.__controllerNavigation='same-document';document.querySelector('.field-bottom-nav a[href$=\"/people\"]').click()");await wait(()=>evaluate("!!document.querySelector('.roster-tabs')"));
    await evaluate("document.querySelector('.field-bottom-nav a[href=\""+base+"\"]').click()");await wait(()=>evaluate("!!document.querySelector('.station-team textarea')"));
@@ -583,7 +583,7 @@ try{
    assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');
    await evaluate("document.querySelector('.player-account').open=true;document.querySelector('.player-account form').requestSubmit()");await wait(()=>evaluate("location.pathname==='/login'"));
    assert.equal(await evaluate("Object.keys(sessionStorage).filter(k=>k.startsWith('spy-field-draft:')).length"),0);
-   console.log('PASS: one-team controller, station/history/tools, real penalty/finish/confirm, retained drafts across tabs/navigation/reload/offline and sign-out cleanup.');continue;
+   console.log('PASS: one-team controller, station/history/tools, real penalty/finish/confirm, retained drafts across history/navigation/reload/offline and sign-out cleanup.');continue;
   }
   if(process.env.PROGRAM_BROWSER_ONLY){
    const url='/events/'+event.id+'/program';

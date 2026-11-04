@@ -104,3 +104,14 @@
 
 .controller-shell .time-penalty-actions>.race-action{margin:0}
 .controller-shell .field-board-controller .station-team>.race-action{margin:8px 0}
+
+/* Current task first; secondary information uses ordinary disclosures. */
+.controller-shell .mission-support{margin-top:24px}
+.controller-shell .mission-section{border-top:1px solid var(--line);padding:0;min-width:0}
+.controller-shell .mission-section>summary{min-height:56px;align-content:center;padding:14px 0;font-size:18px;font-weight:600;cursor:pointer;overflow-wrap:anywhere}
+.controller-shell .mission-section>summary>span{float:right;font-size:14px;color:var(--muted);margin-left:12px}
+.controller-shell .mission-section[open]{padding-bottom:20px}
+.controller-shell .mission-team-section,.controller-shell .mission-support>*{min-width:0}
+.controller-shell .field-tools{border-top:1px solid var(--line);margin-top:8px}
+.controller-shell .field-tools>summary{min-height:48px;cursor:pointer}
+.controller-shell :is(.station-choice select,.mission-section,.field-heading h2,.field-heading h3){max-width:100%;overflow-wrap:anywhere}
