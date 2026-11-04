@@ -82,3 +82,8 @@ Organizers may configure team or individual contests with criteria/maxima and as
 ## Individual station participation
 
 Played means the player was selected on a completed, facilitator-confirmed visit (including an unsuccessful physical result). Explored means distinct stations their current team was admitted to, including an ongoing visit; queued and cancelled visits are excluded. Display ?1 played / 2 explored? with station history in participant Team/Profile and staff roster/field views. Waiting or unconfirmed results do not earn played credit. Participation remains separate from race scoring; existing completion is the atomic source of confirmation. Reset checkpoints include visit lineups, and reset/deletion cascades visit lineups.
+
+## Participant inbox and Double Agent offers
+
+Organizers can send an individually addressed offer with a subject and message. Participants read only their own event inbox and explicitly confirm Yes or No once. Active event organizers receive email copies and response notifications and can inspect per-recipient sending status. Email buttons open the authenticated offer review; opening a link never records a response. SMTP acceptance is distinct from delivery/read confirmation. Failed emails may be retried; uncertain attempts must not automatically resend. Offers and responses remain separate from role permissions, race scores and Double Agent gameplay. Paused/archived events are read-only. See [INBOX.md](../INBOX.md).
+

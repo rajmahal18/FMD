@@ -16,7 +16,7 @@ const prefix="spy-race:";
 type ActionInput=Omit<RaceCommand,"requestKey">|Omit<ControlCommand,"requestKey">|Omit<ContactCommand,"requestKey">|Omit<ContactPolicyCommand,"requestKey">;
 type Saved={body:(RaceCommand|ControlCommand|ContactCommand|ContactPolicyCommand)&{requestKey:string};description:string;endpoint?:"race"|"control"|"contact"|"contact-policy"};
 function changed(){window.dispatchEvent(new Event("spy-race-pending"));}
-export function clearRacePending(){clearFieldDrafts();try{for(const key of Object.keys(sessionStorage))if(key.startsWith(prefix))sessionStorage.removeItem(key);}catch{} }
+export function clearRacePending(){clearFieldDrafts();try{for(const key of Object.keys(sessionStorage))if(key.startsWith(prefix)||key.startsWith("spy-inbox:"))sessionStorage.removeItem(key);}catch{} }
 function ownStorage(actorId:string){try{for(const key of Object.keys(sessionStorage))if(key.startsWith(prefix)&&!key.startsWith(`${prefix}${actorId}:`))sessionStorage.removeItem(key);}catch{} }
 function load(key:string):Saved|null{try{const raw=sessionStorage.getItem(key);if(!raw||raw.length>16384)return null;const saved=JSON.parse(raw) as Saved;if(typeof saved?.body?.requestKey!=="string"||typeof saved.body.operation!=="string"||typeof saved.description!=="string")return null;return saved;}catch{return null;}}
 function forget(key:string){try{sessionStorage.removeItem(key);}catch{}changed();}

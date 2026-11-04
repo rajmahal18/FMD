@@ -2,9 +2,9 @@
 import Link from "next/link";
 import {usePathname} from "next/navigation";
 import {SpyIcon,type SpyIconName} from "./SpyIcon";
-const sectionIcons:Record<string,SpyIconName>={"/preview":"mission","/judging-settings":"staff","/judging":"rank","/setup":"setup","/people":"people","/stations":"station","/routes":"route","/staff":"staff","/ranking-settings":"rank","/contact-settings":"contact","/voting-settings":"vote","/rehearsal":"tools","/lifecycle":"archive","":"mission","/field":"station","/contact-policy":"contact","/voting":"vote","/results":"rank","/overall":"rank"};
+const sectionIcons:Record<string,SpyIconName>={"/inbox":"mail","/preview":"mission","/judging-settings":"staff","/judging":"rank","/setup":"setup","/people":"people","/stations":"station","/routes":"route","/staff":"staff","/ranking-settings":"rank","/contact-settings":"contact","/voting-settings":"vote","/rehearsal":"tools","/lifecycle":"archive","":"mission","/field":"station","/contact-policy":"contact","/voting":"vote","/results":"rank","/overall":"rank"};
 const setupLinks=[["Event details","/setup"],["Live screen preview","/preview"],["Teams & agents","/people"],["Stations","/stations"],["Routes","/routes"],["Facilitators","/staff"],["Ranking rules","/ranking-settings"],["Contact policy","/contact-settings"],["Voting events","/voting-settings"],["Judging setup","/judging-settings"],["Rehearsal","/rehearsal"],["Reset & archive","/lifecycle"]];
-const liveLinks=[["Mission Control",""],["Field station","/field"],["Agent Contact","/contact-policy"],["Voting controls","/voting"],["Judging","/judging"],["Race results","/results"],["Overall results","/overall"]];
+const liveLinks=[["Mission Control",""],["Participant inbox","/inbox"],["Field station","/field"],["Agent Contact","/contact-policy"],["Voting controls","/voting"],["Judging","/judging"],["Race results","/results"],["Overall results","/overall"]];
 export function OrganizerNav({eventId,previewEnabled=true}:{eventId:string;previewEnabled?:boolean}){
  const path=usePathname(),base=`/events/${eventId}`;
  const setup=setupLinks.some(([,suffix])=>path===base+suffix||path.startsWith(base+suffix+'/'));

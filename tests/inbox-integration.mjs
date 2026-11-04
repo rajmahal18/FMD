@@ -1,0 +1,61 @@
+import {PGlite} from '@electric-sql/pglite';
+import {PGLiteSocketServer} from '@electric-sql/pglite-socket';
+import {spawn} from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+const pg=await PGlite.create();
+for(const dir of fs.readdirSync('prisma/migrations').sort()){const p=path.join('prisma/migrations',dir,'migration.sql');if(fs.existsSync(p))await pg.exec(fs.readFileSync(p,'utf8'));}
+const socket=new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:5551});await socket.start();
+const origin='http://127.0.0.1:3193',env={...process.env,DATABASE_URL:'postgresql://postgres:postgres@127.0.0.1:5551/postgres',DIRECT_URL:'postgresql://postgres:postgres@127.0.0.1:5551/postgres',APP_ORIGIN:origin,DB_POOL_SIZE:'1',GMAIL_USER:'',GMAIL_APP_PASSWORD:'',SEED_PASSWORD:'isolated-inbox-password'};
+let app;
+const run=args=>new Promise((resolve,reject)=>{const child=spawn(process.execPath,args,{env,stdio:['ignore','ignore','pipe']});let errors='';child.stderr.on('data',v=>errors+=v);child.on('error',reject);child.on('exit',code=>code?reject(Error(errors)):resolve());});
+try{
+ await run(['--import','tsx','prisma/seed.ts']);
+ const event=(await pg.query('SELECT id FROM "Event" WHERE slug=$1',['classified-demo'])).rows[0].id;
+ const member=(await pg.query('SELECT m.id FROM "EventMembership" m JOIN "User" u ON u.id=m."userId" WHERE m."eventId"=$1 AND u.email=$2',[event,'agent@example.test'])).rows[0].id;
+ await pg.query('INSERT INTO "User" (id,email,name,"passwordHash") SELECT $1,$2,$3,"passwordHash" FROM "User" WHERE email=$4',['inbox-other-user','other@example.test','Other participant','agent@example.test']);
+ await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) VALUES ($1,$2,$3,$4)',['inbox-other',event,'inbox-other-user','PARTICIPANT']);
+ app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','3193'],{env,stdio:'ignore'});
+ for(let i=0;i<60;i++){try{if((await fetch(origin)).ok)break;}catch{}if(i===59)throw Error('App did not start');await new Promise(r=>setTimeout(r,250));}
+ const cookies={};
+ for(const role of ['organizer','agent','facilitator','other']){const r=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(r.status,303);cookies[role]=r.headers.get('set-cookie').split(';')[0];}
+ const api='/api/events/'+event+'/inbox';
+ const get=(url,role='agent')=>fetch(origin+url,{headers:role?{cookie:cookies[role]}:{},redirect:'manual'});
+ const post=(role,body,originHeader=origin)=>fetch(origin+api,{method:'POST',headers:{cookie:cookies[role],origin:originHeader,'content-type':'application/json'},body:JSON.stringify(body)});
+ assert.equal((await get(api,null)).status,401);
+ assert.equal((await get(api,'facilitator')).status,403);
+ const command={operation:'send',recipientId:member,subject:'Double Agent offer',body:'Will you accept this offer?',requestKey:randomUUID()};
+ assert.equal((await post('agent',command)).status,403);
+ assert.equal((await post('organizer',command,'https://evil.test')).status,403);
+ const send=await post('organizer',command);assert.equal(send.status,200);const result=await send.json();
+ assert.equal((await post('organizer',command)).status,200);
+ assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxMessage"')).rows[0].n,1);
+ assert.equal((await post('organizer',{...command,body:'Changed'})).status,409);
+ const staff=await (await get(api,'organizer')).json();assert.equal(staff.messages.length,1);assert(staff.messages[0].deliveries.some(d=>d.kind==='COPY'));assert(staff.messages[0].deliveries.every(d=>d.status==='FAILED'));
+ const own=await (await get(api)).json();assert.equal(own.messages.length,1);assert.equal(own.people.length,0);assert.deepEqual(own.messages[0].deliveries,[]);assert(!JSON.stringify(own).includes('passwordHash'));
+ assert.equal((await (await get(api,'other')).json()).messages.length,0);
+ assert.equal((await post('other',{operation:'respond',id:result.id,response:'YES',requestKey:randomUUID()})).status,404);
+ assert.equal((await post('organizer',{operation:'respond',id:result.id,response:'YES',requestKey:randomUUID()})).status,403);
+ const link=`/events/${event}/inbox?message=${result.id}&choice=YES`;
+ const anonymous=await get(link,null);assert.equal(anonymous.status,307);assert(decodeURIComponent(anonymous.headers.get('location')).includes(link));
+ assert.equal((await get(link)).status,200);assert.equal((await pg.query('SELECT response FROM "InboxMessage" WHERE id=$1',[result.id])).rows[0].response,null,'GET must never accept an offer');
+ const answer={operation:'respond',id:result.id,response:'YES',requestKey:randomUUID()};
+ const responses=await Promise.all([post('agent',answer),post('agent',answer)]);assert(responses.every(r=>r.status===200));
+ assert.equal((await post('agent',{...answer,response:'NO',requestKey:randomUUID()})).status,409);
+ assert.equal((await pg.query('SELECT response FROM "InboxMessage" WHERE id=$1',[result.id])).rows[0].response,'YES');
+ assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxDelivery" WHERE "messageId"=$1 AND kind=$2',[result.id,'RESPONSE'])).rows[0].n,1);
+ const failed=staff.messages[0].deliveries[0];assert.equal((await post('organizer',{operation:'retry',id:failed.id,requestKey:randomUUID()})).status,200);
+ await pg.query('UPDATE "InboxDelivery" SET status=$1 WHERE id=$2',['UNKNOWN',failed.id]);assert.equal((await post('organizer',{operation:'retry',id:failed.id,requestKey:randomUUID()})).status,409);
+ await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['PAUSED',event]);assert.equal((await post('organizer',{...command,requestKey:randomUUID()})).status,409);
+ await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',event]);
+ await pg.query('UPDATE "EventMembership" SET active=false WHERE id=$1',[member]);assert.equal((await get(api)).status,403);
+ await pg.query('UPDATE "EventMembership" SET active=true WHERE id=$1',[member]);
+ await pg.query('UPDATE "User" SET "mustChangePassword"=true WHERE email=$1',['agent@example.test']);assert.equal((await get(api)).status,403);
+ await pg.query('UPDATE "User" SET "mustChangePassword"=false WHERE email=$1',['agent@example.test']);
+ const back=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:'agent@example.test',password:env.SEED_PASSWORD,returnTo:link}),redirect:'manual'});assert.equal(back.headers.get('location'),origin+link);
+ assert.equal((await get('/api/events/missing/inbox')).status,403);
+ await pg.query('UPDATE "Event" SET "archivedAt"=NOW() WHERE id=$1',[event]);assert.equal((await post('organizer',{...command,requestKey:randomUUID()})).status,409);assert.equal((await get(api)).status,200);
+ console.log('PASS: private inbox, organizer copies/status, immutable Yes/No, duplicate/concurrent requests, safe email links, login return, retry, permissions, pause/archive and missing email configuration.');
+}finally{if(app){app.kill();await new Promise(r=>app.once('exit',r));}await socket.stop();await pg.close();}

@@ -662,7 +662,7 @@ try{
  const concealedResponse=await get('/api/events/'+game.e+'/mission',cookies.agent);assert(concealedResponse.headers.get('cache-control').includes('no-store'));const concealed=await concealedResponse.json();
  assert.equal(concealed.view.status,'DETAILS_HIDDEN');assert.deepEqual(concealed.stations,[]);assert.deepEqual(concealed.stationIds,[]);assert.deepEqual(concealed.visits,[]);assert.equal(concealed.route,null);assert.equal(concealed.view.currentId,null);
  assert(!JSON.stringify(concealed).includes('Cipher Room'));assert(!JSON.stringify(concealed).includes('North wing'));assert(!JSON.stringify(concealed).includes(game.s1));
- const concealedPage=await (await get('/events/'+game.e,cookies.agent)).text();assert(concealedPage.includes('Station details not released yet'));assert(!concealedPage.includes('Cipher Room'));
+ const concealedPage=await (await get('/events/'+game.e,cookies.agent)).text();assert(concealedPage.includes('Stations not released yet'));assert(!concealedPage.includes('Cipher Room'));
  const hiddenCheckIn=await (await get('/events/'+game.e+'/check-in',cookies.agent)).text();assert(hiddenCheckIn.includes('Station details not released yet'));assert(!hiddenCheckIn.includes('name="credential"'));
  assert.equal((await arrivalPreview(game.e,code1,cookies.agent)).status,403);assert.equal((await race(game.e,'checkIn',{credential:code1},cookies.agent)).status,403);
  assert.equal((await get('/api/events/'+game.e+'/stations/'+game.s1,cookies.facilitator)).status,200);

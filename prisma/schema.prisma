@@ -62,6 +62,7 @@ model EmailOtp {
  @@index([expiresAt])
 }
 model Event {
+ inboxMessages InboxMessage[]
  id String @id @default(cuid())
  slug String @unique
  name String
@@ -118,6 +119,8 @@ model EventProgram {
  event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
 }
 model EventMembership {
+ inboxMessages InboxMessage[]
+ inboxDeliveries InboxDelivery[]
  handledSquad SquadHandler?
  id String @id @default(cuid())
  eventId String
@@ -141,6 +144,35 @@ model EventMembership {
  @@unique([eventId,id])
  @@unique([eventId,userId])
  @@index([userId,active])
+}
+
+model InboxMessage {
+ id String @id @default(cuid())
+ eventId String
+ recipientId String
+ senderName String
+ subject String
+ body String
+ response String?
+ respondedAt DateTime?
+ createdAt DateTime @default(now())
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ recipient EventMembership @relation(fields:[recipientId],references:[id],onDelete:Cascade)
+ deliveries InboxDelivery[]
+ @@index([eventId,recipientId,createdAt])
+}
+
+model InboxDelivery {
+ id String @id @default(cuid())
+ messageId String
+ membershipId String
+ kind String
+ status String @default("PENDING")
+ attemptedAt DateTime?
+ sentAt DateTime?
+ message InboxMessage @relation(fields:[messageId],references:[id],onDelete:Cascade)
+ membership EventMembership @relation(fields:[membershipId],references:[id],onDelete:Cascade)
+ @@unique([messageId,membershipId,kind])
 }
 
 model JudgingContest {
