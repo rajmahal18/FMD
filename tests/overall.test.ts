@@ -62,3 +62,10 @@ test('explicit staged judging links activate without changing unlinked legacy ac
  const saved={raceRule:'TIME' as const,events:[event({source:'MANUAL',contestId:'gala',ranks:{t1:2}}),event({id:'legacy',source:'MANUAL',ranks:{t1:1}})]};
  const resolved=resolveOverallJudging(saved);assert.equal(resolved.events[0].source,'JUDGING');assert.deepEqual(resolved.events[0].ranks,{});assert.equal(resolved.events[1].source,'MANUAL');assert.equal(saved.events[0].source,'MANUAL');assert.equal(resolved.raceRule,'TIME');
 });
+test('organizer live previews include submitted averages while official results still require publication',()=>{
+ const config={events:[event({source:'JUDGING',contestId:'gala',weight:100})]};
+ const source={id:'gala',name:'Gala',revision:1,published:false,rows:[],liveRows:[{id:'t1',rank:null,average:85,maximum:100,submitted:1,judges:2},{id:'t2',rank:null,average:null,maximum:100,submitted:0,judges:2}]};
+ const official=overallStandings(config,teams.slice(0,2),[source]);assert(official.every(r=>r.contributions[0].contribution===null));
+ const preview=overallStandings(config,teams.slice(0,2),[source],true);assert.equal(preview.find(r=>r.id==='t1')!.value,85);assert.equal(preview.find(r=>r.id==='t2')!.contributions[0].contribution,null);assert(!overallComplete(config,preview));
+ const completeSource={...source,liveRows:[{id:'t1',rank:1,average:85,maximum:100},{id:'t2',rank:2,average:65,maximum:100}]};assert(overallComplete(config,overallStandings(config,teams.slice(0,2),[completeSource],true)));assert(!overallComplete(config,overallStandings(config,teams.slice(0,2),[completeSource])));
+});

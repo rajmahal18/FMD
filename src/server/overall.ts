@@ -1,4 +1,5 @@
 import 'server-only';
+import {judgingResultsVisible,judgingStandings,type JudgingConfig} from '@/lib/judging';
 import {db} from '@/lib/db';
 import {InputError} from '@/lib/validation';
 import {Prisma} from '@/generated/prisma/client';
@@ -13,8 +14,8 @@ async function snapshot(tx:Tx,eventId:string){
  const raceRows=(race?.teamStandingsJson??[]) as {id:string;rank:number;pending?:boolean}[];
  const teams=await Promise.all(roster.map(async t=>({id:t.id,name:t.name,color:t.color,points:await teamTotal(tx,eventId,t.id),raceRank:event.state==='FINALIZED'?raceRows.find(r=>r.id===t.id&&!r.pending)?.rank||null:null})));
  const config=resolveOverallJudging((record?.config??{...defaultOverall(teams.length),...(event.state!=='PREPARING'?{raceRule:'POINTS'}:{})}) as OverallConfig);
- const contests=await tx.judgingContest.findMany({where:{eventId},select:{id:true,name:true,state:true,revision:true,config:true,publishedAt:true,publishedResults:true}});
- const judgingSources:OverallJudgingSource[]=contests.filter(c=>(c.config as {target?:string}).target==='TEAM').map(c=>{const published=c.state==='PUBLISHED'&&!!c.publishedAt;const snapshot=c.publishedResults as {rows?:OverallJudgingSource['rows']}|null;return {id:c.id,name:c.name,revision:c.revision,published,rows:published&&Array.isArray(snapshot?.rows)?snapshot.rows.map(r=>({id:r.id,rank:r.rank,average:r.average,maximum:r.maximum})):[]};});
+ const contests=await tx.judgingContest.findMany({where:{eventId},select:{id:true,name:true,state:true,revision:true,config:true,publishedAt:true,publishedResults:true,facilitatorVisibility:true,participantVisibility:true,assignments:{where:{active:true},select:{membershipId:true}},scores:{where:{submittedAt:{not:null}},select:{candidateId:true,judgeMembershipId:true,totalHundredths:true,submittedAt:true}}}});
+ const judgingSources:OverallJudgingSource[]=contests.filter(c=>(c.config as {target?:string}).target==='TEAM').map(c=>{const published=c.state==='PUBLISHED'&&!!c.publishedAt;const snapshot=c.publishedResults as {rows?:OverallJudgingSource['rows']}|null;const rules=c.config as JudgingConfig;const liveRows=judgingStandings(rules.candidateIds.map(id=>({id,name:roster.find(t=>t.id===id)?.name??'Unavailable team',active:roster.some(t=>t.id===id)})),c.assignments.map(a=>a.membershipId),rules.criteria,c.scores);return {id:c.id,name:c.name,revision:c.revision,published,liveRows,facilitatorVisibility:c.facilitatorVisibility as 'HIDDEN'|'PUBLISHED'|'LIVE',participantVisibility:c.participantVisibility as 'HIDDEN'|'PUBLISHED'|'LIVE',rows:published&&Array.isArray(snapshot?.rows)?snapshot.rows.map(r=>({id:r.id,rank:r.rank,average:r.average,maximum:r.maximum})):[]};});
  const savedRaceRule=(record?.config as OverallConfig|undefined)?.raceRule??'POINTS';
  const final=record?.finalized as {stale?:boolean;sourceRevision?:number|null;judgingRevisions?:Record<string,number>}|null;
  const judgingStale=!!final&&config.events.some(e=>e.source==='JUDGING'&&!judgingSources.some(s=>s.id===e.contestId&&s.published&&s.revision===final.judgingRevisions?.[s.id]));
@@ -28,6 +29,7 @@ export async function readPublishedOverall(actorId:string,eventId:string){return
  const data=await snapshot(tx,eventId);
  if(!data.finalized||data.stale)return {published:false as const};
  const final=data.finalized as {rows:ReturnType<typeof overallStandings>;config:OverallConfig;finalizedAt:string};
+ if(m.role!=='ORGANIZER'&&final.config.events.some(e=>e.source==='JUDGING'&&!data.judgingSources.some(s=>s.id===e.contestId&&judgingResultsVisible((m.role==='FACILITATOR'?s.facilitatorVisibility:s.participantVisibility)??'PUBLISHED',s.published))))return {published:false as const};
  // Return only the published standings; never draft placements, actor IDs or audit history.
  return {published:true as const,rows:final.rows.map(r=>({id:r.id,name:r.name,rank:r.rank,value:r.value,contributions:r.contributions})),activities:final.config.events.map(e=>({id:e.id,name:e.name,weight:e.weight})),finalizedAt:final.finalizedAt};
  },{isolationLevel:'RepeatableRead'});}

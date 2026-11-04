@@ -2,7 +2,7 @@ import {sharedRanks} from './results';
 import {placementCredit} from './placement-credit';
 import {raceRules,type RaceRule} from './race-ranking';
 export type ComponentEvent={id:string;name:string;weight:number;source:'MANUAL'|'SPY'|'JUDGING';contestId?:string;credits:number[];ranks:Record<string,number>};
-export type OverallJudgingSource={id:string;name:string;revision:number;published:boolean;rows:{id:string;rank:number|null;average:number|null;maximum:number}[]};
+export type OverallJudgingSource={id:string;name:string;revision:number;published:boolean;rows:{id:string;rank:number|null;average:number|null;maximum:number}[];liveRows?:{id:string;rank:number|null;average:number|null;maximum:number;submitted?:number;judges?:number}[];facilitatorVisibility?:'HIDDEN'|'PUBLISHED'|'LIVE';participantVisibility?:'HIDDEN'|'PUBLISHED'|'LIVE'};
 export type OverallConfig={events:ComponentEvent[];raceRule?:RaceRule};
 // Explicit links can be staged while older deployed clients still use MANUAL sources.
 // Reading with this version activates the link; the next save writes canonical JUDGING config.
@@ -32,9 +32,9 @@ export function validateOverall(value:unknown,teamIds:string[]):OverallConfig {
  }
  return {raceRule:rule,events:events.map(e=>({id:e.id,name:e.name.trim(),weight:e.weight,source:e.source,...(e.source==='JUDGING'?{contestId:e.contestId}:{}),credits:e.credits,ranks:e.ranks}))};
 }
-export function overallStandings(config:OverallConfig,teams:OverallTeam[],judging:OverallJudgingSource[]=[]){
+export function overallStandings(config:OverallConfig,teams:OverallTeam[],judging:OverallJudgingSource[]=[],preview=false){
  const spy=sharedRanks([...teams].sort((a,b)=>b.points-a.points||a.name.localeCompare(b.name)).map(t=>({...t,value:t.points})));
- const judged=(e:ComponentEvent,t:OverallTeam)=>{const source=judging.find(s=>s.id===e.contestId&&s.published);const row=source?.rows.find(r=>r.id===t.id);return row&&row.rank!==null&&row.rank>0&&row.average!==null&&Number.isFinite(row.average)&&Number.isFinite(row.maximum)&&row.maximum>0&&row.average>=0&&row.average<=row.maximum?row:null;};
+ const judged=(e:ComponentEvent,t:OverallTeam)=>{const source=judging.find(s=>s.id===e.contestId&&(s.published||preview));const row=(source?.published?source.rows:preview?source?.liveRows:[])?.find(r=>r.id===t.id);return row&&(preview||row.rank!==null&&row.rank>0)&&row.average!==null&&Number.isFinite(row.average)&&Number.isFinite(row.maximum)&&row.maximum>0&&row.average>=0&&row.average<=row.maximum?row:null;};
  const rankFor=(e:ComponentEvent,t:OverallTeam)=>e.source==='JUDGING'?judged(e,t)?.rank??null:e.source==='SPY'?(t.raceRank===undefined?spy.find(s=>s.id===t.id)!.rank:t.raceRank):e.ranks[t.id];
  const tieSizes=new Map(config.events.map(e=>{const counts=new Map<number,number>();for(const team of teams){const rank=rankFor(e,team);if(rank)counts.set(rank,(counts.get(rank)??0)+1);}return [e.id,counts];}));
  return sharedRanks(teams.map(t=>{const contributions=config.events.map(e=>{const rank=rankFor(e,t);const score=e.source==='JUDGING'?judged(e,t):null;const credit=e.source==='JUDGING'?(score?score.average!/score.maximum*100:null):rank?placementCredit(e.credits,rank,tieSizes.get(e.id)!.get(rank)!):null;return {eventId:e.id,source:e.source,average:score?.average??null,maximum:score?.maximum??null,rank:rank??null,credit,contribution:credit===null?null:basis(e.weight)*credit/10000};});return {...t,contributions,value:Math.round(contributions.reduce((n,c)=>n+(c.contribution??0),0)*1000000)/1000000};}).sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name)));

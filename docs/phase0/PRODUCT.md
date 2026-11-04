@@ -92,3 +92,7 @@ Offer composition supports one atomic batch to multiple participants, at most on
 ## Categorized individual voting
 
 Organizers may select Male & Female categories for a single award such as Agents of the Night. Explicit candidate-category assignments are saved with award rules; profile M/F values are setup suggestions only. Voters select exactly one eligible candidate per category and submit both as one atomic final ballot. Rankings and ties are independent per category, and published snapshots preserve assignments. Existing generic polls retain their original rules. See ../VOTING_EVENTS.md.
+
+## Judging result audiences
+
+Submitted judging scores update organizer contest/Overall previews automatically, including partial averages. Final publication/finalization remains explicit. Each judging contest has independent facilitator and participant audience settings: hidden, published-only (default), or live submitted aggregates. Facis access standings through a secondary Account link and folded section below scoring; participants only receive allowed contest aggregates. Drafts and other judges' individual sheets remain private. Hide policies apply to direct APIs and linked overall publications. Visibility revisions are independent from scoring revisions so audience changes do not discard active judge inputs.

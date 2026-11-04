@@ -4,7 +4,9 @@ export type JudgingCandidate={id:string;name:string;teamName?:string|null;active
 export type JudgingSheet={candidateId:string;scores:Record<string,number>;version:number;submittedAt:string|null};
 export type JudgingRow={id:string;name:string;teamName?:string|null;average:number|null;maximum:number;submitted:number;judges:number;rank:number|null};
 export type JudgingPublished={name:string;rows:JudgingRow[];criteria:JudgingCriterion[];publishedAt:string};
-export type JudgingContestData={id:string;name:string;instructions:string;state:string;revision:number;config:JudgingConfig;candidates:JudgingCandidate[];judgeIds?:string[];judgeCount:number;assigned:boolean;locked:boolean;ownSheets:JudgingSheet[];results:JudgingRow[];published:JudgingPublished|null;breakdown?:{judgeId:string;judgeName:string;candidateId:string;scores:Record<string,number>;total:number;submittedAt:string}[]};
+export type JudgingVisibility='HIDDEN'|'PUBLISHED'|'LIVE';
+export function judgingResultsVisible(policy:JudgingVisibility,published:boolean){return policy==='LIVE'||policy==='PUBLISHED'&&published;}
+export type JudgingContestData={id:string;name:string;instructions:string;state:string;revision:number;config:JudgingConfig;candidates:JudgingCandidate[];judgeIds?:string[];judgeCount:number;assigned:boolean;locked:boolean;ownSheets:JudgingSheet[];results:JudgingRow[];published:JudgingPublished|null;resultsVisible?:boolean;resultsStatus?:'HIDDEN'|'PARTIAL'|'COMPLETE'|'PUBLISHED';facilitatorVisibility?:JudgingVisibility;participantVisibility?:JudgingVisibility;visibilityRevision?:number;breakdown?:{judgeId:string;judgeName:string;candidateId:string;scores:Record<string,number>;total:number;submittedAt:string}[]};
 export type JudgingData={eventId:string;actorMembershipId:string;role:string;eventState:string;archived:boolean;runRevision:number;contests:JudgingContestData[];teams:JudgingCandidate[];people:{id:string;name:string;role:string;teamName:string|null;active:boolean;sex:string|null}[]};
 
 const precise=(value:number)=>Number.isFinite(value)&&Math.abs(value*100-Math.round(value*100))<0.000001;

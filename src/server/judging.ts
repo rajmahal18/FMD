@@ -4,7 +4,7 @@ import {db} from '@/lib/db';
 import {Prisma} from '@/generated/prisma/client';
 import {InputError} from '@/lib/validation';
 import {tokenHash} from '@/lib/password';
-import {judgingStandings,validateJudgingConfig,validateJudgingScores,type JudgingConfig,type JudgingData,type JudgingCandidate,type JudgingPublished} from '@/lib/judging';
+import {judgingResultsVisible,judgingStandings,validateJudgingConfig,validateJudgingScores,type JudgingConfig,type JudgingData,type JudgingCandidate,type JudgingPublished} from '@/lib/judging';
 import {runRevision,requireRunRevision} from './run-revision';
 type Tx=Prisma.TransactionClient;
 async function scope(tx:Tx,actorId:string,eventId:string){
@@ -21,16 +21,22 @@ function candidates(config:JudgingConfig,all:Awaited<ReturnType<typeof roster>>)
 }
 export async function readJudging(actorId:string,eventId:string):Promise<JudgingData>{return db().$transaction(async tx=>{
  const m=await scope(tx,actorId,eventId),organizer=m.role==='ORGANIZER',all=await roster(tx,eventId);
- const contests=await tx.judgingContest.findMany({where:{eventId,...(!organizer?{OR:[{state:'PUBLISHED'},{assignments:{some:{membershipId:m.id,active:true}},...(m.role==='FACILITATOR'?{}:{id:'__no_judge__'})}]}:{})},include:{assignments:true,scores:true},orderBy:{createdAt:'asc'}});
+ const contests=await tx.judgingContest.findMany({where:{eventId},include:{assignments:true,scores:true},orderBy:{createdAt:'asc'}});
  const rows=contests.map(c=>{
   const config=c.config as JudgingConfig,assigned=m.role==='FACILITATOR'&&c.assignments.some(a=>a.membershipId===m.id&&a.active),entrants=candidates(config,all),judgeIds=c.assignments.filter(a=>a.active).map(a=>a.membershipId);
-  const published=c.state==='PUBLISHED'?c.publishedResults as JudgingPublished|null:null;
-  return {id:c.id,name:c.name,instructions:c.instructions,state:c.state,revision:c.revision,config:organizer||assigned?config:{...config,candidateIds:[],criteria:published?.criteria??[]},candidates:organizer||assigned?entrants:[],judgeIds:organizer?judgeIds:undefined,judgeCount:judgeIds.length,assigned,locked:c.scores.length>0,
+  const policy=m.role==='FACILITATOR'?c.facilitatorVisibility:c.participantVisibility;
+  const visible=organizer||judgingResultsVisible(policy as 'HIDDEN'|'PUBLISHED'|'LIVE',c.state==='PUBLISHED');
+  if(!organizer&&!assigned&&!visible)return null;
+  const publication=c.state==='PUBLISHED'?c.publishedResults as JudgingPublished|null:null,published=visible?publication:null;
+  const results=visible?(published?.rows??judgingStandings(entrants,judgeIds,config.criteria,c.scores)):[];
+  const complete=results.length>0&&results.every(r=>r.judges>0&&r.submitted===r.judges);
+  return {id:c.id,name:c.name,instructions:organizer||assigned?c.instructions:'',state:c.state,revision:c.revision,config:organizer||assigned?config:{...config,candidateIds:[],criteria:published?.criteria??[]},candidates:organizer||assigned?entrants:[],judgeIds:organizer?judgeIds:undefined,judgeCount:judgeIds.length,assigned,locked:c.scores.length>0,
+   resultsVisible:visible,resultsStatus:(!visible?'HIDDEN':published?'PUBLISHED':complete?'COMPLETE':'PARTIAL') as 'HIDDEN'|'PUBLISHED'|'COMPLETE'|'PARTIAL',...(organizer?{facilitatorVisibility:c.facilitatorVisibility as 'HIDDEN'|'PUBLISHED'|'LIVE',participantVisibility:c.participantVisibility as 'HIDDEN'|'PUBLISHED'|'LIVE',visibilityRevision:c.visibilityRevision}:{}),
    ownSheets:assigned?c.scores.filter(s=>s.judgeMembershipId===m.id).map(s=>({candidateId:s.candidateId,scores:s.scores as Record<string,number>,version:s.version,submittedAt:s.submittedAt?.toISOString()??null})):[],
-   results:organizer?judgingStandings(entrants,judgeIds,config.criteria,c.scores):published?.rows??[],published,
+   results,published,
    breakdown:organizer?c.scores.filter(s=>s.submittedAt).map(s=>({judgeId:s.judgeMembershipId,judgeName:all.people.find(p=>p.id===s.judgeMembershipId)?.name??'Former judge',candidateId:s.candidateId,scores:s.scores as Record<string,number>,total:s.totalHundredths/100,submittedAt:s.submittedAt!.toISOString()})):undefined};
  });
- return {eventId,actorMembershipId:m.id,role:m.role,eventState:m.event.state,archived:!!m.event.archivedAt,runRevision:await runRevision(tx,eventId),contests:rows,teams:organizer?all.teams:[],people:organizer?all.people:[]};
+ return {eventId,actorMembershipId:m.id,role:m.role,eventState:m.event.state,archived:!!m.event.archivedAt,runRevision:await runRevision(tx,eventId),contests:rows.filter((c):c is NonNullable<typeof c>=>c!==null),teams:organizer?all.teams:[],people:organizer?all.people:[]};
 },{isolationLevel:'RepeatableRead',timeout:20000});}
 
 function string(value:unknown,label:string,max:number,required=true){if(typeof value!=='string'||value.length>max||(required&&!value.trim()))throw new InputError(`Enter ${label} (${required?'1–':'up to '}${max} characters).`);return value.trim();}
@@ -38,7 +44,7 @@ export async function judgingCommand(actorId:string,eventId:string,value:unknown
  if(!value||typeof value!=='object'||Array.isArray(value))throw new InputError('Choose a judging action.');
  const v=value as Record<string,unknown>,operation=string(v.operation,'an action',40),requestKey=string(v.requestKey,'a request key',40);
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey))throw new InputError('Refresh the form and retry.');
- const allowed=['createContest','saveContest','open','close','publish','unpublish','reopenScore','saveDraft','submitScore'];
+ const allowed=['createContest','saveContest','open','close','publish','unpublish','reopenScore','saveDraft','submitScore','setVisibility'];
  if(!allowed.includes(operation))throw new InputError('Unknown judging action.');
  const requestHash=tokenHash(JSON.stringify({eventId,...v,requestKey:undefined}));
  return db().$transaction(async tx=>{
@@ -53,9 +59,14 @@ export async function judgingCommand(actorId:string,eventId:string,value:unknown
   if(scoring&&!contest!.assignments.some(a=>a.membershipId===m.id&&a.active))throw new InputError('You are not assigned to judge this contest.',403);
   const receipt=await tx.managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}});
   if(receipt){if(receipt.requestHash!==requestHash||receipt.operation!==`judging:${operation}`)throw new InputError('This request key was already used with different details.',409);return {...receipt.responseJson as {message:string;targetId:string},replayed:true};}
-  if(contest&&v.revision!==contest.revision)throw new InputError('The contest changed. Refresh and review before saving.',409);
+  if(contest&&operation!=='setVisibility'&&v.revision!==contest.revision)throw new InputError('The contest changed. Refresh and review before saving.',409);
   const all=await roster(tx,eventId);let targetId=contest?.id??'',message='',details:unknown={};
-  if(operation==='createContest'||operation==='saveContest'){
+  if(operation==='setVisibility'){
+   if(v.visibilityRevision!==contest!.visibilityRevision)throw new InputError('Results visibility changed. Refresh before saving.',409);
+   if(!['HIDDEN','PUBLISHED','LIVE'].includes(String(v.facilitatorVisibility))||!['HIDDEN','PUBLISHED','LIVE'].includes(String(v.participantVisibility)))throw new InputError('Choose results visibility for facilitators and participants.');
+   const saved=await tx.judgingContest.update({where:{id:contest!.id},data:{facilitatorVisibility:String(v.facilitatorVisibility),participantVisibility:String(v.participantVisibility),visibilityRevision:{increment:1}}});
+   message='Results visibility saved.';details={before:{facilitators:contest!.facilitatorVisibility,participants:contest!.participantVisibility},after:{facilitators:saved.facilitatorVisibility,participants:saved.participantVisibility}};
+  }else if(operation==='createContest'||operation==='saveContest'){
    if(contest&&(contest.state==='OPEN'||contest.state==='PUBLISHED'||contest.scores.length))throw new InputError('Close scoring before editing. Criteria, entrants and judges lock after the first draft or score.',409);
    let config:JudgingConfig;try{config=validateJudgingConfig(v.config);}catch(e){throw new InputError((e as Error).message);}
    const entrants=candidates(config,all);if(entrants.some(c=>!c.active))throw new InputError('Choose active teams or participant nominees from this event.');
@@ -91,7 +102,7 @@ export async function judgingCommand(actorId:string,eventId:string,value:unknown
     const ids=c.assignments.filter(a=>a.active).map(a=>a.membershipId),entrants=candidates(config,all),rows=judgingStandings(entrants,ids,config.criteria,c.scores);
     if(!ids.length||entrants.some(p=>!p.active)||ids.some(id=>!all.people.some(p=>p.id===id&&p.active&&p.role==='FACILITATOR'))||rows.some(r=>r.submitted!==ids.length||r.rank===null))throw new InputError('Every assigned judge must submit every entrant’s complete score before publishing.',409);
     const snapshot={name:c.name,rows,criteria:config.criteria,publishedAt:new Date().toISOString()};
-    await tx.judgingContest.update({where:{id:c.id},data:{state:'PUBLISHED',revision:{increment:1},publishedAt:new Date(snapshot.publishedAt),publishedResults:snapshot as unknown as Prisma.InputJsonValue}});message='Judging results published to event members.';details={snapshot};
+    await tx.judgingContest.update({where:{id:c.id},data:{state:'PUBLISHED',revision:{increment:1},publishedAt:new Date(snapshot.publishedAt),publishedResults:snapshot as unknown as Prisma.InputJsonValue}});message='Judging results published. Audience visibility follows this contest settings.';details={snapshot};
    }else if(operation==='unpublish'){
     if(c.state!=='PUBLISHED')throw new InputError('This contest has no published results.',409);
     const reason=string(v.reason,'a reason',500);if(reason.length<5)throw new InputError('Give a reason of at least five characters.');

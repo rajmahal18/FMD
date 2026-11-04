@@ -1,6 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {galaJudgingTemplates,validateJudgingConfig,validateJudgingScores,judgingStandings,judgingInputError,judgingInputState} from '../src/lib/judging';
+import {galaJudgingTemplates,validateJudgingConfig,validateJudgingScores,judgingStandings,judgingInputError,judgingInputState,judgingResultsVisible} from '../src/lib/judging';
+test('judging visibility preserves publication-only defaults and explicit live/hidden controls',()=>{
+ assert(!judgingResultsVisible('HIDDEN',false));assert(!judgingResultsVisible('HIDDEN',true));assert(!judgingResultsVisible('PUBLISHED',false));assert(judgingResultsVisible('PUBLISHED',true));assert(judgingResultsVisible('LIVE',false));assert(judgingResultsVisible('LIVE',true));
+});
 const criteria=[{id:'impact',name:'Stage impact',description:'',maximum:10},{id:'harmony',name:'Harmony',description:'',maximum:15}];
 
 test('live score validation explains maximum, minimum and precision without silently changing input',()=>{

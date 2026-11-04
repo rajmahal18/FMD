@@ -39,3 +39,15 @@ Archive preserves judging data read-only. Event reset checkpoints include contes
 Deploy the additive `20261102030000_judging` migration before deploying the new application. No existing events, race results or credentials are modified by the migration.
 
 Validation: `npm test`, `npm run test:integration`; set `JUDGING_BROWSER_ONLY=1` when running `npm run test:theme` for 320/390/768/1440px setup, score entry, saved drafts, review modal, submission and published-result checks.
+
+## Live standings and per-contest visibility
+
+Organizer judging and linked Overall previews refresh every 10 seconds while visible. Submitted scores immediately update aggregates; drafts and missing sheets are excluded rather than counted as zero. Partial standings show average and submitted/assigned judge counts, with no final ranks until the full matrix is complete. Complete submissions update the preview without publication. Official overall finalization still requires published judging results and explicit finalization.
+
+For each contest, open Results visibility in Judging setup or Live operations > Judging. Facilitators and Participants have separate Show results and Include partial results controls. Hidden blocks even published aggregates. Show results without partials shares published snapshots only; including partials shares live submitted-score aggregates and then published snapshots. Existing and new contests default to published-only visibility. No live scores are silently revealed by the migration.
+
+Facilitators use Account > Judging standings for the secondary results view, separate from Judge scoring. Shared aggregates are folded below scoring work on the judge page. Participants also use the Account link. Standings pages never expose other judges' criterion sheets, drafts, judge identities or correction controls. Assigned judges retain their own sheets when aggregate visibility is disabled. Hidden contests are removed from non-judge API projections; linked published Overall results are withheld for an audience if they would expose a hidden judging component.
+
+Visibility changes are organizer-only, audited, event/run scoped, idempotent and guarded by a separate visibility revision. They do not change contest/scoring revisions or invalidate judges' active drafts. Changes remain available after scoring/publication; archive blocks writes. Reset checkpoints include visibility fields and reset preserves the policies with contest setup. Apply migration 20261104160000_judging_result_visibility before deploying this version.
+
+Validation: npm test, node tests/judging-visibility-integration.mjs, and JUDGING_VISIBILITY_BROWSER_ONLY=1 node tests/theme-smoke.mjs after building. Browser checks cover actual toggle/save, organizer and overall auto refresh without reloading, private facilitator views, participant hiding during polling and 320/390/768/1440px layouts.
