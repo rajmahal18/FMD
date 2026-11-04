@@ -62,6 +62,7 @@ model EmailOtp {
  @@index([expiresAt])
 }
 model Event {
+ inboxAttachments InboxAttachment[]
  inboxMessages InboxMessage[]
  id String @id @default(cuid())
  slug String @unique
@@ -147,6 +148,8 @@ model EventMembership {
 }
 
 model InboxMessage {
+ attachments InboxMessageAttachment[]
+ batchId String?
  id String @id @default(cuid())
  eventId String
  recipientId String
@@ -160,6 +163,33 @@ model InboxMessage {
  recipient EventMembership @relation(fields:[recipientId],references:[id],onDelete:Cascade)
  deliveries InboxDelivery[]
  @@index([eventId,recipientId,createdAt])
+ @@index([eventId,batchId])
+}
+
+model InboxAttachment {
+ id String @id @default(cuid())
+ eventId String
+ uploaderId String
+ uploadKey String
+ name String
+ mime String
+ size Int
+ digest String
+ content Bytes
+ createdAt DateTime @default(now())
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ messages InboxMessageAttachment[]
+ @@unique([eventId,uploaderId,uploadKey])
+ @@index([eventId,createdAt])
+}
+
+model InboxMessageAttachment {
+ messageId String
+ attachmentId String
+ message InboxMessage @relation(fields:[messageId],references:[id],onDelete:Cascade)
+ attachment InboxAttachment @relation(fields:[attachmentId],references:[id],onDelete:Cascade)
+ @@id([messageId,attachmentId])
+ @@index([attachmentId])
 }
 
 model InboxDelivery {

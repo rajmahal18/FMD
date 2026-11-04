@@ -1,4 +1,5 @@
 const paths={
+ attachment:"m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9M7 13l7-7",
  mail:"M3 5h18v14H3zM3 6l9 7 9-7",
  mission:"M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4Zm-4 9 3 3 5-6",
  setup:"M4 5h16v14H4zM4 10h16M9 10v9",

@@ -4,7 +4,7 @@ import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 const pg=await PGlite.create();
 for(const dir of fs.readdirSync('prisma/migrations').sort()){const p=path.join('prisma/migrations',dir,'migration.sql');if(fs.existsSync(p))await pg.exec(fs.readFileSync(p,'utf8'));}
 const socket=new PGLiteSocketServer({db:pg,host:'127.0.0.1',port:5551});await socket.start();
@@ -31,6 +31,8 @@ try{
  assert.equal((await post('organizer',command,'https://evil.test')).status,403);
  const send=await post('organizer',command);assert.equal(send.status,200);const result=await send.json();
  assert.equal((await post('organizer',command)).status,200);
+ const legacyHash=createHash('sha256').update(JSON.stringify({eventId:event,input:{operation:'send',requestKey:command.requestKey,recipientId:member,subject:command.subject,body:command.body}})).digest('hex');
+ await pg.query('UPDATE "ManagementReceipt" SET "requestHash"=$1 WHERE "requestKey"=$2',[legacyHash,command.requestKey]);assert.equal((await post('organizer',command)).status,200,'Pending single-recipient requests from the previous version must still replay');
  assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxMessage"')).rows[0].n,1);
  assert.equal((await post('organizer',{...command,body:'Changed'})).status,409);
  const staff=await (await get(api,'organizer')).json();assert.equal(staff.messages.length,1);assert(staff.messages[0].deliveries.some(d=>d.kind==='COPY'));assert(staff.messages[0].deliveries.every(d=>d.status==='FAILED'));
@@ -48,7 +50,41 @@ try{
  assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxDelivery" WHERE "messageId"=$1 AND kind=$2',[result.id,'RESPONSE'])).rows[0].n,1);
  const failed=staff.messages[0].deliveries[0];assert.equal((await post('organizer',{operation:'retry',id:failed.id,requestKey:randomUUID()})).status,200);
  await pg.query('UPDATE "InboxDelivery" SET status=$1 WHERE id=$2',['UNKNOWN',failed.id]);assert.equal((await post('organizer',{operation:'retry',id:failed.id,requestKey:randomUUID()})).status,409);
+ // Uploads remain private until linked to a recipient's message.
+ const fileApi=api+'/attachments',pdf='%PDF-1.7\nApp briefer\n%%EOF';
+ const upload=async(role,name='App briefer.pdf',content=pdf,key=randomUUID(),originHeader=origin)=>{const form=new FormData();form.set('uploadKey',key);form.set('file',new Blob([content]),name);return fetch(origin+fileApi,{method:'POST',headers:{cookie:cookies[role],origin:originHeader},body:form});};
+ assert.equal((await upload('agent')).status,403);assert.equal((await upload('facilitator')).status,403);assert.equal((await upload('organizer','briefer.pdf',pdf,randomUUID(),'https://evil.test')).status,403);
+ assert.equal((await upload('organizer','briefer.html','<script>alert(1)</script>')).status,400);
+ assert.equal((await upload('organizer','briefer.pdf','Wrong content')).status,400);
+ assert.equal((await upload('organizer','too-large.pdf','x'.repeat(3*1024*1024+1))).status,400);
+ const uploadKey=randomUUID(),uploaded=await upload('organizer','App briefer.pdf',pdf,uploadKey);assert.equal(uploaded.status,200);const file=await uploaded.json();
+ const again=await upload('organizer','App briefer.pdf',pdf,uploadKey);assert.equal(again.status,200);assert.equal((await again.json()).id,file.id);
+ assert.equal((await upload('organizer','App briefer.pdf',pdf+'changed',uploadKey)).status,409);
+ const download=fileApi+'/'+file.id;
+ assert.equal((await get(download,null)).status,401);assert.equal((await get(download)).status,404);assert.equal((await get(download,'other')).status,404);assert.equal((await get(download,'facilitator')).status,403);
+ const draftDownload=await get(download,'organizer');assert.equal(draftDownload.status,200);assert.equal(await draftDownload.text(),pdf);assert(draftDownload.headers.get('content-disposition').includes('attachment'));assert.equal(draftDownload.headers.get('x-content-type-options'),'nosniff');assert(draftDownload.headers.get('cache-control').includes('no-store'));
+ await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['inbox-second-team',event,'Second team']);
+ await pg.query('UPDATE "EventMembership" SET "teamId"=$1 WHERE id=$2',['inbox-second-team','inbox-other']);
+ const bulk={operation:'send',recipientIds:[member,'inbox-other'],attachmentIds:[file.id],subject:'Batch with briefer',body:'Please read the attached app briefer.',requestKey:randomUUID()};
+ const before=(await pg.query('SELECT count(*)::int AS n FROM "InboxMessage"')).rows[0].n;
+ assert.equal((await post('organizer',{...bulk,recipientIds:[member,'missing-member'],requestKey:randomUUID()})).status,400);
+ assert.equal((await post('organizer',{...bulk,attachmentIds:['missing-file'],requestKey:randomUUID()})).status,400);
+ assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxMessage"')).rows[0].n,before);
+ const firstTeam=(await pg.query('SELECT "teamId" FROM "EventMembership" WHERE id=$1',[member])).rows[0].teamId;
+ await pg.query('UPDATE "EventMembership" SET "teamId"=$1 WHERE id=$2',[firstTeam,'inbox-other']);
+ assert.equal((await post('organizer',{...bulk,requestKey:randomUUID()})).status,400,'Two recipients in the same team must not be sent');
+ await pg.query('UPDATE "EventMembership" SET "teamId"=$1 WHERE id=$2',['inbox-second-team','inbox-other']);
+ const batchResponses=await Promise.all([post('organizer',bulk),post('organizer',bulk)]);assert(batchResponses.every(r=>r.status===200));const batch=await batchResponses[0].json();assert.equal(batch.ids.length,2);
+ assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxMessage"')).rows[0].n,before+2);
+ assert.equal((await pg.query('SELECT count(DISTINCT "batchId")::int AS n FROM "InboxMessage" WHERE id=ANY($1)',[batch.ids])).rows[0].n,1);
+ assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxMessageAttachment" WHERE "attachmentId"=$1',[file.id])).rows[0].n,2);
+ for(const role of ['agent','other']){const messages=(await (await get(api,role)).json()).messages;const message=messages.find(m=>batch.ids.includes(m.id));assert(message);assert.equal(message.attachments[0].id,file.id);assert.equal((await get(download,role)).status,200);assert.equal(await (await get(download,role)).text(),pdf);assert.equal((await post(role,{operation:'respond',id:message.id,response:role==='agent'?'YES':'NO',requestKey:randomUUID()})).status,200);}
+ const answers=(await pg.query('SELECT response FROM "InboxMessage" WHERE id=ANY($1) ORDER BY response',[batch.ids])).rows.map(r=>r.response);assert.deepEqual(answers,['NO','YES']);
+ assert.equal((await fetch(origin+download,{method:'DELETE',headers:{cookie:cookies.organizer,origin}})).status,409,'Sent attachments must not be deleted');
+ const spare=await (await upload('organizer','notes.txt','A spare draft')).json();assert.equal((await fetch(origin+fileApi+'/'+spare.id,{method:'DELETE',headers:{cookie:cookies.organizer,origin}})).status,200);
+ assert.equal((await get(fileApi+'/'+spare.id,'organizer')).status,404);
  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['PAUSED',event]);assert.equal((await post('organizer',{...command,requestKey:randomUUID()})).status,409);
+ assert.equal((await upload('organizer')).status,409);assert.equal((await get(download)).status,200);
  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',event]);
  await pg.query('UPDATE "EventMembership" SET active=false WHERE id=$1',[member]);assert.equal((await get(api)).status,403);
  await pg.query('UPDATE "EventMembership" SET active=true WHERE id=$1',[member]);
@@ -57,5 +93,5 @@ try{
  const back=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:'agent@example.test',password:env.SEED_PASSWORD,returnTo:link}),redirect:'manual'});assert.equal(back.headers.get('location'),origin+link);
  assert.equal((await get('/api/events/missing/inbox')).status,403);
  await pg.query('UPDATE "Event" SET "archivedAt"=NOW() WHERE id=$1',[event]);assert.equal((await post('organizer',{...command,requestKey:randomUUID()})).status,409);assert.equal((await get(api)).status,200);
- console.log('PASS: private inbox, organizer copies/status, immutable Yes/No, duplicate/concurrent requests, safe email links, login return, retry, permissions, pause/archive and missing email configuration.');
+ console.log('PASS: private inbox, bulk one-per-team selection, atomic concurrent batch send, shared private attachments/download/delete, upload bounds/type/replay, independent Yes/No, organizer copies/status, login return, permissions and pause/archive.');
 }finally{if(app){app.kill();await new Promise(r=>app.once('exit',r));}await socket.stop();await pg.close();}

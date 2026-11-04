@@ -181,7 +181,7 @@ try{
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
-  if(process.env.INBOX_BROWSER_ONLY){await inboxBrowser({role,pg,event,evaluate,visit,check});continue;}
+  if(process.env.INBOX_BROWSER_ONLY){await inboxBrowser({role,pg,event,evaluate,visit,check,cmd});continue;}
   if(process.env.WAKE_BROWSER_ONLY){await verifyWakeLock({evaluate,visit,check,cmd,event,auditContrast});continue;}
   if(process.env.JUDGED_OVERALL_BROWSER_ONLY){await judgedOverallBrowser({role,pg,event,evaluate,visit,check});continue;}
   if(process.env.SQUAD_HANDLERS_BROWSER_ONLY){await squadHandlersBrowser({role,pg,event,timerTeam,evaluate,visit,check});continue;}

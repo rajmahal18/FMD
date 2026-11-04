@@ -49,4 +49,35 @@
 .inbox-error{color:#ffa4a8;padding:12px 0}.inbox-success{color:#83d6b2;padding:12px 0}
 .inbox-pending{border-left:3px solid #f5cb83;padding:12px 16px;margin-bottom:20px;background:#3a2d18;color:#ffe0a6}
 .inbox-back{display:none}
+.inbox-recipient-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.inbox-recipient-heading h3,.inbox-upload h3,.inbox-attachments h3{font:600 18px 'Source Sans 3',Arial,sans-serif;margin:12px 0;display:flex;align-items:center;gap:8px}
+.inbox-recipient-heading>span{font-size:14px;color:#83d6b2}
+.inbox-recipient-groups{max-height:320px;overflow-y:auto;overscroll-behavior:contain;border-block:1px solid #385166;margin:12px 0}
+.inbox-recipient-team{padding-bottom:8px}
+.inbox-recipient-team h4{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font:600 15px 'Source Sans 3',Arial,sans-serif;margin:0;padding:12px 4px;color:#f2f7fa}
+.inbox-recipient-team h4>span{font:400 12px 'Source Sans 3',Arial,sans-serif;color:#b0c2d1}
+.inbox-compose .management-form .inbox-recipient-option{display:flex;align-items:center;gap:12px;min-height:48px;padding:10px 12px;color:#f2f7fa;border-left:3px solid transparent;cursor:pointer;font-weight:400}
+.inbox-compose .inbox-recipient-option.chosen{background:#153e4c;border-left-color:#72d5e3}
+.inbox-workspace .inbox-recipient-option input{width:20px;height:20px;min-height:20px;flex:none;padding:0;margin:0;accent-color:#72d5e3}
+.inbox-recipient-option>span{overflow-wrap:anywhere;min-width:0}
+.inbox-recipient-review{list-style:none;padding:0;margin:12px 0 24px;max-height:240px;overflow-y:auto;border-block:1px solid #385166}
+.inbox-recipient-review li{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px 16px;padding:12px 0;overflow-wrap:anywhere}
+.inbox-recipient-review li>span{color:#b0c2d1;font-size:14px}
+.inbox-upload{border-top:1px solid #385166;padding-top:8px}
+.inbox-file-label input{padding:10px 0;font-size:14px}
+.inbox-file-label input::file-selector-button{min-height:44px;border:1px solid #57738a;border-radius:6px;background:#10243a;color:#bdeaf0;padding:8px 12px;margin-right:8px;cursor:pointer}
+.inbox-upload-list{list-style:none;padding:0;margin:12px 0;display:grid;gap:8px}
+.inbox-upload-list li{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #385166;min-width:0}
+.inbox-upload-list li>.spy-icon{color:#72d5e3;flex:none;margin-top:4px}
+.inbox-upload-list li>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.inbox-upload-list small{display:block;color:#b0c2d1;font-size:13px;margin-top:4px}
+.inbox-upload-list li>div{display:flex;gap:8px;flex-wrap:wrap}
+.inbox-attachments{border-top:1px solid #385166;margin-block:20px;padding-top:8px;min-width:0}
+.inbox-attachments>a{display:flex;align-items:center;gap:12px;min-height:56px;padding:12px 0;border-bottom:1px solid #385166;color:#bdeaf0;text-decoration:none}
+.inbox-attachments>a:hover{background:#15374a}
+.inbox-attachments>a>.spy-icon{color:#72d5e3;flex:none}
+.inbox-attachments>a>span:first-of-type{flex:1;min-width:0;overflow-wrap:anywhere}
+.inbox-attachments small{display:block;color:#b0c2d1;font-size:13px;margin-top:4px}
+.attachment-download{font-size:13px;flex:none}
+@media(max-width:480px){.inbox-upload-list li>div{flex-basis:100%;padding-left:30px}.attachment-download{font-size:12px}.inbox-recipient-groups{max-height:280px}.inbox-compose form>button[type=submit]{width:100%;min-height:52px;justify-content:center}}
 @media(max-width:767px){.inbox-layout{display:block}.inbox-detail{border-left:0;padding:0}.inbox-layout.has-message .inbox-list{display:none}.inbox-select-prompt{display:none}.inbox-back{display:inline-flex;margin:0 0 20px}.inbox-message-list{max-height:none;overflow:visible}.inbox-detail header h2{font-size:24px}.inbox-actions button{flex-basis:100%}.player-topbar .player-brand{min-width:0;font-size:18px}.player-topbar-actions{gap:4px;flex:none}}

@@ -71,3 +71,5 @@ Participant mission opens directly without local navigation tabs. Stations and T
 
 
 Handheld task hierarchy uses a navy shell with cyan primary actions, amber waiting/approval cues, green confirmed results and muted secondary tools. Current station/team names use readable body-family display weight; status text includes an icon. Participant location and scan action include station/QR icons. Facilitator timing separates running cyan from stopped green; review and confirmation remain explicit. Avoid duplicate progress steppers. Touch targets remain at least 44px and fixed navigation keeps safe-area clearance.
+
+Inbox composition groups selectable names by team in a searchable, bounded list with at least 44px rows. Keep one selected participant per assigned team and show selected/team coverage inline. Review lists the complete recipient selection and attachments before sending. Attachments use compact filename/size rows with a paperclip and a readable Download action. Mobile review, upload errors and long filenames must wrap within the page; keep the existing dock safe space.
