@@ -1,3 +1,4 @@
+import {shareResult} from './result-sharing-helpers.mjs';
 import {PGlite} from '@electric-sql/pglite';
 import {PGLiteSocketServer} from '@electric-sql/pglite-socket';
 import {spawn} from 'node:child_process';
@@ -27,7 +28,7 @@ try{
  const created=await post('organizer',{operation:'createContest',name:'Live Gala',instructions:'Private judge notes',config,judgeIds:[judge1,'judge2']});assert.equal(created.status,200);const id=(await created.json()).targetId;
  const other=await post('organizer',{operation:'createContest',name:'Other hidden contest',config,judgeIds:[judge1]});assert.equal(other.status,200);
  const contest=async(role='organizer')=>(await read(role)).contests.find(c=>c.id===id);
- assert.equal((await contest()).facilitatorVisibility,'PUBLISHED');assert.equal((await read('observer')).contests.length,0);assert.equal((await read('agent')).contests.length,0);
+ assert.equal((await contest()).facilitatorVisibility,'HIDDEN');assert.equal((await read('observer')).contests.length,0);assert.equal((await read('agent')).contests.length,0);
  assert.equal((await post('organizer',{operation:'open',contestId:id,revision:1})).status,200);
  const visibility={operation:'setVisibility',contestId:id,visibilityRevision:1,facilitatorVisibility:'LIVE',participantVisibility:'HIDDEN',requestKey:randomUUID()};
  assert.equal((await post('facilitator',visibility)).status,403);assert.equal((await post('agent',visibility)).status,403);
@@ -48,12 +49,13 @@ try{
  const finalize=async()=>{const data=await (await get(base+'/overall?view=draft')).json();return fetch(origin+base+'/overall',{method:'POST',headers:{cookie:cookies.organizer,origin,'content-type':'application/json'},body:JSON.stringify({operation:'finalize',revision:data.revision,config:data.config,expectedJudgingRevisions:{[id]:(await contest()).revision}})});};
  assert.equal((await finalize()).status,400,'Unpublished previews must not become official overall results');
  assert.equal((await post('organizer',{operation:'close',contestId:id,revision:2})).status,200);assert.equal((await post('organizer',{operation:'publish',contestId:id,revision:3})).status,200);assert.equal((await finalize()).status,200);
+ await shareResult({origin,eventId:event,cookie:cookies.organizer,key:'overall'});
  assert.equal((await (await get(base+'/overall','agent')).json()).published,true);
- assert.equal((await post('organizer',{operation:'setVisibility',contestId:id,visibilityRevision:3,facilitatorVisibility:'LIVE',participantVisibility:'HIDDEN'})).status,200);
+ assert.equal((await post('organizer',{operation:'setVisibility',contestId:id,visibilityRevision:4,facilitatorVisibility:'LIVE',participantVisibility:'HIDDEN'})).status,200);
  assert.equal((await read('agent')).contests.length,0);assert.equal((await (await get(base+'/overall','agent')).json()).published,false,'Hidden contest totals must not leak through overall results');assert.equal((await (await get(base+'/overall','observer')).json()).published,true);
- assert.equal((await post('organizer',{operation:'setVisibility',contestId:id,visibilityRevision:4,facilitatorVisibility:'HIDDEN',participantVisibility:'PUBLISHED'})).status,200);
- assert.equal((await read('observer')).contests.length,0);const own=await contest('facilitator');assert.equal(own.ownSheets.length,2);assert.deepEqual(own.results,[]);assert.equal(own.published,null);assert.equal((await (await get(base+'/overall','observer')).json()).published,false);assert.equal((await (await get(base+'/overall','agent')).json()).published,true);
- await pg.query('UPDATE "Event" SET "archivedAt"=NOW() WHERE id=$1',[event]);assert.equal((await post('organizer',{operation:'setVisibility',contestId:id,visibilityRevision:5,facilitatorVisibility:'LIVE',participantVisibility:'LIVE'})).status,409);
+ assert.equal((await post('organizer',{operation:'setVisibility',contestId:id,visibilityRevision:5,facilitatorVisibility:'HIDDEN',participantVisibility:'PUBLISHED'})).status,200);
+ assert.equal((await read('observer')).contests.length,0);const own=await contest('facilitator');assert.equal(own.ownSheets.length,2);assert.deepEqual(own.results,[]);assert.equal(own.published,null);assert.equal((await (await get(base+'/overall','observer')).json()).published,false);assert.equal((await (await get(base+'/overall','agent')).json()).published,false,'Re-showing a source must not silently reveal combined results');
+ await pg.query('UPDATE "Event" SET "archivedAt"=NOW() WHERE id=$1',[event]);assert.equal((await post('organizer',{operation:'setVisibility',contestId:id,visibilityRevision:6,facilitatorVisibility:'LIVE',participantVisibility:'LIVE'})).status,409);
  assert.equal((await get('/api/events/other/judging','observer')).status,403);
  console.log('PASS: automatic submitted-score averages, draft exclusion, independent per-contest role visibility, private sheets, live overall sources, publication/finalization guards, stale/replay controls, hidden-overall protection and archive/event scope.');
 }finally{if(app){app.kill();await new Promise(r=>app.once('exit',r));}await socket.stop();await pg.close();}

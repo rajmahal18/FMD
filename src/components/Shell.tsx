@@ -1,7 +1,8 @@
 import {RoleLabel} from "./RoleLabel";
 import {ScreenAwakeControl} from "./ScreenAwake";
 import {avatarUrl} from "@/lib/avatar";
-import {PersonName} from "./Avatar";
+import {PersonName,Avatar} from "./Avatar";
+import {ControllerAccount} from "./ControllerAccount";
 import {currentUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {runRevision} from '@/server/run-revision';
@@ -48,12 +49,12 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
       <div className="sidebar-intel-strip" aria-hidden="true">
         <img src="/theme/spy-icon-grid.png" alt="" width={280} height={210}/>
       </div>
-      {role==="FACILITATOR"?<details className="staff-account"><summary aria-label="Account" title="Account"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="9" r="3"/><path d="M5.5 18a7 7 0 0 1 13 0"/></svg></summary><div className="staff-account-menu"><strong>{name}</strong><Link prefetch={false} href="/account/password">Password &amp; access</Link><ScreenAwakeControl/><SignOutForm/></div></details>:<div className="rail-bottom">
+      {role==="FACILITATOR"?<details className="staff-account"><summary aria-label="Account" title="Account"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="9" r="3"/><path d="M5.5 18a7 7 0 0 1 13 0"/></svg></summary><div className="staff-account-menu"><strong>{name}</strong><Link prefetch={false} href="/account/password">Password &amp; access</Link><ScreenAwakeControl/><SignOutForm/></div></details>:<ControllerAccount className="player-account organizer-account"><summary aria-label="Account"><Avatar name={name} src={photo} size="small"/><span>Account</span></summary><div className="player-account-menu">
         <PersonName name={name} avatarUrl={photo}/>
         <span className="account-role"><RoleLabel role={role}/></span>
         <Link prefetch={false} className="account-link" href="/account/password">Password & access</Link>
         <ScreenAwakeControl/><SignOutForm/>
-      </div>}
+      </div></ControllerAccount>}
     </aside>
     <main className="content">
       <div className="content-hud-layer" aria-hidden="true"/>

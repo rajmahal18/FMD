@@ -1,3 +1,4 @@
+import {snapshotShared} from './result-sharing-policy';
 import {avatarUrl} from "@/lib/avatar";
 import 'server-only';
 import {db} from '@/lib/db';
@@ -18,11 +19,12 @@ export async function readVoting(actorId:string,eventId:string):Promise<VotingDa
  const m=await scope(tx,actorId,eventId),organizer=m.role==='ORGANIZER',people=await roster(tx,eventId),voter=people.find(p=>p.id===m.id)!;
  const polls=await tx.votingEvent.findMany({where:{eventId},include:{ballots:{include:{choices:true}}},orderBy:{createdAt:'desc'}});
  const visiblePeople=new Set<string>();
- const rows=polls.map(p=>{
+ const rows=await Promise.all(polls.map(async p=>{
+  const shared=!!p.publishedAt&&(organizer||await snapshotShared(tx,eventId,'voting:'+p.id,p.revision,m.role));
   const c=p.config as VotingConfig,own=p.ballots.find(b=>b.voterMembershipId===m.id),candidates=people.filter(person=>eligibleCandidate(c,voter,person));
   for(const person of candidates)visiblePeople.add(person.id);for(const choice of own?.choices??[])visiblePeople.add(choice.candidateMembershipId);
-  return {id:p.id,revision:p.revision,name:p.name,instructions:p.instructions,opensAt:p.opensAt.toISOString(),closesAt:p.closesAt.toISOString(),enabled:p.enabled,publishedAt:p.publishedAt?.toISOString()??null,config:organizer?c:null,status:votingStatus(p,m.event),eligible:eligibleVoter(c,voter),maxChoices:c.maxChoices,allowSelf:c.allowSelf,allowSameTeam:c.allowSameTeam,candidateIds:candidates.map(a=>a.id),...(c.categories?{categories:c.categories.map(group=>({...group,candidateIds:group.candidateIds.filter(id=>candidates.some(p=>p.id===id)||own?.choices.some(choice=>choice.candidateMembershipId===id))}))}:{}),ownChoices:own?own.choices.map(v=>v.candidateMembershipId):null,ballotCount:organizer||p.publishedAt?p.ballots.length:null,results:p.publishedAt?p.publishedResults as VotingPoll['results']:organizer?votingStandings(c,people,p.ballots.flatMap(b=>b.choices)):null};
- });
+  return {id:p.id,revision:p.revision,name:p.name,instructions:p.instructions,opensAt:p.opensAt.toISOString(),closesAt:p.closesAt.toISOString(),enabled:p.enabled,publishedAt:shared?p.publishedAt!.toISOString():null,config:organizer?c:null,status:!organizer&&p.publishedAt&&!shared?'Closed':votingStatus(p,m.event),eligible:eligibleVoter(c,voter),maxChoices:c.maxChoices,allowSelf:c.allowSelf,allowSameTeam:c.allowSameTeam,candidateIds:candidates.map(a=>a.id),...(c.categories?{categories:c.categories.map(group=>({...group,candidateIds:group.candidateIds.filter(id=>candidates.some(p=>p.id===id)||own?.choices.some(choice=>choice.candidateMembershipId===id))}))}:{}),ownChoices:own?own.choices.map(v=>v.candidateMembershipId):null,ballotCount:organizer||shared?p.ballots.length:null,results:shared?p.publishedResults as VotingPoll['results']:organizer?votingStandings(c,people,p.ballots.flatMap(b=>b.choices)):null};
+ }));
  return {eventId,actorId,membershipId:m.id,organizer,timezone:m.event.timezone,archived:!!m.event.archivedAt,eventState:m.event.state,people:organizer?people:people.filter(p=>visiblePeople.has(p.id)).map(({sex,...person})=>person),teams:organizer?await tx.team.findMany({where:{eventId},select:{id:true,name:true},orderBy:{name:'asc'}}):[],polls:rows,checkedAt:new Date().toISOString()};
  },{isolationLevel:'RepeatableRead',timeout:20000});}
 export async function votingAction(actorId:string,eventId:string,value:unknown){
@@ -73,7 +75,7 @@ export async function votingAction(actorId:string,eventId:string,value:unknown){
    }else{
     if(p!.enabled&&now<p!.closesAt)throw new InputError('Close voting or wait until its window ends before publishing.',409);
     const results=votingStandings(p!.config as VotingConfig,people,p!.ballots.flatMap(b=>b.choices));
-    await tx.votingEvent.update({where:{id},data:{enabled:false,publishedAt:now,publishedResults:results,revision:{increment:1}}});message='Final voting results published. Equal vote counts share rank.';
+    await tx.votingEvent.update({where:{id},data:{enabled:false,publishedAt:now,publishedResults:results,revision:{increment:1}}});message='Voting results approved. Share them from Results when ready.';
    }
    details={summary:message,name:p!.name};
   }

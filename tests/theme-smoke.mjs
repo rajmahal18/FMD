@@ -1,3 +1,5 @@
+import {resultCenterBrowser} from './result-center-browser.mjs';
+import {shareResult} from './result-sharing-helpers.mjs';
 import {judgingVisibilityBrowser} from "./judging-visibility-browser.mjs";
 import {categoryVotingBrowser} from "./category-voting-browser.mjs";
 import {inboxBrowser} from "./inbox-browser.mjs";
@@ -59,6 +61,7 @@ try{
  for(const role of ['ORGANIZER','FACILITATOR','PARTICIPANT']){const email=role==='PARTICIPANT'?'agent@example.test':role.toLowerCase()+'@example.test';await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) SELECT $1,$2,id,$3 FROM "User" WHERE email=$4',['overall-browser-'+role,publishedId,role,email]);}
  await pg.query('INSERT INTO "OverallRanking" ("eventId",config,finalized) VALUES ($1,$2,$3)',[publishedId,JSON.stringify(publicConfig),JSON.stringify({rows:publicRows,config:publicConfig,finalizedAt:new Date().toISOString()})]);
 
+ await pg.query('INSERT INTO "ResultSharing" ("eventId",key,"sourceRevision",facilitators,participants) VALUES ($1,$2,1,$3,$3)',[publishedId,'overall','PUBLISHED']);
  const timerTeam=(await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 AND name=$2 LIMIT 1',[event.id,'Delta'])).rows[0].id;
  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',event.id]);
  await pg.query('UPDATE "EventMembership" SET "isCaptain"=true WHERE "eventId"=$1 AND role=$2',[event.id,'PARTICIPANT']);
@@ -158,7 +161,7 @@ try{
  async function check(label,url,setup){
   for(const width of (process.env.TIME_PENALTY_BROWSER_ONLY?[320]:[320,390,768,1440])){
    await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});await visit(url);if(setup)await evaluate(setup);
-   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open],.station-detail-modal[open]")&&!e.closest(".error-modal,.station-detail-modal"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth-1||y<0||y>=innerHeight-1)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs,.program-tabs,.controller-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar")&&!e.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
+   const result=await evaluate(`(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,brokenImages:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).map(i=>i.getAttribute('src')),hud:document.querySelector('.content-hud-layer')?getComputedStyle(document.querySelector('.content-hud-layer')).position:null,nav:document.querySelector('.organizer-section-links,.shell-links')?getComputedStyle(document.querySelector('.organizer-section-links')||document.querySelector('.shell-links')).flexDirection:null,qr:document.querySelector('.station-sign')?getComputedStyle(document.querySelector('.station-sign')).backgroundColor:null,blocked:[...document.querySelectorAll('a[href],button:not(:disabled),input:not([type=hidden]),select')].filter(e=>{const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.querySelector(".error-modal[open],.station-detail-modal[open],.judging-dialog[open]")&&!e.closest(".error-modal,.station-detail-modal,.judging-dialog"))return false;if(r.width===0||r.height===0||x<0||x>=innerWidth-1||y<0||y>=innerHeight-1)return false;if(e.closest("details:not([open])")&&!e.closest("summary"))return false;const nav=e.closest(".organizer-section-links,.shell-links,.roster-tabs,.record-tabs,.program-tabs,.controller-tabs");if(nav){const n=nav.getBoundingClientRect();if(x<n.left||x>=n.right||y<n.top||y>=n.bottom)return false;}const hit=document.elementFromPoint(x,y);if(hit?.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar")&&!e.closest(".player-bottom-nav,.field-bottom-nav,.player-selection-bar"))return false;return !hit||!e.contains(hit);}).map(e=>e.textContent.trim().slice(0,40)||e.getAttribute('name'))}))()`);
    if(await evaluate("!!document.querySelector('.player-bottom-nav,.field-bottom-nav') && getComputedStyle(document.querySelector('.player-bottom-nav,.field-bottom-nav')).position==='fixed'")){
     await evaluate("window.scrollTo(0,document.documentElement.scrollHeight)");
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
@@ -294,10 +297,12 @@ try{
 
   if(process.env.JUDGING_BROWSER_ONLY){
    if(role==='organizer'){
-    await check('judging-setup','/events/'+event.id+'/judging-settings',"[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.includes('Add contest')).click()");
+    await check('judging-setup','/events/'+event.id+'/judging-settings',"(()=>{const select=document.querySelector('.record-picker select');select.value='new-contest';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
     await check('judging-organizer','/events/'+event.id+'/judging');
+    await check('judging-lineup-override','/events/'+event.id+'/judging',"document.querySelector('.judging-lineup').open=true");
+    await resultCenterBrowser({pg,event,evaluate,visit,check});
    }else if(role==='facilitator'){
-    await check('judging-score-sheet','/events/'+event.id+'/judging');assert.equal(await evaluate("document.querySelectorAll('[aria-label=\"Judging contests\"] [role=tab]').length"),1,'Only open assigned contests are listed');
+    await check('judging-score-sheet','/events/'+event.id+'/judging');assert.equal(await evaluate("document.querySelectorAll('.judging-workspace>.record-picker>section:not([hidden])').length"),1,'Only open assigned contests are listed');
     assert(await evaluate("!!document.querySelector('.field-bottom-nav a[href$=\"/judging\"]')"),'Assigned judges need a navigation entry');
     await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});await visit('/events/'+event.id+'/judging');
     await verifyJudgingInputs({evaluate,pg,event,check,cmd});
@@ -327,6 +332,7 @@ try{
     const other=await fetch(appOrigin+'/api/events/'+event.id+'/judging',{method:'POST',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify({operation:'submitScore',contestId:'judging-browser-gala',revision:1,version:0,candidateId:'judging-browser-bravo',scores:{story:26,quality:25,creativity:17,stage:18},runRevision:0,requestKey:crypto.randomUUID()})});assert.equal(other.status,200);
     const adminCookie=(await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:'organizer@example.test',password:env.SEED_PASSWORD}),redirect:'manual'})).headers.get('set-cookie').split(';')[0];
     for(const [operation,revision] of [['close',1],['publish',2]]){const r=await fetch(appOrigin+'/api/events/'+event.id+'/judging',{method:'POST',headers:{origin,cookie:adminCookie,'content-type':'application/json'},body:JSON.stringify({operation,revision,contestId:'judging-browser-gala',runRevision:0,requestKey:crypto.randomUUID()})});assert.equal(r.status,200);}
+    await shareResult({origin:appOrigin,requestOrigin:origin,eventId:event.id,cookie:adminCookie,key:'judging:judging-browser-gala'});
     await visit('/events/'+event.id);assert(await evaluate("location.pathname.endsWith('/judging')&&document.body.textContent.includes('No open judging events.')"));
     await evaluate("document.querySelector('.field-bottom-nav a[href$=\"/field\"]').click()");for(let i=0;i<60;i++){if(await evaluate("!!document.querySelector('.field-board-controller')"))break;await new Promise(r=>setTimeout(r,100));}assert(await evaluate("!!document.querySelector('.field-board-controller')"),'Judge station navigation must remain reachable');
 
@@ -460,7 +466,7 @@ try{
    continue;
   }
   if(process.env.LISTS_BROWSER_ONLY){
-   const clickTab=async(label,name)=>evaluate("(()=>{const list=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==="+JSON.stringify(label)+"&&e.getClientRects().length);const tab=[...list.children].find(e=>e.textContent.startsWith("+JSON.stringify(name)+"));tab.click();})()");
+   const clickTab=async(label,name)=>{if(label==='Activities')return evaluate("(()=>{const select=document.querySelector('.record-picker>label>select');const option=[...select.options].find(o=>o.textContent.startsWith("+JSON.stringify(name)+"));select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));})()");return evaluate("(()=>{const list=[...document.querySelectorAll('[role=tablist]')].find(e=>e.getAttribute('aria-label')==="+JSON.stringify(label)+"&&e.getClientRects().length);const tab=[...list.children].find(e=>e.textContent.startsWith("+JSON.stringify(name)+"));tab.click();})()");};
    const visibleForm=label=>"[...document.forms].find(f=>f.getClientRects().length&&[...f.querySelectorAll('button')].some(b=>b.textContent==="+JSON.stringify(label)+"))";
    await check('list-stations','/events/'+roster.id+'/stations');
    assert.equal(await evaluate("[...document.querySelectorAll('form')].filter(f=>f.getClientRects().length&&f.textContent.includes('Save station rules')).length"),1);
@@ -499,7 +505,7 @@ try{
    await evaluate("[...document.querySelectorAll('button')].find(b=>b.getClientRects().length&&b.textContent==='Save draft').click()");
    for(let i=0;i<40;i++){if((await pg.query('SELECT config FROM "OverallRanking" WHERE "eventId"=$1',[roster.id])).rows[0].config.events[1].name==='Edited sports name')break;await new Promise(r=>setTimeout(r,150));}
    assert.equal((await pg.query('SELECT config FROM "OverallRanking" WHERE "eventId"=$1',[roster.id])).rows[0].config.events[1].name,'Edited sports name');
-   await clickTab('Overall ranking sections','Team standings');assert.equal(await evaluate("[...document.querySelectorAll('.overall-standing')].filter(e=>e.getClientRects().length).length"),5);
+   await clickTab('Ranking rules','Team standings');assert.equal(await evaluate("[...document.querySelectorAll('.overall-standing')].filter(e=>e.getClientRects().length).length"),5);
    await check('list-voting','/events/'+roster.id+'/voting-settings');await clickTab('Voting events','Voting award 2');
    assert.equal(await evaluate("[...document.querySelectorAll('.voting-event')].filter(e=>e.getClientRects().length).length"),1);
    console.log('PASS: station/route/facilitator/activity/voting tabs, preserved unsaved edits, actual station save, search/empty state, team-scoped assignment and responsive lists.');continue;
@@ -860,7 +866,7 @@ try{
   }
 
   if(process.env.LIVE_OPERATIONS_BROWSER_ONLY)continue;
-  if(role!=='organizer'){await check(role+'-overall-published','/events/'+publishedId+'/overall');assert((await evaluate(`document.body.textContent`)).includes('Final overall standings'));await check(role+'-overall-sealed','/events/'+event.id+'/overall');assert((await evaluate(`document.body.textContent`)).includes('Overall results are not published yet'));}
+  if(role!=='organizer'){await check(role+'-overall-published','/events/'+publishedId+'/overall');assert((await evaluate(`document.body.textContent`)).includes('Combined standings'));await check(role+'-overall-sealed','/events/'+event.id+'/overall');assert((await evaluate(`document.body.textContent`)).includes('Combined results have not been shared yet'));}
   if(role==='organizer'){
    await check('overall','/events/'+roster.id+'/ranking-settings');
 

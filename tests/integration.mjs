@@ -1,3 +1,4 @@
+import {shareResult} from './result-sharing-helpers.mjs';
 import {verifySquadHandlers} from "./squad-handlers-integration.mjs";
 import {verifyRaceFlows} from "./race-flow-integration.mjs";
 import {PGlite} from '@electric-sql/pglite';import {PGLiteSocketServer} from '@electric-sql/pglite-socket';import {spawn} from 'node:child_process';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';
@@ -165,6 +166,7 @@ try{
  await command('addMember',{eventId:competition,name:'Facilitator',email:'facilitator@example.test',role:'FACILITATOR'});
  const competitionConfig={raceRule:'POINTS_TIME',events:[{id:'race',name:'Amazing Race',weight:40,source:'SPY',credits:[100,90],ranks:{}},{id:'other',name:'Unpublished activity placements',weight:60,source:'MANUAL',credits:[100,90],ranks:{[ta]:2,[tb]:1}}]};
  const postJson=async(path,body,cookie=cookies.organizer)=>{const r=await fetch(origin+path,{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body:JSON.stringify(body)});return {status:r.status,...await r.json()};};
+ const share=(eventId,key,facilitators='PUBLISHED',participants='PUBLISHED')=>shareResult({origin,eventId,cookie:cookies.organizer,key,facilitators,participants});
 
  // Judged contests: assignment-scoped sheets, equal-weight averages and audited publication.
  const judgedEvent=(await command('createEvent',{name:'Judging Rehearsal',timezone:'Asia/Manila'})).targetId;
@@ -222,10 +224,12 @@ try{
  assert.equal((await judgedOverall('finalize',1)).status,400,'Complete but unpublished judge sheets cannot finalize overall');
  assert.equal((await get('/api/events/'+judgedEvent+'/overall?view=draft',cookies.agent)).status,403);
  assert.equal((await jc('close')).status,200);const judgingPublishKey=crypto.randomUUID();assert.equal((await jc('publish',{},cookies.organizer,judgingPublishKey)).status,200);
+ assert.deepEqual((await judgingData(cookies.agent)).contests,[],'Approval must not reveal judging');await share(judgedEvent,'judging:'+contestId);
  const publishedJudging=(await judgingData(cookies.agent)).contests[0];assert.equal(publishedJudging.published.rows[0].average,22);assert.equal(publishedJudging.breakdown,undefined);assert.deepEqual(publishedJudging.ownSheets,[]);assert.deepEqual(publishedJudging.candidates,[]);
  assert(!JSON.stringify(publishedJudging).includes('Judge Two'));assert.equal((await get('/events/'+judgedEvent+'/judging',cookies.agent)).status,200);
  const firstPublication=(await pg.query('SELECT "publishedResults" FROM "JudgingContest" WHERE id=$1',[contestId])).rows[0].publishedResults;
  const autoOverall=await judgedOverall('finalize',1);assert.equal(autoOverall.status,200,JSON.stringify(autoOverall));assert.deepEqual(autoOverall.finalized.rows.map(r=>[r.value,r.rank]),[[88,1],[88,1]],'Overall uses actual 22/25 averages, not 100/90 credits');
+ assert.equal((await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json()).published,false,'Approval alone must not reveal combined results');await share(judgedEvent,'overall');
  const autoPublic=await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json();assert(autoPublic.published);assert(!JSON.stringify(autoPublic).includes('Judge Two'));assert(!JSON.stringify(autoPublic).includes('judgeMembershipId'));
 
  assert.equal((await jc('unpublish',{reason:'Correct a judging entry'})).status,200);assert.deepEqual((await judgingData(cookies.agent)).contests,[]);
@@ -235,6 +239,7 @@ try{
  assert.equal((await jc('submitScore',{candidateId:jt1,version:2,scores:{impact:10,harmony:10}},cookies.facilitator)).status,409);
  assert.equal((await jc('submitScore',{candidateId:jt1,version:3,scores:{impact:10,harmony:10}},cookies.facilitator)).status,200);
  assert.equal((await jc('close')).status,200);assert.equal((await jc('publish')).status,200);
+ assert.deepEqual((await judgingData(cookies.agent)).contests,[],'New revision must stay hidden');await share(judgedEvent,'judging:'+contestId);
  const secondPublication=(await judgingData(cookies.agent)).contests[0].published;assert.equal(secondPublication.rows[0].average,22.5);assert.equal(firstPublication.rows[0].average,22);
  const staleJudged=await (await get('/api/events/'+judgedEvent+'/overall?view=draft',cookies.organizer)).json();assert(staleJudged.stale);assert.equal((await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json()).published,false,'Re-publication does not silently republish an old overall snapshot');
  const reopenedJudged=await judgedOverall('reopen',staleJudged.revision);assert.equal(reopenedJudged.status,200);
@@ -296,6 +301,7 @@ try{
  assert.equal((await voting('setEnabled',{id:pollId,revision:1,enabled:false})).status,409);
  assert.equal((await voting('setEnabled',{id:pollId,revision:2,enabled:false})).status,200);
  assert.equal((await voting('publish',{id:pollId,revision:3})).status,200);
+ assert.equal((await (await get(votePath,cookies.agent)).json()).polls[0].results,null,'Approved vote counts stay hidden');await share(voteEvent,'voting:'+pollId);
  memberVote=await (await get(votePath,cookies.agent)).json();assert.equal(memberVote.polls[0].results[0].id,facId);assert.equal(memberVote.polls[0].results[0].votes,1);assert.equal(memberVote.polls[0].results[0].rank,1);assert.equal(memberVote.polls[0].results[1].rank,null);
  assert.equal((await voting('setEnabled',{id:pollId,revision:4,enabled:true})).status,409);
  assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "ScoreLedgerEntry" WHERE "eventId"=$1',[voteEvent])).rows[0].n,0);
@@ -322,6 +328,7 @@ try{
  assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "VotingBallot" WHERE "votingEventId"=$1',[scheduledId])).rows[0].n,2);
  assert.equal((await voting('setEnabled',{id:scheduledId,revision:5,enabled:false})).status,200);
  assert.equal((await voting('publish',{id:scheduledId,revision:6})).status,200);
+ await share(voteEvent,'voting:'+scheduledId);
  const ties=await (await get(votePath,cookies.agent)).json();assert(ties.polls.find(p=>p.id===scheduledId).results.every(r=>r.rank===1&&r.votes===1));
  const csrfVote=await fetch(origin+votePath,{method:'POST',headers:{cookie:cookies.agent,origin:'https://evil.test','content-type':'application/json'},body:JSON.stringify({operation:'cast',id:scheduledId,choices:[facId],requestKey:crypto.randomUUID()})});assert.equal(csrfVote.status,403);
  await pg.query('UPDATE "Event" SET "isDemo"=true WHERE id=$1',[voteEvent]);
@@ -405,7 +412,7 @@ try{
  const raceResultAction=async(operation)=>{const body={operation,reason:'Review competition result revision'};const preview=await postJson('/api/events/'+competition+'/results-preview',body);if(preview.status!==200)return preview;return postJson('/api/events/'+competition+'/results',{...body,previewToken:preview.token,requestKey:crypto.randomUUID()});};
  assert.equal((await competitionOverall('save',0)).status,200);
  const sealed=await get('/api/events/'+competition+'/overall',cookies.agent);assert.match(sealed.headers.get('cache-control'),/no-store/);assert.deepEqual(await sealed.json(),{published:false});
- const sealedPage=await (await get('/events/'+competition+'/overall',cookies.agent)).text();assert(sealedPage.includes('Overall results are not published yet'));assert(!sealedPage.includes('Unpublished activity placements'));
+ const sealedPage=await (await get('/events/'+competition+'/overall',cookies.agent)).text();assert(sealedPage.includes('Combined results have not been shared yet'));assert(!sealedPage.includes('Unpublished activity placements'));
  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['ENDED',competition]);
  assert.equal((await raceResultAction('finalizeResults')).status,409); // Missing complete routes/timing.
  assert.equal((await competitionOverall('save',1,{...competitionConfig,raceRule:'POINTS'})).status,409);
@@ -424,18 +431,20 @@ try{
  }
  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['ENDED',competition]);assert.equal((await raceResultAction('finalizeResults')).status,200);
  const published=await competitionOverall('finalize',2);assert.equal(published.status,200);assert.equal(published.finalized.sourceRevision,1);assert.equal(published.teams.find(t=>t.id===tb).raceRank,1);assert.equal(published.teams.find(t=>t.id===ta).raceRank,2);assert.equal(published.finalized.rows[0].id,tb);
+ assert.equal((await (await get('/api/events/'+competition+'/overall',cookies.agent)).json()).published,false);await share(competition,'race');await share(competition,'overall');
  const memberResults=await (await get('/api/events/'+competition+'/overall',cookies.agent)).json();assert.equal(memberResults.published,true);assert.equal(memberResults.rows[0].value,100);assert(!JSON.stringify(memberResults).includes('actorId'));assert.equal((await (await get('/api/events/'+competition+'/overall',cookies.facilitator)).json()).published,true);
- assert((await (await get('/events/'+competition+'/overall',cookies.agent)).text()).includes('Final overall standings'));
+ assert((await (await get('/events/'+competition+'/overall',cookies.agent)).text()).includes('Combined standings'));
+ await share(competition,'race','PUBLISHED','HIDDEN');assert.equal((await (await get('/api/events/'+competition+'/overall',cookies.agent)).json()).published,false,'Hidden race placements cannot leak through combined results');assert.equal((await (await get('/api/events/'+competition+'/overall',cookies.facilitator)).json()).published,true);await share(competition,'race');assert.equal((await (await get('/api/events/'+competition+'/overall',cookies.agent)).json()).published,false,'Showing race again must not silently restore combined access');await share(competition,'overall');
  assert.equal((await get('/api/events/'+competition+'/overall')).status,401);
  assert.equal((await raceResultAction('reopenFinalResults')).status,200);
  assert.deepEqual(await (await get('/api/events/'+competition+'/overall',cookies.agent)).json(),{published:false});
- assert((await (await get('/events/'+competition+'/overall',cookies.organizer)).text()).includes('Published overall results are hidden'));
+ assert((await (await get('/events/'+competition+'/overall',cookies.organizer)).text()).includes('Shared combined results are hidden'));
  const invalidated=(await pg.query('SELECT revision,finalized FROM "OverallRanking" WHERE "eventId"=$1',[competition])).rows[0];assert.equal(invalidated.revision,4);assert.equal(invalidated.finalized.stale,true);
  assert.equal((await competitionOverall('reopen',3)).status,409);
  assert.equal((await raceResultAction('finalizeResults')).status,200);
  assert.deepEqual(await (await get('/api/events/'+competition+'/overall',cookies.agent)).json(),{published:false}); // Race re-finalization does not silently republish overall.
  assert.equal((await competitionOverall('reopen',4)).status,200);
- assert.equal((await competitionOverall('finalize',5)).status,200);
+ assert.equal((await competitionOverall('finalize',5)).status,200);await share(competition,'race');await share(competition,'overall');
  assert.equal((await (await get('/api/events/'+competition+'/overall',cookies.agent)).json()).published,true);
  await pg.query('UPDATE "EventMembership" SET active=false WHERE "eventId"=$1 AND "userId"=(SELECT id FROM "User" WHERE email=$2)',[competition,'agent@example.test']);assert.equal((await get('/api/events/'+competition+'/overall',cookies.agent)).status,403);
  console.log('PASS: Overall publication privacy, finalized race placement source, explicit ranking rules, stale invalidation, hidden stale results and audited re-finalization.');

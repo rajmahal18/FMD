@@ -349,3 +349,5 @@ button:hover,.button:hover{background:linear-gradient(135deg,#b7f7ff,#63e6ff);tr
 @media print{.station-signs{display:block}.station-signs .station-sign{break-after:page;page-break-after:always;background:#fff!important}.station-signs .station-sign:last-child{break-after:auto;page-break-after:auto}}
 
 .mission-program-entry{margin-top:24px;padding:20px 0;border-top:1px solid var(--line);min-width:0}.mission-program-entry a{display:inline-flex;align-items:center;gap:8px;min-height:44px;flex-wrap:wrap}.mission-program-entry p{margin:4px 0;overflow-wrap:anywhere}
+
+.judging-lineup-options{max-height:18rem;overflow-y:auto;margin-block:12px}.judging-lineup fieldset,.judging-lineup section{min-width:0}.judging-lineup .judging-review div{flex-wrap:wrap}.judging-lineup dd{overflow-wrap:anywhere}.judging-lineup button{margin:8px 8px 8px 0;max-width:100%;white-space:normal}

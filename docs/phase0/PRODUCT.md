@@ -100,3 +100,8 @@ Submitted judging scores update organizer contest/Overall previews automatically
 ## Judge entry and open scoring policy
 
 Judges enter their assigned open contests first. New scores and criterion maxima use whole numbers. Submitted sheets may be reviewed and resubmitted while Open; the last submitted version continues to count while edits are local. Replacements are versioned, atomic and audited, not additional judge votes. Organizer Close scoring locks changes; pause/archive and all existing identity/assignment checks remain enforced. Closed/draft/published contests stay outside the judge scoring list, while separate standings follow result visibility policies. Existing stored fractional scores/publications retain their exact data.
+
+
+## Explicit results sharing
+
+Approval and audience release are separate. New race, combined and voting snapshots stay hidden until an organizer reviews and confirms the exact audience and result. Judging defaults to Hidden; explicitly enabled live scores remain live. Combined results cannot expose a hidden included source. Reopening and approving a new snapshot never silently restores its previous release. Existing revealed results are preserved by migration. See [RESULTS_REDESIGN.md](../RESULTS_REDESIGN.md) for the hierarchy, state rules and validation.

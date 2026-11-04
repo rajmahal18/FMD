@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 export async function judgingVisibilityBrowser({role,pg,event,evaluate,visit,check}){
- const base='/events/'+event.id,results=base+'/judging?view=results';
+ const base='/events/'+event.id,results=base+'/judging?view=results&contest=visibility-browser';
  const wait=async fn=>{for(let i=0;i<220;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Automatic standings update timed out');};
  if(role==='organizer'){
   const judge=(await pg.query('SELECT m.id FROM "EventMembership" m JOIN "User" u ON u.id=m."userId" WHERE m."eventId"=$1 AND u.email=$2',[event.id,'facilitator@example.test'])).rows[0].id;
@@ -13,11 +13,14 @@ export async function judgingVisibilityBrowser({role,pg,event,evaluate,visit,che
   for(const memberId of [judge,'visibility-browser-judge2'])await pg.query('INSERT INTO "JudgingAssignment" ("eventId","contestId","membershipId") VALUES ($1,$2,$3)',[event.id,'visibility-browser',memberId]);
   for(let i=0;i<teams.length;i++)await pg.query('INSERT INTO "JudgingScore" (id,"eventId","contestId","judgeMembershipId","candidateId",scores,"totalHundredths","submittedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())',['partial-'+i,event.id,'visibility-browser',judge,teams[i],JSON.stringify({impact:80-i*20}),(80-i*20)*100]);
   await pg.query('UPDATE "OverallRanking" SET config=$1,finalized=NULL WHERE "eventId"=$2',[JSON.stringify({raceRule:'POINTS',events:[{id:'gala',name:'Gala',source:'JUDGING',contestId:'visibility-browser',weight:100,credits:[100,90],ranks:{}}]}),event.id]);
-  await check('judging-visibility-controls',base+'/judging',"document.querySelector('.judging-visibility').open=true");
-  await evaluate("(()=>{const section=[...document.querySelectorAll('.judging-visibility section')].find(s=>s.querySelector('h4').textContent==='Participants');section.querySelectorAll('input')[0].click();section.querySelectorAll('input')[1].click();[...document.querySelectorAll('button')].find(b=>b.textContent==='Save results visibility').click();})()");
+  await check('judging-visibility-controls',base+'/results?share=judging%3Avisibility-browser');
+  await evaluate("(()=>{const select=document.querySelector('.result-sharing-fields select');select.value='LIVE';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await evaluate("[...document.querySelectorAll('.judging-dialog button')].find(b=>b.textContent==='Review sharing changes').click()");
+  await wait(()=>evaluate("!!document.querySelector('.result-sharing-summary')"));
+  await evaluate("[...document.querySelectorAll('.judging-dialog button')].find(b=>b.textContent==='Confirm sharing changes').click()");
   await wait(async()=>(await pg.query('SELECT "participantVisibility" FROM "JudgingContest" WHERE id=$1',['visibility-browser'])).rows[0].participantVisibility==='LIVE');
   assert.equal((await pg.query('SELECT revision FROM "JudgingContest" WHERE id=$1',['visibility-browser'])).rows[0].revision,1);
-  await check('judging-live-overall',base+'/overall',"[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent==='Team standings').click()");
+  await check('judging-live-overall',base+'/overall');
   assert(await evaluate("document.querySelector('#overall-standings').textContent.includes('80%')"));
   await visit(base+'/ranking-settings');
   await evaluate("(()=>{const input=document.querySelector('.overall-event input[maxlength]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Unsaved gala label');input.dispatchEvent(new Event('input',{bubbles:true}));[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent==='Team standings').click();})()");
@@ -25,8 +28,8 @@ export async function judgingVisibilityBrowser({role,pg,event,evaluate,visit,che
   await wait(()=>evaluate("document.querySelector('#overall-standings').textContent.includes('85%')"));
   assert(await evaluate("document.querySelector('.overall-event input[maxlength]').value==='Unsaved gala label'"),'Live score refresh must preserve unsaved configuration');
   await visit(base+'/overall');
-  assert(await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Finalize overall results').disabled"));
-  await check('judging-complete-unpublished',base+'/judging');assert(await evaluate("document.querySelector('.judging-results h3').textContent==='Complete standings'"));
+  assert(await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Approve combined results').disabled"));
+  await check('judging-complete-unpublished',results);assert(await evaluate("document.querySelector('.judging-results h3').textContent==='Complete standings'"));
   // Verify organizer judging itself polls without a manual refresh.
   await pg.query('UPDATE "JudgingScore" SET "totalHundredths"=10000,scores=$1 WHERE id=$2',[JSON.stringify({impact:100}),'complete-0']);
   await wait(()=>evaluate("[...document.querySelectorAll('.judging-average')].some(e=>e.textContent.includes('90 /')||e.textContent.includes('90/'))"));
@@ -34,7 +37,7 @@ export async function judgingVisibilityBrowser({role,pg,event,evaluate,visit,che
   await check('judging-facilitator-work',base+'/judging');assert(await evaluate("!!document.querySelector('.judging-score-sheet')&&!document.querySelector('.judging-shared-results').open"));
   await check('judging-facilitator-standings',results);assert(!(await evaluate("!!document.querySelector('.judging-score-sheet')")));
   await evaluate("document.querySelector('.judging-result-row').click()");assert(!(await evaluate("!!document.querySelector('.judging-breakdown')")));await evaluate("document.querySelector('.judging-dialog button').click()");
-  await visit(base);await evaluate("document.querySelector('.player-account').open=true");assert(await evaluate("!!document.querySelector('.player-account-menu a[href$=\"/judging?view=results\"]')"));
+  await visit(base);await evaluate("document.querySelector('.player-account').open=true");assert(await evaluate("!!document.querySelector('.player-account-menu a[href$=\"/results\"]')"));
  }else{
   await check('judging-participant-visible',results);assert(await evaluate("!!document.querySelector('.judging-result-row')"));assert(!(await evaluate("!!document.querySelector('.judging-visibility,.judging-score-sheet')")));
   await pg.query('UPDATE "JudgingContest" SET "participantVisibility"=$1,"visibilityRevision"="visibilityRevision"+1 WHERE id=$2',['HIDDEN','visibility-browser']);

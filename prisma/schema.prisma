@@ -62,6 +62,7 @@ model EmailOtp {
  @@index([expiresAt])
 }
 model Event {
+ resultSharing ResultSharing[]
  inboxAttachments InboxAttachment[]
  inboxMessages InboxMessage[]
  id String @id @default(cuid())
@@ -103,6 +104,17 @@ model Event {
  routeChanges RouteChange[]
  resultRevisions ResultRevision[]
  @@index([archivedAt])
+}
+
+model ResultSharing {
+ eventId String
+ key String
+ sourceRevision Int
+ revision Int @default(1)
+ facilitators String @default("HIDDEN")
+ participants String @default("HIDDEN")
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ @@id([eventId,key])
 }
 
 model OverallRanking {
@@ -206,8 +218,8 @@ model InboxDelivery {
 }
 
 model JudgingContest {
- facilitatorVisibility String @default("PUBLISHED")
- participantVisibility String @default("PUBLISHED")
+ facilitatorVisibility String @default("HIDDEN")
+ participantVisibility String @default("HIDDEN")
  visibilityRevision Int @default(1)
  id String @id @default(cuid())
  eventId String
