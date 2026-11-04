@@ -89,3 +89,6 @@ Organizers can send an individually addressed offer with a subject and message. 
 
 Offer composition supports one atomic batch to multiple participants, at most one from each assigned team per send, with a complete recipient preview. Each message and response remains private and independent; the recipient list is organizer-only. Optional private attachments are shared across the batch, downloadable only by authorized recipients/organizers, and included in offer/copy emails. Upload validation, limits and idempotency apply on the server. These offers do not assign Double Agent permissions or mechanics.
 
+## Categorized individual voting
+
+Organizers may select Male & Female categories for a single award such as Agents of the Night. Explicit candidate-category assignments are saved with award rules; profile M/F values are setup suggestions only. Voters select exactly one eligible candidate per category and submit both as one atomic final ballot. Rankings and ties are independent per category, and published snapshots preserve assignments. Existing generic polls retain their original rules. See ../VOTING_EVENTS.md.

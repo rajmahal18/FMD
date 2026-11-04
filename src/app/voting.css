@@ -40,3 +40,25 @@
 
 .player-shell .voting-ballot-review .secondary{color:#10243a;background:#fff;border-color:#789ba6}
 .player-shell .voting-ballot-review .secondary:hover{color:#10243a;background:#dcecef}
+.voting-category{padding:20px 0;border-top:1px solid #385166;margin-top:20px;min-width:0}
+.voting-category>header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.voting-category h3{font:600 22px 'Source Sans 3',Arial,sans-serif;margin:0;color:#f2f7fa}
+.category-selected,.category-needed{font-size:13px;padding:5px 9px;border-radius:4px}
+.category-selected{background:#123e31;color:#b8f2d4}.category-needed{background:#3a2d18;color:#ffe0a6}
+.category-current{color:#83d6b2;font-weight:600;margin:10px 0}
+.voting-category .voting-candidates{max-height:320px;margin-block:12px}
+.category-ballot>fieldset>button[type=submit]{min-height:52px;width:100%;justify-content:center;font-size:17px}
+.category-choices{display:grid;gap:12px;margin:16px 0}
+.category-choices>div{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:baseline}
+.category-choices dt{font-size:14px;font-weight:600}.category-choices dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.voting-receipt .category-choices{color:#d4f0df}
+.voting-result-category h3{font:600 21px 'Source Sans 3',Arial,sans-serif;color:#bdeaf0;margin-top:24px}
+.voting-candidate-config{border-bottom:1px solid #385166;padding:6px 0;min-width:0}
+.voting-candidate-config>.check{border:0!important}
+.voting-workspace .candidate-category-label{display:grid;gap:6px;font-size:13px;padding:0 0 10px 30px;min-height:0;border:0!important;overflow-wrap:anywhere}
+.voting-category-review details{border-top:1px solid #9db5bf;padding:8px 0}
+.voting-category-review summary{color:#10243a;min-height:44px;align-content:center;cursor:pointer}
+.voting-category-review ul{max-height:180px;overflow-y:auto;padding-left:20px}
+.candidate-category-label select{min-width:0;width:100%;max-width:100%;min-height:44px;font:inherit}
+.category-ballot .voting-category input[type=radio]{accent-color:#247988}
+@media(max-width:480px){.voting-category .voting-candidates{max-height:280px}.voting-candidate-config>.check{flex-wrap:wrap}.voting-candidate-config>.check>.person-name{min-width:0}.voting-workspace .candidate-category-label{padding-left:0}}

@@ -1,0 +1,17 @@
+'use client';
+import {useState} from 'react';
+import {PersonName} from './Avatar';
+import {profileVotingCategory,type VotingConfig,type VotingPerson} from '@/lib/voting';
+export function assignVotingCandidates(config:VotingConfig,people:VotingPerson[],candidateIds:string[],categorized=!!config.categories):Partial<VotingConfig>{
+ if(!categorized)return {candidateIds,categories:undefined};
+ const assigned=new Map(config.categories?.flatMap(g=>g.candidateIds.map(id=>[id,g.id] as const))??[]);
+ return {candidateIds,maxChoices:2,categories:(['MALE','FEMALE'] as const).map(id=>({id,name:id==='MALE'?'Male':'Female',candidateIds:candidateIds.filter(candidateId=>(assigned.get(candidateId)??profileVotingCategory(people.find(p=>p.id===candidateId)?.sex))===id)}))};
+}
+export function VotingCandidates({config,people,patch}:{config:VotingConfig;people:VotingPerson[];patch:(value:Partial<VotingConfig>)=>void}){
+ const [search,setSearch]=useState(''),active=people.filter(p=>p.active);
+ const select=(ids:string[])=>patch(assignVotingCandidates(config,active,ids));
+ const assign=(candidateId:string,category:string)=>patch({categories:config.categories!.map(g=>({...g,candidateIds:[...g.candidateIds.filter(id=>id!==candidateId),...(g.id===category?[candidateId]:[])]}))});
+ return <fieldset className="voting-candidate-setup"><legend>Candidates</legend><div className="voting-actions"><button type="button" className="secondary" onClick={()=>select(active.filter(p=>p.role==='PARTICIPANT').map(p=>p.id))}>Select all participants</button><button type="button" className="secondary" disabled={!active.some(p=>p.squadHandlerTeamId)} onClick={()=>select([...new Set([...config.candidateIds,...active.filter(p=>p.squadHandlerTeamId).map(p=>p.id)])])}>Include squad handlers</button><button type="button" className="secondary" onClick={()=>select([])}>Clear candidates</button></div>
+ {config.categories&&<p className="notice">Review each candidate’s category. Profile data fills known values; assign any missing categories before saving.</p>}
+ <label>Find a person<input type="search" value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="voting-roster">{active.filter(p=>(p.name+' '+(p.teamName??'')+' '+(p.squadHandlerTeamName??'')+' '+(p.squadHandlerTeamId?'squad handler':'')).toLowerCase().includes(search.toLowerCase())).map(p=><div className="voting-candidate-config" key={p.id}><label className="check"><input type="checkbox" checked={config.candidateIds.includes(p.id)} onChange={e=>select(e.target.checked?[...config.candidateIds,p.id]:config.candidateIds.filter(id=>id!==p.id))}/><PersonName name={p.name} avatarUrl={p.avatarUrl}/>{p.squadHandlerTeamId&&<span className="tag">Squad handler - {p.squadHandlerTeamName}</span>}{p.teamName&&` · ${p.teamName}`}</label>{config.categories&&config.candidateIds.includes(p.id)&&<label className="candidate-category-label"><span className="sr-only">Category for {p.name}</span><select aria-label={`Category for ${p.name}`} value={config.categories.find(g=>g.candidateIds.includes(p.id))?.id??''} onChange={e=>assign(p.id,e.target.value)} required><option value="">Assign category</option><option value="MALE">Male</option><option value="FEMALE">Female</option></select></label>}</div>)}</div><p>{config.candidateIds.length} candidates selected{config.categories&&` · ${config.categories[0]?.candidateIds.length??0} Male / ${config.categories[1]?.candidateIds.length??0} Female`}</p></fieldset>;
+}

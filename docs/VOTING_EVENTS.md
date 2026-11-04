@@ -25,3 +25,13 @@ Published result snapshots remain stable. Events with voting history cannot be d
 ## Validation
 
 Unit tests cover eligibility modes, self/team restrictions, distinct choices/limits, valid schedules and pause/archive handling. Integration checks exercise real authenticated APIs, member privacy, permissions, scheduling, post-race ballots, idempotence/concurrent retries, immutable rules, tied final snapshots and demo reset. `VOTING_BROWSER_ONLY=1 node tests/theme-smoke.mjs` covers actual setup, the 93-person roster, enabling, player ballot/review/receipt, ineligible staff and publication at 320/390/768/1440 px.
+
+## Agents of the Night / Male & Female
+
+Choose Ballot format > Male & Female - one submission in voting setup. A blank award name becomes Agents of the Night; the name can still be edited. Select candidates and review each person's Male/Female category. Known M/F profile values provide suggestions; missing values require explicit organizer assignment. Category assignment is event configuration, never inferred from names, and does not modify profiles. Each candidate belongs to exactly one category, both need candidates, and every eligible voter must have an eligible candidate in each under the existing self/team rules.
+
+Participants choose one candidate in each of two sections, review both, then submit one final ballot. One ballot and two choices commit atomically; partial ballots and two choices from one category are rejected by the server. Search retains selections. Receipts label each choice by category. Assignments lock after the first ballot and remain stable if profiles change.
+
+Organizer preview and published results rank Male and Female candidates independently. Positive equal totals share rank within their category; zero-vote candidates remain unranked. Published snapshots retain category, name, votes and rank. Generic polls and existing publications remain unchanged. No schema migration is needed; rules and snapshots use existing JSON fields.
+
+Validation: node tests/category-voting-integration.mjs checks combined ballots, partitions, frozen assignments, atomic retries and result snapshots. After building, set CATEGORY_VOTING_BROWSER_ONLY=1 and run node tests/theme-smoke.mjs for actual setup, voting, receipts and separate results at 320/390/768/1440px. Tests use isolated databases.

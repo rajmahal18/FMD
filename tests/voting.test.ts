@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {parseVotingInput,eligibleVoter,eligibleCandidate,validateBallot,votingStatus,type VotingConfig,type VotingPerson} from '../src/lib/voting';
+import {parseVotingInput,eligibleVoter,eligibleCandidate,validateBallot,votingStatus,completeCandidatePool,votingStandings,profileVotingCategory,type VotingConfig,type VotingPerson} from '../src/lib/voting';
 const config:VotingConfig={voterMode:'PARTICIPANTS',voterRoles:[],voterTeamIds:[],voterMembershipIds:[],candidateIds:['one','two','faci'],maxChoices:1,allowSelf:false,allowSameTeam:true};
 const one:VotingPerson={id:'one',name:'One',role:'PARTICIPANT',teamId:'red',teamName:'Red',active:true};
 const two:VotingPerson={...one,id:'two',name:'Two',teamId:'blue'};
@@ -16,6 +16,21 @@ test('assigned squad handlers can be candidates or explicit voters without becom
  assert(!eligibleVoter({...config,voterMode:'SQUAD_HANDLERS'},faci));
  assert(!eligibleVoter({...config,voterMode:'SQUAD_HANDLERS'},{...handler,active:false}));
  assert(!eligibleVoter({...config,voterMode:'TEAMS',voterTeamIds:['red']},handler));
+});
+test('Male/Female ballot requires one choice from each category in one submission',()=>{
+ const c:VotingConfig={...config,candidateIds:['m1','m2','f1','f2'],maxChoices:2,categories:[{id:'MALE',name:'Male',candidateIds:['m1','m2']},{id:'FEMALE',name:'Female',candidateIds:['f1','f2']}]};
+ const people=c.candidateIds.map(id=>({...two,id}));
+ assert.deepEqual(validateBallot(['m1','f1'],c,one,people),['f1','m1']);
+ for(const choices of [[],['m1'],['f1'],['m1','m2'],['f1','f2'],['m1','f1','f2'],['m1','m1']])assert.throws(()=>validateBallot(choices,c,one,people));
+ assert(completeCandidatePool(c,one,people));assert(!completeCandidatePool(c,one,people.filter(p=>p.id.startsWith('m'))));
+ const input={name:'Agents of the Night',instructions:'',opensAt:'2026-10-20T10:00:00Z',closesAt:'2026-10-20T11:00:00Z',config:c};assert.equal(parseVotingInput(input).config.categories?.length,2);
+ for(const categories of [[c.categories![0]],[c.categories![0],{...c.categories![1],candidateIds:[]}],[c.categories![0],{...c.categories![1],candidateIds:['m1','f1','f2']}],[{...c.categories![0],candidateIds:['m1']},c.categories![1]]])assert.throws(()=>parseVotingInput({...input,config:{...c,categories}}));
+});
+test('category results rank independently with shared ties, zero-vote rows and frozen category assignments',()=>{
+ const c:VotingConfig={...config,candidateIds:['m1','m2','m3','f1','f2'],maxChoices:2,categories:[{id:'MALE',name:'Male',candidateIds:['m1','m2','m3']},{id:'FEMALE',name:'Female',candidateIds:['f1','f2']}]};
+ const rows=votingStandings(c,c.candidateIds.map(id=>({...two,id,sex:'F'})),['m1','m2','f1','f1'].map(candidateMembershipId=>({candidateMembershipId})));
+ assert.deepEqual(rows.map(r=>[r.id,r.category,r.rank]),[['m1','MALE',1],['m2','MALE',1],['m3','MALE',null],['f1','FEMALE',1],['f2','FEMALE',null]]);
+ assert.equal(profileVotingCategory('M'),'MALE');assert.equal(profileVotingCategory('female'),'FEMALE');assert.equal(profileVotingCategory(null),null);assert.equal(profileVotingCategory('unknown'),null);
 });
 test('voter scopes support participants, roles, teams and explicit individuals',()=>{
  assert(eligibleVoter(config,one));assert(!eligibleVoter(config,faci));

@@ -1,9 +1,10 @@
 import {InputError} from './validation';
 export type VotingRole='PARTICIPANT'|'FACILITATOR'|'ORGANIZER';
-export type VotingConfig={voterMode:'PARTICIPANTS'|'ROLES'|'TEAMS'|'PEOPLE'|'SQUAD_HANDLERS';voterRoles:VotingRole[];voterTeamIds:string[];voterMembershipIds:string[];candidateIds:string[];maxChoices:number;allowSelf:boolean;allowSameTeam:boolean};
-export type VotingPerson={id:string;name:string;avatarUrl?:string|null;role:VotingRole;teamId:string|null;teamName:string|null;active:boolean;squadHandlerTeamId?:string|null;squadHandlerTeamName?:string|null};
+export type VotingCategory={id:'MALE'|'FEMALE';name:string;candidateIds:string[]};
+export type VotingConfig={voterMode:'PARTICIPANTS'|'ROLES'|'TEAMS'|'PEOPLE'|'SQUAD_HANDLERS';voterRoles:VotingRole[];voterTeamIds:string[];voterMembershipIds:string[];candidateIds:string[];maxChoices:number;allowSelf:boolean;allowSameTeam:boolean;categories?:VotingCategory[]};
+export type VotingPerson={id:string;name:string;avatarUrl?:string|null;role:VotingRole;teamId:string|null;teamName:string|null;active:boolean;sex?:string|null;squadHandlerTeamId?:string|null;squadHandlerTeamName?:string|null};
 export type VotingInput={name:string;instructions:string;opensAt:string;closesAt:string;config:VotingConfig};
-export type VotingPoll={id:string;revision:number;name:string;instructions:string;opensAt:string;closesAt:string;enabled:boolean;publishedAt:string|null;config:VotingConfig|null;status:string;eligible:boolean;maxChoices:number;allowSelf:boolean;allowSameTeam:boolean;candidateIds:string[];ownChoices:string[]|null;ballotCount:number|null;results:{id:string;name:string;votes:number;rank:number|null}[]|null};
+export type VotingPoll={id:string;revision:number;name:string;instructions:string;opensAt:string;closesAt:string;enabled:boolean;publishedAt:string|null;config:VotingConfig|null;status:string;eligible:boolean;maxChoices:number;allowSelf:boolean;allowSameTeam:boolean;candidateIds:string[];categories?:VotingCategory[];ownChoices:string[]|null;ballotCount:number|null;results:{id:string;name:string;votes:number;rank:number|null;category?:'MALE'|'FEMALE'}[]|null};
 export type VotingData={eventId:string;actorId:string;membershipId:string;organizer:boolean;timezone:string;archived:boolean;eventState:string;people:VotingPerson[];teams:{id:string;name:string}[];polls:VotingPoll[];checkedAt:string};
 function ids(value:unknown,max=1000):string[]{if(!Array.isArray(value)||value.length>max||value.some(v=>typeof v!=='string'||!v||v.length>120)||new Set(value).size!==value.length)throw new InputError('Choose distinct people or teams from this event.');return value;}
 export function parseVotingInput(value:unknown):VotingInput{
@@ -18,17 +19,39 @@ export function parseVotingInput(value:unknown):VotingInput{
  const candidateIds=ids(c.candidateIds),voterMembershipIds=ids(c.voterMembershipIds),voterTeamIds=ids(c.voterTeamIds),voterRoles=ids(c.voterRoles,3) as VotingRole[];
  if(candidateIds.length<2||(c.maxChoices as number)>candidateIds.length)throw new InputError('Choose at least two candidates; the choice limit cannot exceed the candidate count.');
  if(voterRoles.some(r=>!['PARTICIPANT','FACILITATOR','ORGANIZER'].includes(r))||c.voterMode==='ROLES'&&!voterRoles.length||c.voterMode==='TEAMS'&&!voterTeamIds.length||c.voterMode==='PEOPLE'&&!voterMembershipIds.length)throw new InputError('Select who may vote.');
- return {name:v.name.trim(),instructions:v.instructions.trim(),opensAt:v.opensAt as string,closesAt:v.closesAt as string,config:{voterMode:c.voterMode as VotingConfig['voterMode'],voterRoles,voterTeamIds,voterMembershipIds,candidateIds,maxChoices:c.maxChoices as number,allowSelf:c.allowSelf,allowSameTeam:c.allowSameTeam}};
+ let categories:VotingCategory[]|undefined;
+ if(c.categories!==undefined){
+  if(!Array.isArray(c.categories)||c.categories.length!==2||c.maxChoices!==2)throw new InputError('Male & Female voting requires two categories and one choice in each.');
+  const categoryInputs=c.categories;
+  categories=(['MALE','FEMALE'] as const).map(id=>{
+   const category=categoryInputs.find((item:unknown)=>!!item&&typeof item==='object'&&(item as Record<string,unknown>).id===id) as Record<string,unknown>|undefined;
+   if(!category)throw new InputError('Include both Male and Female categories.');
+   const members=ids(category.candidateIds);if(!members.length)throw new InputError(`Select candidates for the ${id==='MALE'?'Male':'Female'} category.`);
+   return {id,name:id==='MALE'?'Male':'Female',candidateIds:members};
+  });
+  const assigned=categories.flatMap(c=>c.candidateIds);
+  if(new Set(assigned).size!==assigned.length||assigned.length!==candidateIds.length||assigned.some(id=>!candidateIds.includes(id)))throw new InputError('Assign every selected candidate to exactly one Male or Female category.');
+ }
+ return {name:v.name.trim(),instructions:v.instructions.trim(),opensAt:v.opensAt as string,closesAt:v.closesAt as string,config:{voterMode:c.voterMode as VotingConfig['voterMode'],voterRoles,voterTeamIds,voterMembershipIds,candidateIds,maxChoices:c.maxChoices as number,allowSelf:c.allowSelf,allowSameTeam:c.allowSameTeam,...(categories?{categories}:{})}};
 }
 export function eligibleVoter(c:VotingConfig,p:VotingPerson){return p.active&&(c.voterMode==='SQUAD_HANDLERS'?p.role==='FACILITATOR'&&!!p.squadHandlerTeamId:c.voterMode==='PARTICIPANTS'?p.role==='PARTICIPANT':c.voterMode==='ROLES'?c.voterRoles.includes(p.role):c.voterMode==='TEAMS'?!!p.teamId&&c.voterTeamIds.includes(p.teamId):c.voterMembershipIds.includes(p.id));}
 export function votingTeam(p:VotingPerson){return p.teamId??p.squadHandlerTeamId??null;}
 export function eligibleCandidate(c:VotingConfig,voter:VotingPerson,candidate:VotingPerson){return candidate.active&&c.candidateIds.includes(candidate.id)&&(c.allowSelf||voter.id!==candidate.id)&&(c.allowSameTeam||!votingTeam(voter)||votingTeam(voter)!==votingTeam(candidate));}
+export function completeCandidatePool(c:VotingConfig,voter:VotingPerson,people:VotingPerson[]){return (c.categories??[{candidateIds:c.candidateIds}]).every(group=>people.some(p=>group.candidateIds.includes(p.id)&&eligibleCandidate(c,voter,p)));}
+export function profileVotingCategory(sex:string|null|undefined){const value=sex?.trim().toUpperCase();return value==='M'||value==='MALE'?'MALE':value==='F'||value==='FEMALE'?'FEMALE':null;}
+export function votingStandings(c:VotingConfig,people:VotingPerson[],choices:{candidateMembershipId:string}[]):NonNullable<VotingPoll['results']>{
+ return (c.categories??[{candidateIds:c.candidateIds}]).flatMap(group=>{
+  const rows=group.candidateIds.map(id=>({id,name:people.find(p=>p.id===id)?.name??'Former event member',votes:choices.filter(v=>v.candidateMembershipId===id).length,rank:null as number|null,...('id' in group?{category:group.id}:{})})).sort((a,b)=>b.votes-a.votes||a.name.localeCompare(b.name));
+  for(let i=0;i<rows.length;i++)if(rows[i].votes>0)rows[i].rank=i>0&&rows[i-1].votes===rows[i].votes?rows[i-1].rank:i+1;return rows;
+ });
+}
 export function votingStatus(p:{enabled:boolean;publishedAt:Date|string|null;opensAt:Date|string;closesAt:Date|string},event:{archivedAt:Date|null;state:string},now=new Date()){
  if(p.publishedAt)return 'Published';if(event.archivedAt)return 'Archived';if(event.state==='PAUSED')return 'Paused';if(!p.enabled)return 'Closed';if(now<new Date(p.opensAt))return 'Scheduled';if(now>=new Date(p.closesAt))return 'Ended';return 'Open';
 }
 export function validateBallot(value:unknown,c:VotingConfig,voter:VotingPerson,people:VotingPerson[]){
  const choices=ids(value,50);if(!eligibleVoter(c,voter))throw new InputError('You are not eligible to vote in this event.',403);
  if(!choices.length||choices.length>c.maxChoices)throw new InputError(`Select 1 to ${c.maxChoices} candidates.`);
+ if(c.categories&&(choices.length!==2||c.categories.some(group=>choices.filter(id=>group.candidateIds.includes(id)).length!==1)))throw new InputError('Choose exactly one Male and one Female candidate before submitting.');
  if(choices.some(id=>!people.some(p=>p.id===id&&eligibleCandidate(c,voter,p))))throw new InputError('One or more selected candidates are not eligible. Refresh the candidate list.',409);
  return choices.sort();
 }
