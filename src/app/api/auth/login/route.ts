@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { hashPassword,verifyPassword,tokenHash } from "@/lib/password";
 import { isSameOrigin } from "@/lib/policy";
-import { sessionCookie,sessionLifetimeMs } from "@/lib/auth";
+import { sessionCookie,sessionLifetimeMs,defaultEntryPath } from "@/lib/auth";
 import {accountQrRoles, playerAccessPath, validPlayerCode} from "@/lib/player-access";
 export const runtime="nodejs";
 const dummy=hashPassword(randomBytes(32).toString("hex"));
@@ -26,6 +26,7 @@ export async function POST(request:NextRequest){
  if(!user?.active||!ok)return fail("credentials");
  const token=randomBytes(32).toString("base64url");const expiresAt=new Date(Date.now()+sessionLifetimeMs);
  await db().$transaction([db().session.create({data:{tokenHash:tokenHash(token),userId:user.id,expiresAt}}),db().auditEntry.create({data:{actorId:user.id,action:"SIGN_IN"}})]);
- const response=NextResponse.redirect(new URL(user.mustChangePassword?`/account/password${returnTo?`?returnTo=${encodeURIComponent(returnTo)}`:""}`:returnTo||"/workspace",expected),303);
+ const destination=returnTo||await defaultEntryPath(user.id);
+ const response=NextResponse.redirect(new URL(user.mustChangePassword?`/account/password${destination!=="/workspace"?`?returnTo=${encodeURIComponent(destination)}`:""}`:destination,expected),303);
  response.cookies.set(sessionCookie,token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",expires:expiresAt});return response;
 }

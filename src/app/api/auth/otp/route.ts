@@ -5,7 +5,7 @@ import {tokenHash} from "@/lib/password";
 import {isSameOrigin} from "@/lib/policy";
 import {safeReturnPath} from "@/lib/race";
 import {accountQrRoles,validPlayerCode,playerAccessPath} from "@/lib/player-access";
-import {sessionCookie,sessionLifetimeMs} from "@/lib/auth";
+import {sessionCookie,sessionLifetimeMs,defaultEntryPath} from "@/lib/auth";
 import nodemailer from "nodemailer";
 
 export const runtime="nodejs";
@@ -78,7 +78,8 @@ export async function POST(request:NextRequest){
    await tx.emailOtp.delete({where:{id}});
    await tx.session.create({data:{tokenHash:tokenHash(token),userId:user.id,expiresAt}});
    await tx.auditEntry.create({data:{actorId:user.id,action:"SIGN_IN_EMAIL_OTP"}});
-   return {redirect:user.mustChangePassword?`/account/password?returnTo=${encodeURIComponent(challenge.returnTo)}`:challenge.returnTo};
+   const destination=challenge.returnTo==="/workspace"?await defaultEntryPath(user.id,tx):challenge.returnTo;
+   return {redirect:user.mustChangePassword?`/account/password?returnTo=${encodeURIComponent(destination)}`:destination};
   });
   if(!result)return failure("Code is invalid, expired, or has reached its attempt limit. Request a new code.");
   const response=NextResponse.json(result,{headers:{"Cache-Control":"no-store"}});

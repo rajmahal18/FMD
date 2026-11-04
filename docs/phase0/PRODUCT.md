@@ -96,3 +96,7 @@ Organizers may select Male & Female categories for a single award such as Agents
 ## Judging result audiences
 
 Submitted judging scores update organizer contest/Overall previews automatically, including partial averages. Final publication/finalization remains explicit. Each judging contest has independent facilitator and participant audience settings: hidden, published-only (default), or live submitted aggregates. Facis access standings through a secondary Account link and folded section below scoring; participants only receive allowed contest aggregates. Drafts and other judges' individual sheets remain private. Hide policies apply to direct APIs and linked overall publications. Visibility revisions are independent from scoring revisions so audience changes do not discard active judge inputs.
+
+## Judge entry and open scoring policy
+
+Judges enter their assigned open contests first. New scores and criterion maxima use whole numbers. Submitted sheets may be reviewed and resubmitted while Open; the last submitted version continues to count while edits are local. Replacements are versioned, atomic and audited, not additional judge votes. Organizer Close scoring locks changes; pause/archive and all existing identity/assignment checks remain enforced. Closed/draft/published contests stay outside the judge scoring list, while separate standings follow result visibility policies. Existing stored fractional scores/publications retain their exact data.

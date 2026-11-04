@@ -9,14 +9,15 @@ export function judgingResultsVisible(policy:JudgingVisibility,published:boolean
 export type JudgingContestData={id:string;name:string;instructions:string;state:string;revision:number;config:JudgingConfig;candidates:JudgingCandidate[];judgeIds?:string[];judgeCount:number;assigned:boolean;locked:boolean;ownSheets:JudgingSheet[];results:JudgingRow[];published:JudgingPublished|null;resultsVisible?:boolean;resultsStatus?:'HIDDEN'|'PARTIAL'|'COMPLETE'|'PUBLISHED';facilitatorVisibility?:JudgingVisibility;participantVisibility?:JudgingVisibility;visibilityRevision?:number;breakdown?:{judgeId:string;judgeName:string;candidateId:string;scores:Record<string,number>;total:number;submittedAt:string}[]};
 export type JudgingData={eventId:string;actorMembershipId:string;role:string;eventState:string;archived:boolean;runRevision:number;contests:JudgingContestData[];teams:JudgingCandidate[];people:{id:string;name:string;role:string;teamName:string|null;active:boolean;sex:string|null}[]};
 
-const precise=(value:number)=>Number.isFinite(value)&&Math.abs(value*100-Math.round(value*100))<0.000001;
+const precise=(value:number)=>Number.isSafeInteger(value);
+export function judgingNumber(value:number){return String(Number(value.toFixed(2)));}
 export function judgingInputError(raw:string,maximum:number,required=false):string|null{
  if(!raw.trim())return required?`Enter a score from 0 to ${maximum}.`:null;
  const value=Number(raw);
  if(!Number.isFinite(value))return 'Enter a valid number.';
  if(value<0)return 'Number cannot be less than 0.';
  if(value>maximum)return `Number cannot be more than ${maximum}.`;
- if(!precise(value))return 'Use no more than two decimal places.';
+ if(!precise(value))return 'Use whole numbers only.';
  return null;
 }
 export function judgingInputState(values:Record<string,string>,criteria:JudgingCriterion[]){
@@ -35,7 +36,7 @@ export function validateJudgingConfig(value:unknown):JudgingConfig{
  const criteria=c.criteria.map(row=>{
   if(!row||typeof row.id!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(row.id)||['__proto__','constructor','prototype'].includes(row.id)||ids.has(row.id))throw Error('Each criterion needs a unique identifier.');ids.add(row.id);
   if(typeof row.name!=='string'||!row.name.trim()||row.name.length>120||typeof row.description!=='string'||row.description.length>600)throw Error('Enter criterion names (up to 120 characters) and descriptions (up to 600).');
-  if(typeof row.maximum!=='number'||!precise(row.maximum)||row.maximum<=0||row.maximum>1000)throw Error('Each criterion maximum must be 0.01–1000, with at most two decimal places.');
+  if(typeof row.maximum!=='number'||!precise(row.maximum)||row.maximum<=0||row.maximum>1000)throw Error('Each criterion maximum must be a whole number from 1 to 1000.');
   return {id:row.id,name:row.name.trim(),description:row.description.trim(),maximum:row.maximum};
  });
  if(criteria.reduce((sum,c)=>sum+Math.round(c.maximum*100),0)>1000000)throw Error('Total maximum must not exceed 10,000 points.');
@@ -47,7 +48,7 @@ export function validateJudgingScores(value:unknown,criteria:JudgingCriterion[],
  for(const [id,value] of Object.entries(input)){
   const criterion=criteria.find(c=>c.id===id);
   if(!criterion)throw Error('The criteria changed. Refresh the score sheet.');
-  if(typeof value!=='number'||!precise(value)||value<0||Math.round(value*100)>Math.round(criterion.maximum*100))throw Error(`${criterion.name}: enter 0–${criterion.maximum}, with at most two decimal places.`);
+  if(typeof value!=='number'||!precise(value)||value<0||Math.round(value*100)>Math.round(criterion.maximum*100))throw Error(`${criterion.name}: enter 0–${criterion.maximum}, using whole numbers only.`);
   scores[id]=value;
  }
  if(submit&&criteria.some(c=>!Object.hasOwn(scores,c.id)))throw Error('Score every criterion before submitting. Zero is a valid score.');

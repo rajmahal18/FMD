@@ -297,7 +297,7 @@ try{
     await check('judging-setup','/events/'+event.id+'/judging-settings',"[...document.querySelectorAll('[role=tab]')].find(t=>t.textContent.includes('Add contest')).click()");
     await check('judging-organizer','/events/'+event.id+'/judging');
    }else if(role==='facilitator'){
-    await check('judging-score-sheet','/events/'+event.id+'/judging');
+    await check('judging-score-sheet','/events/'+event.id+'/judging');assert.equal(await evaluate("document.querySelectorAll('[aria-label=\"Judging contests\"] [role=tab]').length"),1,'Only open assigned contests are listed');
     assert(await evaluate("!!document.querySelector('.field-bottom-nav a[href$=\"/judging\"]')"),'Assigned judges need a navigation entry');
     await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});await visit('/events/'+event.id+'/judging');
     await verifyJudgingInputs({evaluate,pg,event,check,cmd});
@@ -315,12 +315,24 @@ try{
     await evaluate("(()=>{const d=document.querySelector('.judging-dialog');d.scrollTop=d.scrollHeight;[...d.querySelectorAll('button')].find(b=>b.textContent==='Confirm & submit score').click();})()");
     for(let i=0;i<50;i++){if((await pg.query('SELECT "submittedAt" FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0]?.submittedAt)break;await new Promise(r=>setTimeout(r,100));}
     assert.equal((await pg.query('SELECT "totalHundredths" FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0].totalHundredths,8900);
+    for(let i=0;i<60;i++){if(await evaluate("!![...document.querySelectorAll('.judging-score-sheet button')].find(b=>b.textContent==='Review changes')"))break;await new Promise(r=>setTimeout(r,100));}
+    assert(await evaluate("!document.querySelector('.judging-score-sheet input[type=number]').disabled"),'Submitted sheets remain editable while open');
+    await evaluate("(()=>{const input=document.querySelector('.judging-score-sheet input[type=number]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'28');input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+    await evaluate("[...document.querySelectorAll('.judging-score-sheet button')].find(b=>b.textContent==='Review changes').click()");
+    await evaluate("[...document.querySelectorAll('.judging-dialog button')].find(b=>b.textContent==='Confirm & update score').click()");
+    for(let i=0;i<60;i++){if((await pg.query('SELECT "totalHundredths" FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0].totalHundredths===9000)break;await new Promise(r=>setTimeout(r,100));}
+    assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0].n,1);
+    assert.equal((await pg.query('SELECT "totalHundredths" FROM "JudgingScore" WHERE "contestId"=$1',['judging-browser-gala'])).rows[0].totalHundredths,9000);
+
     const other=await fetch(appOrigin+'/api/events/'+event.id+'/judging',{method:'POST',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify({operation:'submitScore',contestId:'judging-browser-gala',revision:1,version:0,candidateId:'judging-browser-bravo',scores:{story:26,quality:25,creativity:17,stage:18},runRevision:0,requestKey:crypto.randomUUID()})});assert.equal(other.status,200);
     const adminCookie=(await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:'organizer@example.test',password:env.SEED_PASSWORD}),redirect:'manual'})).headers.get('set-cookie').split(';')[0];
     for(const [operation,revision] of [['close',1],['publish',2]]){const r=await fetch(appOrigin+'/api/events/'+event.id+'/judging',{method:'POST',headers:{origin,cookie:adminCookie,'content-type':'application/json'},body:JSON.stringify({operation,revision,contestId:'judging-browser-gala',runRevision:0,requestKey:crypto.randomUUID()})});assert.equal(r.status,200);}
+    await visit('/events/'+event.id);assert(await evaluate("location.pathname.endsWith('/judging')&&document.body.textContent.includes('No open judging events.')"));
+    await evaluate("document.querySelector('.field-bottom-nav a[href$=\"/field\"]').click()");for(let i=0;i<60;i++){if(await evaluate("!!document.querySelector('.field-board-controller')"))break;await new Promise(r=>setTimeout(r,100));}assert(await evaluate("!!document.querySelector('.field-board-controller')"),'Judge station navigation must remain reachable');
+
    }else{
     await check('judging-published','/events/'+event.id+'/judging');
-    assert(await evaluate("document.querySelector('.judging-results').textContent.includes('89.00')"));
+    assert(await evaluate("document.querySelector('.judging-results').textContent.includes('90')"));
     await evaluate("document.querySelector('.judging-result-row').click()");await new Promise(r=>setTimeout(r,100));assert(await evaluate("document.querySelector('.judging-dialog').textContent.includes('Individual judge sheets remain private')"));
    }
    continue;
@@ -579,7 +591,7 @@ try{
    await evaluate("document.querySelector('.field-bottom-nav a[href$=\"#field-history\"]').click()");await evaluate("document.querySelector('.field-bottom-nav a:not([href*=judging])').click()");
    assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');
    await evaluate("window.__controllerNavigation='same-document';document.querySelector('.field-bottom-nav a[href$=\"/people\"]').click()");await wait(()=>evaluate("!!document.querySelector('.roster-tabs')"));
-   await evaluate("document.querySelector('.field-bottom-nav a[href=\""+base+"\"]').click()");await wait(()=>evaluate("!!document.querySelector('.station-team textarea')"));
+   await evaluate("document.querySelector('.field-bottom-nav a[href=\""+base+"/field\"]').click()");await wait(()=>evaluate("!!document.querySelector('.station-team textarea')"));
    assert.equal(await evaluate('window.__controllerNavigation'),'same-document');
    await wait(()=>evaluate("document.querySelector('.station-team textarea').value==='Keep this facilitator draft'"));
    await visit(base);assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');

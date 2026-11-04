@@ -29,7 +29,7 @@ export async function judgingVisibilityBrowser({role,pg,event,evaluate,visit,che
   await check('judging-complete-unpublished',base+'/judging');assert(await evaluate("document.querySelector('.judging-results h3').textContent==='Complete standings'"));
   // Verify organizer judging itself polls without a manual refresh.
   await pg.query('UPDATE "JudgingScore" SET "totalHundredths"=10000,scores=$1 WHERE id=$2',[JSON.stringify({impact:100}),'complete-0']);
-  await wait(()=>evaluate("[...document.querySelectorAll('.judging-average')].some(e=>e.textContent.includes('90.00'))"));
+  await wait(()=>evaluate("[...document.querySelectorAll('.judging-average')].some(e=>e.textContent.includes('90 /')||e.textContent.includes('90/'))"));
  }else if(role==='facilitator'){
   await check('judging-facilitator-work',base+'/judging');assert(await evaluate("!!document.querySelector('.judging-score-sheet')&&!document.querySelector('.judging-shared-results').open"));
   await check('judging-facilitator-standings',results);assert(!(await evaluate("!!document.querySelector('.judging-score-sheet')")));

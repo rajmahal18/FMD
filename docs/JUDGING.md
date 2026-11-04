@@ -10,15 +10,15 @@ Judge flow:
 
 - Assigned facilitators receive **Judge** in their event navigation and can also open the Judging desk from Account. Unassigned facilitators cannot access private contests or submit scores.
 - Select a contest and team/nominee. Enter each criterion's points, such as Stage impact `9 / 10` and Harmony `10 / 15`.
-- Each criterion offers a synchronized number input and slider. Inline validation checks its own maximum, nonnegative values and two decimal places as the judge edits. Invalid values cannot be saved or submitted and are excluded from the running total. Blank scores stay incomplete; zero is an explicit valid score.
+- Each criterion offers a synchronized number input and slider. Inline validation checks its own maximum, nonnegative values and whole-number entry as the judge edits. Invalid values cannot be saved or submitted and are excluded from the running total. Blank scores stay incomplete; zero is an explicit valid score.
 - **Save draft** preserves incomplete work without counting it. Unsaved input can also be retained in tab-local session storage scoped to identity, event run, contest revision, entrant and score version; it is never treated as confirmed data.
-- **Review score → Confirm & submit score** validates every criterion and locks the sheet. Judges see only their own sheets, even after publication. Only organizers see the full breakdown.
+- **Review score → Confirm & submit score** submits the complete sheet; judges can review and resubmit while the contest is Open. Judges see only their own sheets, even after publication. Only organizers see the full breakdown.
 
 ## Rules and results
 
 The supplied percentage weights become criterion maximum points. Each Gala template totals 100: Banner, War Cry/Chant, Gala Showcase Performance, Squad Look, and Male/Female Agents of the Night. Templates do not automatically create contests, select nominees or open scoring. In particular, Chant is optional because the source program notes say no chant presentation. Individual nominees must be explicitly selected by the organizer; category titles do not silently assign people by gender.
 
-Scores accept zero and up to two decimal places within `0..criterion maximum`. Integer hundredths preserve exact totals. A judge total is the sum of criterion scores; an entrant's final score is the equal-weight average of all assigned judges' submitted totals. Drafts and missing sheets are not zero scores. Publication requires the complete judge × entrant matrix. Exact ties share competition rank (`1, 1, 3`); rounding the displayed average does not introduce a tiebreak.
+New scores accept whole numbers within `0..criterion maximum`. Integer hundredths preserve exact totals. A judge total is the sum of criterion scores; an entrant's final score is the equal-weight average of all assigned judges' submitted totals. Drafts and missing sheets are not zero scores. Publication requires the complete judge × entrant matrix. Exact ties share competition rank (`1, 1, 3`); rounding the displayed average does not introduce a tiebreak.
 
 Criteria, entrants and judge assignments lock after the first saved draft or score. Before scoring, close the contest before changing its configuration. An organizer may close scoring, withdraw a publication with a reason, reopen a specific submitted judge/entrant sheet with a reason, and open scoring for resubmission. Previous scores and publication snapshots are preserved in the audit. Publishing saves an aggregate snapshot; event members see published totals, never private judge sheets.
 
@@ -51,3 +51,15 @@ Facilitators use Account > Judging standings for the secondary results view, sep
 Visibility changes are organizer-only, audited, event/run scoped, idempotent and guarded by a separate visibility revision. They do not change contest/scoring revisions or invalidate judges' active drafts. Changes remain available after scoring/publication; archive blocks writes. Reset checkpoints include visibility fields and reset preserves the policies with contest setup. Apply migration 20261104160000_judging_result_visibility before deploying this version.
 
 Validation: npm test, node tests/judging-visibility-integration.mjs, and JUDGING_VISIBILITY_BROWSER_ONLY=1 node tests/theme-smoke.mjs after building. Browser checks cover actual toggle/save, organizer and overall auto refresh without reloading, private facilitator views, participant hiding during polling and 320/390/768/1440px layouts.
+
+## Whole-number scoring and editing until close
+
+New criterion maxima and score entries use whole numbers only. Number inputs and sliders step by 1 and the server rejects fractional drafts/submissions. Score displays omit redundant .00; aggregate averages retain meaningful precision and exact ranking comparisons. Existing stored scores and publications are never rounded or rewritten.
+
+Judges see only their assigned OPEN contests in the scoring desk. Submitted sheets remain editable while scoring is OPEN and the parent event permits scoring. Changes remain local until Review changes > Confirm & update score; the prior submission continues to count until the replacement commits. Updates modify the same versioned sheet and preserve before/after scores in audit, so repeated submissions never add another judge contribution. Save draft is not available on a submitted sheet and the server rejects it rather than withdrawing that submission.
+
+Organizer Close scoring locks editing immediately on the server. Paused/archived events also block edits. Race end alone does not stop Gala judging. Reopening scoring permits judges to update their existing submissions again; published contests must first follow the existing explicit withdrawal/reopen process. Version, contest revision, assignment, membership, run boundary and idempotency checks still apply, including concurrent submit/close requests.
+
+Facilitators with active judging assignments land on the judging desk when entering an event. Password and email-code sign-in go directly there when the account has one active, unarchived event; multiple-event accounts keep event selection. Explicit inbox, check-in and other supported return links still take precedence, and first-time password changes preserve the judge destination. Station and History links use the direct /field route so judges with station duties can leave the judging desk without a redirect loop. Standings remain a separate, audience-controlled view. No new schema migration is needed.
+
+Validation: node tests/judging-editing-integration.mjs and JUDGING_BROWSER_ONLY=1 node tests/theme-smoke.mjs after building cover integer-only scores, edit/resubmit, private drafts, organizer close/pause locking, default login/OTP entry, station access, replay/version/close races and mobile layouts.

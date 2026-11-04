@@ -82,12 +82,12 @@ export async function judgingCommand(actorId:string,eventId:string,value:unknown
    if(!candidates(config,all).some(c=>c.id===candidateId&&c.active))throw new InputError('This entrant is not eligible for this contest.',403);
    const existing=contest!.scores.find(s=>s.judgeMembershipId===m.id&&s.candidateId===candidateId);
    if(!Number.isSafeInteger(v.version)||v.version!==(existing?.version??0))throw new InputError('This score sheet changed on another screen. Reload before saving.',409);
-   if(existing?.submittedAt)throw new InputError('This score is submitted. Ask the organizer to reopen it with a reason.',409);
+   if(existing?.submittedAt&&operation==='saveDraft')throw new InputError('This sheet is already submitted. Review and resubmit your changes while scoring is open.',409);
    let checked;try{checked=validateJudgingScores(v.scores,config.criteria,operation==='submitScore');}catch(e){throw new InputError((e as Error).message);}
    const data={scores:checked.scores,totalHundredths:checked.totalHundredths,submittedAt:operation==='submitScore'?new Date():null};
    if(existing)await tx.judgingScore.update({where:{id:existing.id},data:{...data,version:{increment:1}}});else await tx.judgingScore.create({data:{...data,eventId,contestId:contest!.id,judgeMembershipId:m.id,candidateId}});
    details={candidateId,judgeMembershipId:m.id,before:existing?{scores:existing.scores,submittedAt:existing.submittedAt?.toISOString()??null}:null,after:{scores:checked.scores,submitted:operation==='submitScore'}};
-   message=operation==='submitScore'?'Score submitted. It counts once in the equal-weight judge average.':'Draft saved. It does not count until submitted.';
+   message=operation==='submitScore'?(existing?.submittedAt?'Submitted score updated.':'Score submitted. You can update it until the organizer closes scoring.'):'Draft saved. It does not count until submitted.';
   }else{
    const c=contest!,config=c.config as JudgingConfig;
    if(operation==='open'){

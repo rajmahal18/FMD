@@ -191,7 +191,7 @@ try{
  const createdJudging=await jc('createContest',newContest);assert.equal(createdJudging.status,200);contestId=createdJudging.targetId;
  assert.equal((await get('/events/'+judgedEvent+'/judging-settings',cookies.facilitator)).status,404);
  assert.equal((await get('/events/'+judgedEvent+'/judging-settings',cookies.organizer)).status,200);
- assert((await (await get('/events/'+judgedEvent,cookies.facilitator)).text()).includes('>Judge</span>'));
+ assert.equal((await get('/events/'+judgedEvent,cookies.facilitator)).headers.get('location'),'/events/'+judgedEvent+'/judging');
  assert.deepEqual((await judgingData(cookies.agent)).contests,[]);assert.deepEqual((await judgingData(unassignedJudgeCookie)).contests,[]);
  assert.equal((await jc('open')).status,200);
  assert.equal((await jc('saveDraft',{candidateId:jt1,version:0,scores:{impact:9}},unassignedJudgeCookie)).status,403);

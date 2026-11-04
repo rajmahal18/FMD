@@ -1,6 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {galaJudgingTemplates,validateJudgingConfig,validateJudgingScores,judgingStandings,judgingInputError,judgingInputState,judgingResultsVisible} from '../src/lib/judging';
+import {galaJudgingTemplates,validateJudgingConfig,validateJudgingScores,judgingStandings,judgingInputError,judgingInputState,judgingResultsVisible,judgingNumber} from '../src/lib/judging';
+import {safeReturnPath} from '../src/lib/race';
+test('judge display removes redundant decimals without rounding away average precision',()=>{assert.equal(judgingNumber(90),'90');assert.equal(judgingNumber(90.5),'90.5');assert.equal(judgingNumber(90.25),'90.25');});
+test('judge return destinations preserve trusted event paths only',()=>{for(const path of ['/events/event/judging','/events/event/judging?view=results'])assert.equal(safeReturnPath(path),path);for(const path of ['https://evil.test/events/event/judging','//evil.test/judging','/events/event/judging?next=https://evil.test','/events/../judging'])assert.equal(safeReturnPath(path),'');});
 test('judging visibility preserves publication-only defaults and explicit live/hidden controls',()=>{
  assert(!judgingResultsVisible('HIDDEN',false));assert(!judgingResultsVisible('HIDDEN',true));assert(!judgingResultsVisible('PUBLISHED',false));assert(judgingResultsVisible('PUBLISHED',true));assert(judgingResultsVisible('LIVE',false));assert(judgingResultsVisible('LIVE',true));
 });
@@ -9,16 +12,16 @@ const criteria=[{id:'impact',name:'Stage impact',description:'',maximum:10},{id:
 test('live score validation explains maximum, minimum and precision without silently changing input',()=>{
  assert.match(judgingInputError('31',30)!,/more than 30/);
  assert.match(judgingInputError('-1',30)!,/less than 0/);
- assert.match(judgingInputError('1.234',30)!,/two decimal/);
+ assert.match(judgingInputError('1.234',30)!,/whole numbers/);
  assert.match(judgingInputError('Infinity',30)!,/valid number/);
- assert.equal(judgingInputError('0',30),null);assert.equal(judgingInputError('29.99',30),null);
+ assert.equal(judgingInputError('0',30),null);assert.equal(judgingInputError('29',30),null);
  assert.equal(judgingInputError('',30),null);assert.match(judgingInputError('',30,true)!,/Enter a score/);
 });
 
 test('partial and invalid score sheets never treat missing or out-of-range scores as valid totals',()=>{
  const partial=judgingInputState({impact:'0'},criteria);assert.equal(partial.count,1);assert(!partial.complete);assert(!partial.invalid);assert.equal(partial.total,0);
- const invalid=judgingInputState({impact:'11',harmony:'12.25'},criteria);assert(invalid.invalid);assert(!invalid.complete);assert.equal(invalid.total,12.25);assert.deepEqual(invalid.scores,{harmony:12.25});
- const valid=judgingInputState({impact:'9.25',harmony:'15'},criteria);assert(valid.complete);assert.equal(valid.total,24.25);assert.equal(validateJudgingScores(valid.scores,criteria,true).totalHundredths,2425);
+ const invalid=judgingInputState({impact:'11',harmony:'12'},criteria);assert(invalid.invalid);assert(!invalid.complete);assert.equal(invalid.total,12);assert.deepEqual(invalid.scores,{harmony:12});
+ const valid=judgingInputState({impact:'9',harmony:'15'},criteria);assert(valid.complete);assert.equal(valid.total,24);assert.equal(validateJudgingScores(valid.scores,criteria,true).totalHundredths,2400);
 });
 test('gala templates preserve the supplied point weights and separate individual awards',()=>{
  assert.equal(galaJudgingTemplates.length,6);
@@ -30,10 +33,10 @@ test('judging rules reject duplicate entrants/criteria, nonpositive maxima and e
  const config={target:'TEAM',candidateIds:['a'],criteria};assert.equal(validateJudgingConfig(config).criteria.length,2);
  for(const change of [{candidateIds:['a','a']},{criteria:[criteria[0],criteria[0]]},{criteria:[{...criteria[0],maximum:0}]},{criteria:[{...criteria[0],maximum:1.001}]},{target:'OTHER'},{candidateIds:[]}])assert.throws(()=>validateJudgingConfig({...config,...change}));
 });
-test('per-criterion scoring accepts zero and decimals, requires completeness and never accepts out-of-range/extra values',()=>{
+test('per-criterion scoring accepts zero and whole numbers, requires completeness and never accepts out-of-range/extra values',()=>{
  assert.deepEqual(validateJudgingScores({impact:9,harmony:10},criteria,true),{scores:{impact:9,harmony:10},totalHundredths:1900});
  assert.equal(validateJudgingScores({impact:0,harmony:15},criteria,true).totalHundredths,1500);
- assert.equal(validateJudgingScores({impact:9.25},criteria,false).totalHundredths,925);
+ assert.throws(()=>validateJudgingScores({impact:9.25},criteria,false));
  for(const scores of [{impact:9},{impact:11,harmony:10},{impact:-1,harmony:10},{impact:1.001,harmony:10},{impact:NaN,harmony:10},{impact:null,harmony:10},{impact:0,harmony:0,extra:0}])assert.throws(()=>validateJudgingScores(scores,criteria,true));
 });
 test('equal-weight judging excludes drafts, marks incomplete results and shares exact ties',()=>{
