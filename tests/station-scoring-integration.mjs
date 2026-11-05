@@ -60,12 +60,15 @@ try{
  const review=await fetch(origin+base+'/results-preview',{method:'POST',headers:{origin,cookie:cookies.organizer,'content-type':'application/json'},body:JSON.stringify(previewBody)});assert.equal(review.status,200);const preview=await review.json();
  const approval=await fetch(origin+base+'/results',{method:'POST',headers:{origin,cookie:cookies.organizer,'content-type':'application/json'},body:JSON.stringify({...previewBody,previewToken:preview.token,requestKey:crypto.randomUUID()})});assert.equal(approval.status,200);
  assert.equal((await post('/race-final',{operation:'setRaceFinal',teamId:a,successful:false,version:1})).status,409);
- const overall=await (await get('/overall?view=draft')).json();const combined=await post('/overall',{operation:'finalize',revision:overall.revision,config:overall.config});assert.equal(combined.status,200);const combinedData=await combined.json();assert.equal(combinedData.finalized.rows.find(r=>r.id===teams[1]).contributions.find(c=>c.eventId==='race').contribution,41.4);
+ const overall=await (await get('/overall?view=draft')).json();const combined=await post('/overall',{operation:'finalize',revision:overall.revision,config:overall.config});assert.equal(combined.status,200);const combinedData=await combined.json();assert.equal(combinedData.finalized.rows.find(r=>r.id===teams[1]).contributions.find(c=>c.eventId==='race').contribution,40.5);
+ assert.equal(combinedData.finalized.raceContributionMethod,'PLACEMENT');
+ await pg.query('UPDATE "OverallRanking" SET finalized=finalized-$1 WHERE "eventId"=$2',['raceContributionMethod',eventId]);
+ assert.equal((await (await get('/overall?view=draft')).json()).stale,true,'Old direct-score approvals are automatically marked for review');
  assert.equal((await (await get('/results','agent')).json()).revealed,false,'Approval does not release results');
  const reset={operation:'resetEventRun',reason:'Isolated reset verifies Final Station recovery',confirmation:event.name};
  const resetReview=await fetch(origin+base+'/lifecycle-preview',{method:'POST',headers:{origin,cookie:cookies.organizer,'content-type':'application/json'},body:JSON.stringify(reset)});assert.equal(resetReview.status,200);const resetToken=await resetReview.json();
  const resetCommit=await fetch(origin+base+'/lifecycle',{method:'POST',headers:{origin,cookie:cookies.organizer,'content-type':'application/json'},body:JSON.stringify({...reset,previewToken:resetToken.token,requestKey:crypto.randomUUID()})});assert.equal(resetCommit.status,200,await resetCommit.text());
  assert.equal((await pg.query('SELECT count(*)::int AS n FROM "RaceFinalResult" WHERE "eventId"=$1',[eventId])).rows[0].n,0);
  const checkpoint=(await pg.query('SELECT "detailsJson" FROM "AuditEntry" WHERE "eventId"=$1 AND action=$2',[eventId,'EVENT_RUN_RESET_CHECKPOINT'])).rows[0];assert.equal(checkpoint.detailsJson.snapshot.raceFinalResults.length,5);
- console.log('PASS: actual seven-station timing flow; 700-point maximum; station ranks; 80/20 final entries; direct 45% contribution; role/CSRF/stale/pause guards; concurrent replay; final lock; hidden approval; reset recovery and event-safe records.');
+ console.log('PASS: actual seven-station timing flow; 700-point maximum; station ranks; 80/20 final entries; placement-credit 45% contribution; role/CSRF/stale/pause guards; concurrent replay; final lock; hidden approval; reset recovery and event-safe records.');
 }finally{if(app){app.kill();await new Promise(r=>app.once('exit',r));}await socket.stop();await pg.close();}

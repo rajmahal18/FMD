@@ -11,7 +11,7 @@ test('seven station placement totals normalize to 80 plus a 20-point final',()=>
  assert.equal(b.breakdown.regularPoints,630);assert.equal(b.breakdown.regularContribution,72);assert.equal(b.value,92);
  const config:OverallConfig={raceRule:'STATION_PLACEMENTS',events:[{id:'race',name:'Race',source:'SPY',weight:45,credits:[100,90,80,70,60],ranks:{}}]};
  const combined=overallStandings(config,rows.map(r=>({...r,color:'#fff',points:0,raceRank:r.rank,raceScore:r.value})));
- assert.equal(combined.find(r=>r.id==='b')!.value,41.4,'Actual 92% is weighted directly, never remapped to second-place credit');
+ assert.equal(combined.find(r=>r.id==='b')!.value,40.5,'Second place earns 90 credits times 45%, regardless of the raw 92 race score');
 });
 test('station placements win independently of the sum of elapsed times',()=>{
  const changed=outcomes.map(o=>o.teamId==='a'&&o.stationId===stationIds[6]?{...o,durationSeconds:1000}:o);
@@ -28,4 +28,14 @@ test('failed final gets ten weighted points; missing final or incomplete station
  assert(rankStationRace(teams,outcomes,[]).every(r=>r.pending&&r.rank===0));
  assert(rankStationRace(teams,outcomes.slice(1),finals).every(r=>r.pending&&r.rank===0));
  assert.equal(rankStationRace(teams,outcomes,finals).length,5);
+});
+
+test('Amazing Race tied first averages 100 and 90 before applying 45 percent',()=>{
+ const config:OverallConfig={raceRule:'STATION_PLACEMENTS',events:[{id:'race',name:'Race',source:'SPY',weight:45,credits:[100,90,80,70,60],ranks:{}}]};
+ const combined=overallStandings(config,teams.map((t,i)=>({...t,points:0,raceRank:[1,1,3,4,5][i],raceScore:[92,92,80,70,60][i]})));
+ assert.deepEqual(combined.map(t=>t.value),[42.75,42.75,36,31.5,27]);
+ assert.deepEqual(combined.map(t=>t.contributions[0].credit),[95,95,80,70,60]);
+ assert.deepEqual(combined.map(t=>t.rank),[1,1,3,4,5]);
+ const pending=overallStandings(config,teams.map(t=>({...t,points:0,raceRank:null,raceScore:100})));
+ assert(pending.every(t=>t.contributions[0].credit===null));
 });
