@@ -7,7 +7,7 @@ import {inboxFileInfo,inboxFileLimit} from '@/lib/inbox-files';
 import type {Prisma} from '@/generated/prisma/client';
 async function scope(tx:Prisma.TransactionClient,actorId:string,eventId:string,write=false){
  const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:{select:{active:true,mustChangePassword:true}},event:{select:{archivedAt:true,state:true}}}});
- if(!m?.active||!m.user.active||(await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword))||!['ORGANIZER','PARTICIPANT'].includes(m.role))throw new InputError('Active participant or organizer access is required.',403);
+ if(!m?.active||!m.user.active||(await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword))||!['ORGANIZER','PARTICIPANT','FACILITATOR'].includes(m.role))throw new InputError('Active event access is required.',403);
  if(write&&m.role!=='ORGANIZER')throw new InputError('Only organizers can attach files.',403);
  if(write&&(m.event.archivedAt||m.event.state==='PAUSED'))throw new InputError('Uploads are closed while this event is paused or archived.',409);
  return m;
@@ -34,7 +34,7 @@ export async function uploadInboxFile(actorId:string,eventId:string,request:Requ
 }
 export async function downloadInboxFile(actorId:string,eventId:string,id:string){
  const m=await scope(db(),actorId,eventId);
- const file=await db().inboxAttachment.findFirst({where:{id,eventId,...(m.role==='PARTICIPANT'?{messages:{some:{message:{eventId,recipientId:m.id}}}}:{})}});
+ const file=await db().inboxAttachment.findFirst({where:{id,eventId,...(m.role!=='ORGANIZER'?{messages:{some:{message:{eventId,recipientId:m.id}}}}:{})}});
  if(!file)throw new InputError('Attachment not found.',404);
  return file;
 }

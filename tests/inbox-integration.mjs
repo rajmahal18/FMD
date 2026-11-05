@@ -25,7 +25,8 @@ try{
  const get=(url,role='agent')=>fetch(origin+url,{headers:role?{cookie:cookies[role]}:{},redirect:'manual'});
  const post=(role,body,originHeader=origin)=>fetch(origin+api,{method:'POST',headers:{cookie:cookies[role],origin:originHeader,'content-type':'application/json'},body:JSON.stringify(body)});
  assert.equal((await get(api,null)).status,401);
- assert.equal((await get(api,'facilitator')).status,403);
+ assert.equal((await get(api,'facilitator')).status,200);
+ assert.deepEqual((await (await get(api,'facilitator')).json()).messages,[]);
  const command={operation:'send',recipientId:member,subject:'Double Agent offer',body:'Will you accept this offer?',requestKey:randomUUID()};
  assert.equal((await post('agent',command)).status,403);
  assert.equal((await post('organizer',command,'https://evil.test')).status,403);
@@ -61,7 +62,7 @@ try{
  const again=await upload('organizer','App briefer.pdf',pdf,uploadKey);assert.equal(again.status,200);assert.equal((await again.json()).id,file.id);
  assert.equal((await upload('organizer','App briefer.pdf',pdf+'changed',uploadKey)).status,409);
  const download=fileApi+'/'+file.id;
- assert.equal((await get(download,null)).status,401);assert.equal((await get(download)).status,404);assert.equal((await get(download,'other')).status,404);assert.equal((await get(download,'facilitator')).status,403);
+ assert.equal((await get(download,null)).status,401);assert.equal((await get(download)).status,404);assert.equal((await get(download,'other')).status,404);assert.equal((await get(download,'facilitator')).status,404);
  const draftDownload=await get(download,'organizer');assert.equal(draftDownload.status,200);assert.equal(await draftDownload.text(),pdf);assert(draftDownload.headers.get('content-disposition').includes('attachment'));assert.equal(draftDownload.headers.get('x-content-type-options'),'nosniff');assert(draftDownload.headers.get('cache-control').includes('no-store'));
  await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['inbox-second-team',event,'Second team']);
  await pg.query('UPDATE "EventMembership" SET "teamId"=$1 WHERE id=$2',['inbox-second-team','inbox-other']);
@@ -92,6 +93,28 @@ try{
  await pg.query('UPDATE "User" SET "mustChangePassword"=false WHERE email=$1',['agent@example.test']);
  const back=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:'agent@example.test',password:env.SEED_PASSWORD,returnTo:link}),redirect:'manual'});assert.equal(back.headers.get('location'),origin+link);
  assert.equal((await get('/api/events/missing/inbox')).status,403);
+ // Any active facilitator can receive/reply, including one with no station assignment.
+ const faci=(await pg.query('SELECT id,"teamId" FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event,'FACILITATOR'])).rows[0];
+ await pg.query('INSERT INTO "User" (id,email,name,"passwordHash") SELECT $1,$2,$3,"passwordHash" FROM "User" WHERE email=$4',['second-faci','second-faci@example.test','Second facilitator','agent@example.test']);
+ await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role,"teamId") SELECT $1,$2,$3,$4,"teamId" FROM "EventMembership" WHERE id=$5',['second-faci',event,'second-faci','FACILITATOR',member]);
+ await pg.query('UPDATE "EventMembership" SET "teamId"=(SELECT "teamId" FROM "EventMembership" WHERE id=$1) WHERE id=$2',[member,faci.id]);
+ const directory=(await (await get(api,'organizer')).json()).people;assert(directory.some(p=>p.id===faci.id&&p.role==='FACILITATOR'));assert(directory.some(p=>p.id==='second-faci'));
+ const faciFile=await (await upload('organizer','facilitator.txt','Facilitator briefer')).json();
+ const faciCommand={operation:'send',subject:'Facilitator preview',body:'Please answer this offer.',recipientIds:[faci.id,'second-faci'],attachmentIds:[faciFile.id],requestKey:randomUUID()};
+ assert.equal((await post('facilitator',faciCommand)).status,403);
+ const sentToFacis=await post('organizer',faciCommand);assert.equal(sentToFacis.status,200);const faciBatch=await sentToFacis.json();assert.equal(faciBatch.ids.length,2);
+ const faciInbox=await (await get(api,'facilitator')).json();assert.equal(faciInbox.organizer,false);assert.deepEqual(faciInbox.people,[]);assert.equal(faciInbox.messages.length,1);const faciOffer=faciInbox.messages[0];assert(faciBatch.ids.includes(faciOffer.id));assert.equal(faciOffer.attachments[0].id,faciFile.id);assert.deepEqual(faciOffer.deliveries,[]);
+ assert.equal((await get(fileApi+'/'+faciFile.id,'facilitator')).status,200);assert.equal((await get(fileApi+'/'+faciFile.id,'agent')).status,404);
+ assert(!(await (await get(api,'agent')).json()).messages.some(m=>faciBatch.ids.includes(m.id)));
+ assert.equal((await get('/events/'+event+'/inbox?message='+faciOffer.id,'facilitator')).status,200);
+ const faciAnswer={operation:'respond',id:faciOffer.id,response:'YES',requestKey:randomUUID()};assert.equal((await post('facilitator',faciAnswer)).status,200);assert.equal((await post('facilitator',faciAnswer)).status,200);
+ assert.equal((await post('facilitator',{...faciAnswer,response:'NO',requestKey:randomUUID()})).status,409);
+ assert.equal((await post('agent',{...faciAnswer,requestKey:randomUUID()})).status,404);
+ assert.equal((await pg.query('SELECT count(*)::int n FROM "InboxDelivery" WHERE "messageId"=$1 AND kind=$2',[faciOffer.id,'RESPONSE'])).rows[0].n,1);
+ const offerStatus=(await pg.query('SELECT status FROM "InboxDelivery" WHERE "messageId"=$1 AND kind=$2',[faciOffer.id,'OFFER'])).rows[0].status;assert.equal(offerStatus,'FAILED','Facilitator envelope must reach normal email delivery, not be skipped for role');
+ const counts=(await pg.query('SELECT count(*)::int n FROM "InboxMessage"')).rows[0].n;
+ const organizerMember=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event,'ORGANIZER'])).rows[0].id;
+ assert.equal((await post('organizer',{...faciCommand,recipientIds:[organizerMember],requestKey:randomUUID()})).status,400);assert.equal((await pg.query('SELECT count(*)::int n FROM "InboxMessage"')).rows[0].n,counts);
  // Self-tests must be private to the organizer and preserve every existing real offer/response.
  const realBefore=(await pg.query('SELECT * FROM "InboxMessage" WHERE "isTest"=false ORDER BY id')).rows;
  const testAttachment=await (await upload('organizer','self-test.txt','Test briefer only')).json();

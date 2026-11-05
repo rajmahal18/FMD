@@ -12,7 +12,7 @@ export function useJudgingNavigation(eventId:string|undefined,enabled:boolean,in
   window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);window.addEventListener('results-changed',refresh);
   return()=>{disposed=true;controller.abort();clearInterval(timer);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);window.removeEventListener('results-changed',refresh);};
  },[eventId,enabled]);
- const offScoring=enabled&&!!eventId&&status.focused&&(path!==`/events/${eventId}/judging`||query.get('view')==='results');
+ const offScoring=enabled&&!!eventId&&status.focused&&path!==`/events/${eventId}/inbox`&&(path!==`/events/${eventId}/judging`||query.get('view')==='results');
  useEffect(()=>{if(offScoring)router.replace(`/events/${eventId}/judging`);},[offScoring,eventId,router]);
  return {...status,offScoring};
 }

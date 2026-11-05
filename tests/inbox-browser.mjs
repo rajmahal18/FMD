@@ -47,7 +47,21 @@ export async function inboxBrowser({role,pg,event,evaluate,visit,check,cmd}){
   await wait(async()=>(await pg.query('SELECT count(*)::int AS n FROM "InboxMessage" WHERE "eventId"=$1 AND subject=$2 AND "isTest"=false',[event.id,'Double Agent offer'])).rows[0].n===2);
   assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxAttachment" WHERE "eventId"=$1',[event.id])).rows[0].n,1);
   await wait(()=>evaluate("!document.querySelector('.inbox-pending')"));
- }else{
+  await wait(()=>evaluate("[...document.querySelectorAll('.inbox-recipient-tabs button')].some(b=>b.textContent==='Facilitators'&&!b.matches(':disabled'))"));
+  await evaluate("document.querySelector('.inbox-compose').open=true;[...document.querySelectorAll('.inbox-recipient-tabs button')].find(b=>b.textContent==='Facilitators').click()");
+  const faciName=(await pg.query('SELECT name FROM "User" WHERE email=$1',['facilitator@example.test'])).rows[0].name;
+  await wait(()=>evaluate("[...document.querySelectorAll('.inbox-recipient-option')].some(e=>e.textContent.trim()==="+JSON.stringify(faciName)+")"));
+  await choose(faciName);
+  await evaluate("(()=>{const body=document.querySelector('.inbox-compose textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(body,'Facilitator offer: please confirm your answer.');body.dispatchEvent(new Event('input',{bubbles:true}));const subject=document.querySelector('.inbox-compose input[maxlength=\"120\"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subject,'Facilitator preview');subject.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  const currentDoc=await cmd('DOM.getDocument'),newFileNode=await cmd('DOM.querySelector',{nodeId:currentDoc.root.nodeId,selector:'.inbox-compose input[type=file]'});await cmd('DOM.setFileInputFiles',{nodeId:newFileNode.nodeId,files:[filePath]});
+  await wait(()=>evaluate("document.querySelector('.inbox-upload-list')?.textContent.includes('Ready')"));
+  assert.equal(await evaluate("document.querySelectorAll('.inbox-recipient-option input:checked').length"),1);
+  await evaluate("document.querySelector('.inbox-compose form').requestSubmit()");
+  assert(await evaluate("document.querySelector('.inbox-recipient-review').textContent.includes('Facilitator')"));
+  for(const width of [320,390,768,1440]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'));const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.resolve('.tmp/stability-evidence/inbox-faci-review-'+width+'.png'),Buffer.from(shot.data,'base64'));}
+  await evaluate("[...document.querySelectorAll('.inbox-review button')].find(b=>b.textContent==='Send to 1 recipient').click()");
+  await wait(async()=>(await pg.query('SELECT count(*)::int n FROM "InboxMessage" WHERE "eventId"=$1 AND subject=$2',[event.id,'Facilitator preview'])).rows[0].n===1);
+ }else if(role==='agent'){
   await check('inbox-participant-list',base);
   assert(!(await evaluate("!!document.querySelector('.inbox-compose')")));
   await check('inbox-participant-offer',base+'?message=inbox-browser-offer');
@@ -61,6 +75,29 @@ export async function inboxBrowser({role,pg,event,evaluate,visit,check,cmd}){
   await check('inbox-participant-accepted',base+'?message=inbox-browser-offer');
   assert(!(await evaluate("!!document.querySelector('.inbox-offer-action')")));
   await visit('/events/'+event.id);assert(await evaluate("!!document.querySelector('.inbox-entry')"));
+ }else{
+  const wait=async fn=>{for(let i=0;i<100;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Facilitator inbox timed out');};
+  const judge=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event.id,'FACILITATOR'])).rows[0];
+  const candidate=(await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 LIMIT 1',[event.id])).rows[0];
+  await pg.query('INSERT INTO "JudgingContest" (id,"eventId",name,config,state) VALUES ($1,$2,$3,$4,$5)',['inbox-faci-open',event.id,'Inbox judge test',JSON.stringify({target:'TEAM',candidateIds:[candidate.id],criteria:[{id:'quality',name:'Quality',maximum:100,description:''}]}),'OPEN']);
+  await pg.query('INSERT INTO "JudgingAssignment" ("eventId","contestId","membershipId") VALUES ($1,$2,$3)',[event.id,'inbox-faci-open',judge.id]);
+  await visit('/events/'+event.id+'/judging');
+  await wait(()=>evaluate("document.querySelector('.player-brand').textContent==='Scoring'"));
+  await evaluate("document.querySelector('.player-topbar summary').click()");
+  await evaluate("document.querySelector('.player-account-menu a[href$=\"/inbox\"]').click()");
+  await wait(()=>evaluate("location.pathname.endsWith('/inbox')&&!!document.querySelector('.inbox-message-list')"));
+  const offer=(await pg.query('SELECT id FROM "InboxMessage" WHERE "eventId"=$1 AND subject=$2',[event.id,'Facilitator preview'])).rows[0];
+  await check('inbox-faci-offer',base+'?message='+offer.id);
+  assert(!(await evaluate("!!document.querySelector('.inbox-compose')")));
+  assert(!(await evaluate("!!document.querySelector('.field-bottom-nav')")),'Other field tabs remain hidden during judging');
+  assert(await evaluate("location.pathname.endsWith('/inbox')"),'Inbox must not be redirected to scoring');
+  assert(await evaluate("document.querySelector('.inbox-attachments').textContent.includes('inbox-app-briefer.pdf')"));
+  assert.equal(await evaluate("fetch(document.querySelector('.inbox-attachments a').href).then(r=>r.status)"),200);
+  await evaluate("[...document.querySelectorAll('.inbox-offer-action button')].find(b=>b.textContent==='Yes, accept').click()");
+  await evaluate("[...document.querySelectorAll('.inbox-offer-action button')].find(b=>b.textContent==='Confirm acceptance').click()");
+  await wait(async()=>(await pg.query('SELECT response FROM "InboxMessage" WHERE id=$1',[offer.id])).rows[0].response==='YES');
+  await check('inbox-faci-accepted',base+'?message='+offer.id);
+  assert(!(await evaluate("!!document.querySelector('.inbox-offer-action')")));
  }
  console.log('PASS: '+role+' inbox list/detail, confirmation, privacy and 320/390/768/1440 layouts.');
 }

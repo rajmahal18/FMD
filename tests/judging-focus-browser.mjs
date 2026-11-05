@@ -6,7 +6,7 @@ export async function verifyJudgingFocus({evaluate,visit,pg,event,check}){
  const focused=()=>evaluate("!document.querySelector('.field-bottom-nav')&&document.querySelector('.player-brand').textContent==='Scoring'");
  assert(await focused(),'Open assigned scoring hides every field tab');
  await evaluate("document.querySelector('.player-topbar summary').click()");
- assert(await evaluate("(()=>{const menu=document.querySelector('.player-account-menu');return menu.textContent.includes('Judge')&&menu.textContent.includes('Password & access')&&!!menu.querySelector('form[action=\"/api/auth/logout\"]')&&![...menu.querySelectorAll('a')].some(a=>/\\/events\\/|\\/workspace/.test(a.getAttribute('href')));})()"),'Focused account menu keeps identity, password, awake and logout without activity destinations');
+ assert(await evaluate("(()=>{const menu=document.querySelector('.player-account-menu');return menu.textContent.includes('Judge')&&menu.textContent.includes('Password & access')&&!!menu.querySelector('form[action=\"/api/auth/logout\"]')&&![...menu.querySelectorAll('a')].some(a=>/\\/events\\/|\\/workspace/.test(a.getAttribute('href'))&& !a.getAttribute('href').endsWith('/inbox'));})()"),'Focused account menu keeps identity, password, awake and logout with only Inbox as a secondary destination');
  await evaluate("document.querySelector('.player-topbar summary').click()");
  await pg.query('UPDATE "JudgingContest" SET state=$1 WHERE id=$2',['CLOSED','judging-browser-gala']);await refresh();
  await wait(()=>evaluate("!!document.querySelector('.field-bottom-nav')"));
