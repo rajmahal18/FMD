@@ -1,6 +1,7 @@
+import {formatScore} from '@/lib/score-format';
 import type {RankedRow} from '@/lib/results';
 export function RaceTiming({row}:{row:RankedRow}){
- if(row.rule==='STATION_PLACEMENTS'&&row.breakdown){const b=row.breakdown;return <p className="fine">Regular: {b.regularPoints} / {b.regularMaximum} ({Number(b.regularContribution.toFixed(4))} pts)<br/>Final: {b.finalContribution===null?'Pending':`${b.finalSuccessful?'Success':'Failed'} (${b.finalContribution} pts)`}{row.pending&&<><br/>Placements pending</>}</p>;}
+ if(row.rule==='STATION_PLACEMENTS'&&row.breakdown){const b=row.breakdown;return <p className="fine">Regular: {formatScore(b.regularPoints)} / {b.regularMaximum} ({formatScore(b.regularContribution)} pts)<br/>Final: {b.finalContribution===null?'Pending':`${b.finalSuccessful?'Success':'Failed'} (${formatScore(b.finalContribution)} pts)`}{row.pending&&<><br/>Placements pending</>}</p>;}
  if(!row.rule||row.rule==='POINTS')return null;
  if(row.pending)return <p className="fine">Route completion or timing pending</p>;
  const seconds=row.challengeSeconds??0;

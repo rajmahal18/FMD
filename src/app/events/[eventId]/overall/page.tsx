@@ -1,3 +1,4 @@
+import {formatScore} from '@/lib/score-format';
 import {ResultContext} from '@/components/ResultContext';
 import {requireMembership} from '@/lib/auth';
 import {readOverall,readPublishedOverall} from '@/server/overall';
@@ -9,5 +10,5 @@ export default async function OverallPage({params}:{params:Promise<{eventId:stri
 }
 function PublishedOverall({data}:{data:Awaited<ReturnType<typeof readPublishedOverall>>}){
  if(!data.published)return <section><h2>Combined results have not been shared yet</h2><p>Results will appear here when your organizer shares them.</p></section>;
- return <section className="overall-ranking"><h2>Combined standings</h2><p>Amazing Race and other activity contributions are included in these totals.</p>{data.rows.map(r=><article className="overall-standing" key={r.id}><h3>{r.rank}. {r.name}<span>{r.value}%</span></h3>{r.contributions.map(c=><p key={c.eventId}><strong>{data.activities.find(e=>e.id===c.eventId)?.name}</strong> | Place {c.rank} | {c.source==='JUDGING'&&<>Average {c.average}/{c.maximum} | </>}{c.contribution}%</p>)}</article>)}</section>;
+ return <section className="overall-ranking"><h2>Combined standings</h2><p>Amazing Race and other activity contributions are included in these totals.</p>{data.rows.map(r=><article className="overall-standing" key={r.id}><h3>{r.rank}. {r.name}<span>{formatScore(r.value)}%</span></h3>{r.contributions.map(c=><p key={c.eventId}><strong>{data.activities.find(e=>e.id===c.eventId)?.name}</strong> | Place {c.rank} | {c.source==='JUDGING'&&<>Average {formatScore(c.average??0)}/{c.maximum} | </>}{formatScore(c.contribution??0)}%</p>)}</article>)}</section>;
 }
