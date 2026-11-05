@@ -1,7 +1,7 @@
 import {routeProgress,type RouteMode} from "./routes";
 export type EventStage="PREPARING"|"READY"|"LIVE"|"PAUSED"|"ENDED"|"FINALIZED";
 export type VisitStage="QUEUED"|"ARRIVED"|"ACTIVE"|"AWAITING_CONFIRMATION"|"COMPLETED"|"CANCELLED";
-export type MissionStation={brawn?:number|null;brain?:number|null;playersRequired?:number|null;id:string;name:string;codename:string|null;location:string;briefing:string;available:boolean;configured:boolean;timeLimitMinutes:number|null;capacity?:number|null;queueEnabled?:boolean;occupied?:number;occupants?:{state?:string;teamName:string;since:string|null}[];queued?:number};
+export type MissionStation={photoKey?:string|null;brawn?:number|null;brain?:number|null;playersRequired?:number|null;id:string;name:string;codename:string|null;location:string;briefing:string;available:boolean;configured:boolean;timeLimitMinutes:number|null;capacity?:number|null;queueEnabled?:boolean;occupied?:number;occupants?:{state?:string;teamName:string;since:string|null}[];queued?:number};
 export type MissionVisit={arrivalApprovedAt?:string|null;lineupSubmittedAt?:string|null;stationId:string;state:VisitStage;confirmedAt:string|null;startedAt:string|null;finishedAt?:string|null;updatedAt:string;queuePosition:number|null;visitId?:string;playerIds?:string[];points?:number;durationSeconds?:number|null;timePenaltySeconds?:number};
 export type MissionInput={eventState:EventStage;mode:RouteMode|null;stationIds:string[];stations:MissionStation[];visits:MissionVisit[];hasTeam:boolean;integrityIssue?:boolean;finalStationId?:string|null;startStationId?:string|null};
 export function missionState(input:MissionInput){

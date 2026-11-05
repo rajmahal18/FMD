@@ -362,6 +362,8 @@ model Station {
  eventId String
  name String
  location String
+ photoKey String?
+ photo StationPhoto?
  briefing String
  codename String?
  facilitatorInstructions String @default("")
@@ -388,6 +390,12 @@ model Station {
  visits StationVisit[]
  lineups StationLineup[]
  @@unique([eventId,id])
+}
+model StationPhoto {
+ stationId String @id
+ key String @unique
+ content Bytes
+ station Station @relation(fields:[stationId],references:[id],onDelete:Cascade)
 }
 model FacilitatorAssignment {
  id String @id @default(cuid())
