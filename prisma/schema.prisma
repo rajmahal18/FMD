@@ -24,6 +24,7 @@ model User {
  email String @unique
  name String
  avatarKey String?
+ avatarImage UserAvatar?
  officeSection String?
  sex String?
  passwordHash String
@@ -42,6 +43,12 @@ model User {
  resultRevisions ResultRevision[]
  timePenalties TimePenaltyEntry[] @relation("PenaltyActor")
  voidedTimePenalties TimePenaltyEntry[] @relation("PenaltyVoidActor")
+}
+model UserAvatar {
+ key String @id
+ userId String @unique
+ content Bytes
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
 }
 model Session {
  parentSessionId String?

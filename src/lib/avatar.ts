@@ -1,5 +1,6 @@
-/** Public, versioned object keys; never store credentials or signed URLs on User. */
+/** Versioned upload or external object keys; never store credentials or signed URLs on User. */
 export function avatarUrl(key: string | null | undefined, base = process.env.AVATAR_PUBLIC_BASE_URL): string | null {
+  if (key && /^uploads\/[0-9a-f-]{36}\.webp$/.test(key)) return `/api/avatars/${key.slice(8,-5)}`;
   if (!key || !base || !/^avatars\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.(?:webp|png|jpe?g)$/.test(key) || key.length > 300) return null;
   try {
     const origin = new URL(base);

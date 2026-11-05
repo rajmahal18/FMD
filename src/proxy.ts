@@ -21,6 +21,7 @@ export async function proxy(request:NextRequest){
  try{
   const session=await readSession(token);
   if(!session?.parentSessionId||!session.actingEventId)return blocked(request,'This account switch expired or was revoked. Return to organizer.',401);
+  if(request.method==='GET'&&/^\/api\/avatars\/[0-9a-f-]{36}$/.test(path))return NextResponse.next();
   if(path==='/workspace'||path==='/')return NextResponse.redirect(new URL(`/events/${session.actingEventId}`,request.url));
   const match=path.match(/^\/(?:api\/)?events\/([^/]+)(?:\/|$)/);
   let eventId='';try{eventId=match?decodeURIComponent(match[1]):'';}catch{return blocked(request,'Invalid event path.');}
