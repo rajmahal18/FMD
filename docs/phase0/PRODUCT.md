@@ -114,7 +114,7 @@ After password or email-code login, an account with exactly one active real even
 
 ## Organizer account switching
 
-An authenticated event organizer may explicitly switch into another active event member with completed password setup for testing. These are real, counted actions under the target account permissions. Keep a visible identity banner and Return to organizer action. Scope delegated sessions to the selected event, revalidate organizer/target access on every request, prevent nested switches and credential changes, and audit the original organizer and delegated identity. Never use a universal password. See [ACCOUNT_SWITCHING.md](../ACCOUNT_SWITCHING.md).
+An authenticated event organizer may explicitly switch into another active event member, including pending password setup, for testing. These are real, counted actions under the target account permissions. Keep a visible identity banner and Return to organizer action. Scope delegated sessions to the selected event, revalidate organizer/target access on every request, prevent nested switches and credential changes, and audit the original organizer and delegated identity. Never use a universal password. See [ACCOUNT_SWITCHING.md](../ACCOUNT_SWITCHING.md).
 
 ## Focused judge navigation
 
@@ -123,3 +123,7 @@ An active facilitator with an active assignment to any Open judging contest ente
 ## Station time privacy and facilitator handoff
 
 Participant/captain mission responses and station detail screens omit completed elapsed time, penalties, totals and timing endpoints. Only a running clock remains visible before Finish. Staff retain exact times for review and scoring. Penalty buttons have During activity or After time limit categories; existing buttons and entries default to During. After-limit penalties may be recorded early for testing and after Finish until result confirmation, with phase saved on each entry. Live assigned facilitators automatically open the newly arrived team timer/controls, including from other event pages. Preserve pending result input/dialogs before switching, assignment permissions, judge focus and queue admission rules.
+
+## Per-station Amazing Race scoring
+
+The STATION_PLACEMENTS policy ranks confirmed adjusted elapsed seconds independently at each configured regular station and awards 100/90/80/70/60 placement credits. Tied teams share the average credit of occupied slots. Sum credits and normalize by station count times 100 (700 for seven stations), weighted at 80%. An organizer enters a separate manual Final Station Success (100%, contributing 20) or Failed (0), with reviewed, versioned, idempotent and audited writes. No QR/timer/lineup is created for this manual component. Final ranking remains pending until every required regular-station result and manual finale are recorded. The 0-100 race score is multiplied directly by the Amazing Race overall weight (45% for FMD); never map the final race rank back to placement credits. Older TIME/POINTS policies retain their previous calculations. Approval/sharing remain separate, approved manual entries are locked until reopen, and reset checkpoints include all manual final results.

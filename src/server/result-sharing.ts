@@ -1,3 +1,4 @@
+import {passwordSetupRequired} from './password-setup';
 import 'server-only';
 import {db} from '@/lib/db';
 import type {Prisma} from '@/generated/prisma/client';
@@ -11,7 +12,7 @@ import {hideDependentSharing} from './result-sharing-policy';
 type Tx=Prisma.TransactionClient;
 async function scope(tx:Tx,actorId:string,eventId:string,organizer=false){
  const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:{select:{active:true,mustChangePassword:true}},event:true}});
- if(!m?.active||!m.user.active||m.user.mustChangePassword||organizer&&m.role!=='ORGANIZER')throw new InputError('Active event access with the required role is needed.',403);
+ if(!m?.active||!m.user.active||(await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword))||organizer&&m.role!=='ORGANIZER')throw new InputError('Active event access with the required role is needed.',403);
  return m;
 }
 async function items(tx:Tx,eventId:string,state:string):Promise<ResultItem[]>{

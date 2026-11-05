@@ -1,3 +1,4 @@
+import {passwordSetupRequired} from './password-setup';
 import {invalidateOverall} from "./overall-invalidation";
 import {hideDependentSharing} from './result-sharing-policy';
 import 'server-only';
@@ -10,7 +11,7 @@ import {runRevision,requireRunRevision} from './run-revision';
 type Tx=Prisma.TransactionClient;
 async function scope(tx:Tx,actorId:string,eventId:string){
  const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:{select:{active:true,mustChangePassword:true}},event:true}});
- if(!m?.active||!m.user.active||m.user.mustChangePassword)throw new InputError('Active individual event access is required.',403);return m;
+ if(!m?.active||!m.user.active||(await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword)))throw new InputError('Active individual event access is required.',403);return m;
 }
 async function roster(tx:Tx,eventId:string){
  const [teams,people]=await Promise.all([tx.team.findMany({where:{eventId},orderBy:{name:'asc'},select:{id:true,name:true}}),tx.eventMembership.findMany({where:{eventId},select:{id:true,role:true,active:true,user:{select:{name:true,active:true,sex:true}},team:{select:{name:true}}},orderBy:{user:{name:'asc'}}})]);

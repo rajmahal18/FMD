@@ -1,3 +1,4 @@
+import {rankStationRace,stationScoring,type StationRacePolicy} from '@/lib/station-ranking';
 import 'server-only';
 import type {Prisma} from '@/generated/prisma/client';
 import {rankRace,type RaceRule} from '@/lib/race-ranking';
@@ -9,6 +10,13 @@ export async function raceStandings(tx:Prisma.TransactionClient,eventId:string){
  const rule=await getRaceRule(tx,eventId);
  const teams=await tx.team.findMany({where:{eventId},include:{routeAssignment:true}});
  const outcomes=await tx.stationOutcome.findMany({where:{eventId},select:{teamId:true,stationId:true,durationSeconds:true,timePenaltySeconds:true,confirmedAt:true}});
+ if(rule==='STATION_PLACEMENTS'){
+  const event=await tx.event.findUniqueOrThrow({where:{id:eventId},select:{finalStationId:true}});
+  const settings=await tx.overallRanking.findUnique({where:{eventId},select:{config:true}});
+  const policy=(settings?.config as {raceScoring?:StationRacePolicy})?.raceScoring??{...stationScoring,credits:[...stationScoring.credits]};
+  const finals=await tx.raceFinalResult.findMany({where:{eventId},select:{teamId:true,successful:true}});
+  return {rule,rows:rankStationRace(teams.map(t=>({id:t.id,name:t.name,color:t.color,stationIds:((t.routeAssignment?.stationIds??[]) as string[]).filter(id=>id!==event.finalStationId)})),outcomes,finals,policy)};
+ }
  const metrics=await Promise.all(teams.map(async t=>{
  const route=t.routeAssignment?.stationIds as string[]|undefined;
  const required=route?.length?route:[];

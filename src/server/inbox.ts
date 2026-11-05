@@ -1,3 +1,4 @@
+import {passwordSetupRequired} from './password-setup';
 import 'server-only';
 import nodemailer from 'nodemailer';
 import {randomUUID} from 'node:crypto';
@@ -10,7 +11,7 @@ import type {Prisma} from '@/generated/prisma/client';
 type Tx=Prisma.TransactionClient;
 async function scope(tx:Tx,actorId:string,eventId:string){
  const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:{select:{name:true,active:true,mustChangePassword:true}},event:true}});
- if(!m?.active||!m.user.active||m.user.mustChangePassword||!['ORGANIZER','PARTICIPANT'].includes(m.role))throw new InputError('Active participant or organizer access is required.',403);
+ if(!m?.active||!m.user.active||(await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword))||!['ORGANIZER','PARTICIPANT'].includes(m.role))throw new InputError('Active participant or organizer access is required.',403);
  return m;
 }
 function configured(){return !!(process.env.GMAIL_USER&&process.env.GMAIL_APP_PASSWORD&&process.env.APP_ORIGIN);}

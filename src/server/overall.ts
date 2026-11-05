@@ -1,3 +1,4 @@
+import {passwordSetupRequired} from './password-setup';
 import {snapshotShared} from './result-sharing-policy';
 import 'server-only';
 import {judgingResultsVisible,judgingStandings,type JudgingConfig} from '@/lib/judging';
@@ -7,13 +8,13 @@ import {Prisma} from '@/generated/prisma/client';
 import {defaultOverall,resolveOverallJudging,overallStandings,validateOverall,weightStatus,type OverallConfig,type OverallJudgingSource} from '@/lib/overall';
 import {teamTotal} from './score';
 type Tx=Prisma.TransactionClient;
-async function scope(tx:Tx,actorId:string,eventId:string){const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:true,event:true}});if(!m?.active||!m.user.active||m.user.mustChangePassword||m.role!=='ORGANIZER')throw new InputError('Active organizer access is required.',403);return m;}
+async function scope(tx:Tx,actorId:string,eventId:string){const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:true,event:true}});if(!m?.active||!m.user.active||(await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword))||m.role!=='ORGANIZER')throw new InputError('Active organizer access is required.',403);return m;}
 export async function overallSnapshot(tx:Tx,eventId:string){
  const record=await tx.overallRanking.findUnique({where:{eventId}});const event=await tx.event.findUniqueOrThrow({where:{id:eventId},select:{state:true}});
  const race=await tx.resultRevision.findFirst({where:{eventId},orderBy:{revision:'desc'},select:{revision:true,teamStandingsJson:true}});
  const roster=await tx.team.findMany({where:{eventId},orderBy:{name:'asc'}});
- const raceRows=(race?.teamStandingsJson??[]) as {id:string;rank:number;pending?:boolean}[];
- const teams=await Promise.all(roster.map(async t=>({id:t.id,name:t.name,color:t.color,points:await teamTotal(tx,eventId,t.id),raceRank:event.state==='FINALIZED'?raceRows.find(r=>r.id===t.id&&!r.pending)?.rank||null:null})));
+ const raceRows=(race?.teamStandingsJson??[]) as {id:string;rank:number;value?:number;rule?:string;pending?:boolean}[];
+ const teams=await Promise.all(roster.map(async t=>({id:t.id,name:t.name,color:t.color,points:await teamTotal(tx,eventId,t.id),raceScore:event.state==='FINALIZED'?raceRows.find(r=>r.id===t.id&&!r.pending&&r.rule==='STATION_PLACEMENTS')?.value??null:null,raceRank:event.state==='FINALIZED'?raceRows.find(r=>r.id===t.id&&!r.pending)?.rank||null:null})));
  const config=resolveOverallJudging((record?.config??{...defaultOverall(teams.length),...(event.state!=='PREPARING'?{raceRule:'POINTS'}:{})}) as OverallConfig);
  const contests=await tx.judgingContest.findMany({where:{eventId},select:{id:true,name:true,state:true,revision:true,config:true,publishedAt:true,publishedResults:true,facilitatorVisibility:true,participantVisibility:true,assignments:{where:{active:true},select:{membershipId:true}},scores:{where:{submittedAt:{not:null}},select:{candidateId:true,judgeMembershipId:true,totalHundredths:true,submittedAt:true}}}});
  const judgingSources:OverallJudgingSource[]=contests.filter(c=>(c.config as {target?:string}).target==='TEAM').map(c=>{const published=c.state==='PUBLISHED'&&!!c.publishedAt;const snapshot=c.publishedResults as {rows?:OverallJudgingSource['rows']}|null;const rules=c.config as JudgingConfig;const liveRows=judgingStandings(rules.candidateIds.map(id=>({id,name:roster.find(t=>t.id===id)?.name??'Unavailable team',active:roster.some(t=>t.id===id)})),c.assignments.map(a=>a.membershipId),rules.criteria,c.scores);return {id:c.id,name:c.name,revision:c.revision,published,liveRows,facilitatorVisibility:c.facilitatorVisibility as 'HIDDEN'|'PUBLISHED'|'LIVE',participantVisibility:c.participantVisibility as 'HIDDEN'|'PUBLISHED'|'LIVE',rows:published&&Array.isArray(snapshot?.rows)?snapshot.rows.map(r=>({id:r.id,rank:r.rank,average:r.average,maximum:r.maximum})):[]};});
@@ -26,7 +27,7 @@ export async function overallSnapshot(tx:Tx,eventId:string){
 export async function readOverall(actorId:string,eventId:string){return db().$transaction(async tx=>{await scope(tx,actorId,eventId);return overallSnapshot(tx,eventId);},{isolationLevel:'RepeatableRead'});}
 export async function readPublishedOverall(actorId:string,eventId:string){return db().$transaction(async tx=>{
  const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:true}});
- if(!m?.active||!m.user.active||m.user.mustChangePassword)throw new InputError('Active event membership is required.',403);
+ if(!m?.active||!m.user.active||(await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword)))throw new InputError('Active event membership is required.',403);
  const data=await overallSnapshot(tx,eventId);
  if(!data.finalized||data.stale||!await snapshotShared(tx,eventId,'overall',data.revision,m.role))return {published:false as const};
  const final=data.finalized as {rows:ReturnType<typeof overallStandings>;config:OverallConfig;finalizedAt:string};
@@ -45,6 +46,7 @@ export async function saveOverall(actorId:string,eventId:string,value:unknown){r
  if(before.finalized&&v.operation!=='reopen')throw new InputError('Reopen combined results before making changes.',409);
  if(v.operation==='reopen'&&!before.finalized)throw new InputError('Combined results are not approved.',409);
  let config:OverallConfig;try{config=validateOverall(v.operation==='reopen'?before.config:v.config,before.teams.map(t=>t.id));}catch(e){throw new InputError((e as Error).message);}
+ if(JSON.stringify(config.raceScoring??null)!==JSON.stringify(before.config.raceScoring??null)&&m.event.state!=='PREPARING')throw new InputError('Race scoring weights and regular stations are locked after Preparing.',409);
  if((config.raceRule??'POINTS')!==before.savedRaceRule&&m.event.state!=='PREPARING')throw new InputError('Choose the Amazing Race winning rule while the event is Preparing. It cannot change after the race is ready or started.',409);
  for(const component of config.events)if(component.source==='JUDGING'&&!before.judgingSources.some(c=>c.id===component.contestId))throw new InputError('Choose a team judging contest from this event.');
  const rows=overallStandings(config,before.teams,before.judgingSources);const finalizing=v.operation==='finalize';

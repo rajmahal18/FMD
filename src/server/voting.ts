@@ -1,3 +1,4 @@
+import {passwordSetupRequired} from './password-setup';
 import {snapshotShared} from './result-sharing-policy';
 import {avatarUrl} from "@/lib/avatar";
 import 'server-only';
@@ -9,7 +10,7 @@ import type {Prisma} from '@/generated/prisma/client';
 type Tx=Prisma.TransactionClient;
 async function scope(tx:Tx,actorId:string,eventId:string){
  const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:{select:{active:true,mustChangePassword:true}},event:true}});
- if(!m?.active||!m.user.active||m.user.mustChangePassword)throw new InputError('Active event membership is required.',403);return m;
+ if(!m?.active||!m.user.active||(await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword)))throw new InputError('Active event membership is required.',403);return m;
 }
 async function roster(tx:Tx,eventId:string):Promise<VotingPerson[]>{
  const people=await tx.eventMembership.findMany({where:{eventId},select:{id:true,role:true,teamId:true,active:true,user:{select:{name:true,avatarKey:true,active:true,sex:true}},team:{select:{name:true}},handledSquad:{select:{teamId:true,team:{select:{name:true}}}}},orderBy:{user:{name:'asc'}}});

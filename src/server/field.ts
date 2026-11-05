@@ -1,3 +1,4 @@
+import {passwordSetupRequired} from './password-setup';
 import {arrivalPolicy} from "@/lib/arrival-policy";
 import {finalStationStatus} from "./final-station";
 import {displayStations,displayStation} from "@/lib/station-name";
@@ -14,7 +15,7 @@ import {nextDestination,type FieldData} from "@/lib/race";
 import {outcomePoints} from "./outcome-points";
 import {teamTotal} from "./score";
 export async function readField(actorId:string,eventId:string,stationId?:string):Promise<FieldData>{
- return db().$transaction(async tx=>{const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:true,event:true,assignments:true}});if(!m?.active||!m.user.active)throw new InputError("Event access is no longer available.",404);if(m.user.mustChangePassword||m.role==="PARTICIPANT")throw new InputError("Station-handler access is required.",403);
+ return db().$transaction(async tx=>{const m=await tx.eventMembership.findUnique({where:{eventId_userId:{eventId,userId:actorId}},include:{user:true,event:true,assignments:true}});if(!m?.active||!m.user.active)throw new InputError("Event access is no longer available.",404);if((await passwordSetupRequired(tx,actorId,eventId,m.user.mustChangePassword))||m.role==="PARTICIPANT")throw new InputError("Station-handler access is required.",403);
  const stations=await tx.station.findMany({where:{eventId,...(m.role==="FACILITATOR"?{id:{in:m.assignments.map(a=>a.stationId)}}:{})},select:{id:true,name:true,location:true},orderBy:{name:"asc"}}).then(displayStations);const chosen=stationId||stations[0]?.id;
  if(chosen&&!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===chosen)))throw new InputError("You are not assigned to this station.",403);
  const station=chosen?await tx.station.findFirst({where:{id:chosen,eventId},select:{id:true,name:true,location:true,facilitatorInstructions:true,playersRequired:true,timeLimitMinutes:true,capacity:true,queueEnabled:true,available:true,scoringMode:true,fixedPoints:true,minimumPoints:true,maximumPoints:true,allowAdjustments:true,maximumAdjustment:true,timePenaltyButtons:true,timePenaltyRevision:true}}).then(s=>displayStation(s)):null;if(chosen&&!station)throw new InputError("Station not found in this event.",404);

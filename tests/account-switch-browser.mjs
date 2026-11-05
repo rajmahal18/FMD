@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 export async function accountSwitchBrowser({pg,event,evaluate,visit,check}){
+ await pg.query('UPDATE "User" SET "mustChangePassword"=true WHERE email IN ($1,$2)',['agent@example.test','facilitator@example.test']);
  const base='/events/'+event.id,path=base+'/switch-account';
  const wait=async fn=>{for(let i=0;i<140;i++){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw Error('Account-switch browser flow timed out');};
  const pick=email=>evaluate(`(()=>{const row=[...document.querySelectorAll('.account-switch-row')].find(r=>r.textContent.includes(${JSON.stringify(email)}));if(!row)throw Error('Account row missing');row.click();})()`);
- await check('account-switch-list',path);
+ await check('account-switch-list',path);assert(await evaluate("[...document.querySelectorAll('.account-switch-row')].filter(r=>r.textContent.includes('Password setup pending')).length===2&&[...document.querySelectorAll('.account-switch-row')].filter(r=>r.textContent.includes('Password setup pending')).every(r=>!r.disabled)"));
  await check('account-switch-review',path,"[...document.querySelectorAll('.account-switch-row')].find(r=>r.textContent.includes('facilitator@example.test')).click()");
  await evaluate("[...document.querySelectorAll('.judging-dialog button')].find(b=>b.textContent==='Switch to account').click()");
  await wait(()=>evaluate("location.pathname.endsWith('/judging')&&!!document.querySelector('.account-switch-banner')"));

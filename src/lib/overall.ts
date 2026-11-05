@@ -1,13 +1,14 @@
+import {stationScoring,type StationRacePolicy} from './station-ranking';
 import {sharedRanks} from './results';
 import {placementCredit} from './placement-credit';
 import {raceRules,type RaceRule} from './race-ranking';
 export type ComponentEvent={id:string;name:string;weight:number;source:'MANUAL'|'SPY'|'JUDGING';contestId?:string;credits:number[];ranks:Record<string,number>};
 export type OverallJudgingSource={id:string;name:string;revision:number;published:boolean;rows:{id:string;rank:number|null;average:number|null;maximum:number}[];liveRows?:{id:string;rank:number|null;average:number|null;maximum:number;submitted?:number;judges?:number}[];facilitatorVisibility?:'HIDDEN'|'PUBLISHED'|'LIVE';participantVisibility?:'HIDDEN'|'PUBLISHED'|'LIVE'};
-export type OverallConfig={events:ComponentEvent[];raceRule?:RaceRule};
+export type OverallConfig={events:ComponentEvent[];raceRule?:RaceRule;raceScoring?:StationRacePolicy};
 // Explicit links can be staged while older deployed clients still use MANUAL sources.
 // Reading with this version activates the link; the next save writes canonical JUDGING config.
 export function resolveOverallJudging(config:OverallConfig):OverallConfig{return {...config,events:config.events.map(e=>e.source==='MANUAL'&&e.contestId?{...e,source:'JUDGING' as const,ranks:{}}:e)};}
-export type OverallTeam={id:string;name:string;color:string;points:number;raceRank?:number|null};
+export type OverallTeam={id:string;name:string;color:string;points:number;raceRank?:number|null;raceScore?:number|null};
 export function defaultOverall(teamCount:number):OverallConfig{return {raceRule:'TIME',events:[{id:'amazing-race',name:'Amazing Race',weight:40,source:'SPY',credits:[100,90,80,70,60].slice(0,Math.max(1,teamCount)),ranks:{}}]};}
 export function overallComplete(config:OverallConfig,rows:ReturnType<typeof overallStandings>){return rows.length>=2&&config.events.length>0&&weightStatus(config.events).valid&&rows.every(r=>r.contributions.every(c=>c.rank!==null));}
 export const basis=(v:number)=>Math.round(v*100);
@@ -30,12 +31,18 @@ export function validateOverall(value:unknown,teamIds:string[]):OverallConfig {
  for(const [id,rank] of Object.entries(e.ranks))if(!teamIds.includes(id)||!Number.isInteger(rank)||rank<1||rank>teamIds.length)return fail('Placements must reference current teams and valid ranks.');
  const ranks=Object.values(e.ranks).sort((a,b)=>a-b);if(e.source==='MANUAL'&&ranks.some((r,i)=>r!==(i&&r===ranks[i-1]?ranks[i-1]:i+1)))return fail('Use competition ranks: for example 1, 2, 2, 4 for a tie.');
  }
- return {raceRule:rule,events:events.map(e=>({id:e.id,name:e.name.trim(),weight:e.weight,source:e.source,...(e.source==='JUDGING'?{contestId:e.contestId}:{}),credits:e.credits,ranks:e.ranks}))};
+ const raw=(value as OverallConfig).raceScoring;let raceScoring:StationRacePolicy|undefined;
+ if(rule==='STATION_PLACEMENTS'){
+  raceScoring=raw??{...stationScoring,credits:[...stationScoring.credits]};
+  if(!Array.isArray(raceScoring.credits)||!raceScoring.credits.length||raceScoring.credits.length>100||raceScoring.credits[0]!==100||raceScoring.credits.some((c,i)=>!percent(c)||i>0&&c>raceScoring!.credits[i-1])||!percent(raceScoring.regularWeight)||!percent(raceScoring.finalWeight)||basis(raceScoring.regularWeight)+basis(raceScoring.finalWeight)!==10000||!percent(raceScoring.successScore)||!percent(raceScoring.failedScore))return fail('Review station placement credits and the 80/20 race scoring weights.');
+  if(raceScoring.stationIds!==undefined&&(!Array.isArray(raceScoring.stationIds)||!raceScoring.stationIds.length||raceScoring.stationIds.length>1000||raceScoring.stationIds.some(id=>typeof id!=='string'||!id||id.length>120)||new Set(raceScoring.stationIds).size!==raceScoring.stationIds.length))return fail('Choose distinct regular race stations.');
+ }
+ return {raceRule:rule,...(raceScoring?{raceScoring}:{}),events:events.map(e=>({id:e.id,name:e.name.trim(),weight:e.weight,source:e.source,...(e.source==='JUDGING'?{contestId:e.contestId}:{}),credits:e.credits,ranks:e.ranks}))};
 }
 export function overallStandings(config:OverallConfig,teams:OverallTeam[],judging:OverallJudgingSource[]=[],preview=false){
  const spy=sharedRanks([...teams].sort((a,b)=>b.points-a.points||a.name.localeCompare(b.name)).map(t=>({...t,value:t.points})));
  const judged=(e:ComponentEvent,t:OverallTeam)=>{const source=judging.find(s=>s.id===e.contestId&&(s.published||preview));const row=(source?.published?source.rows:preview?source?.liveRows:[])?.find(r=>r.id===t.id);return row&&(preview||row.rank!==null&&row.rank>0)&&row.average!==null&&Number.isFinite(row.average)&&Number.isFinite(row.maximum)&&row.maximum>0&&row.average>=0&&row.average<=row.maximum?row:null;};
  const rankFor=(e:ComponentEvent,t:OverallTeam)=>e.source==='JUDGING'?judged(e,t)?.rank??null:e.source==='SPY'?(t.raceRank===undefined?spy.find(s=>s.id===t.id)!.rank:t.raceRank):e.ranks[t.id];
  const tieSizes=new Map(config.events.map(e=>{const counts=new Map<number,number>();for(const team of teams){const rank=rankFor(e,team);if(rank)counts.set(rank,(counts.get(rank)??0)+1);}return [e.id,counts];}));
- return sharedRanks(teams.map(t=>{const contributions=config.events.map(e=>{const rank=rankFor(e,t);const score=e.source==='JUDGING'?judged(e,t):null;const credit=e.source==='JUDGING'?(score?score.average!/score.maximum*100:null):rank?placementCredit(e.credits,rank,tieSizes.get(e.id)!.get(rank)!):null;return {eventId:e.id,source:e.source,average:score?.average??null,maximum:score?.maximum??null,rank:rank??null,credit,contribution:credit===null?null:basis(e.weight)*credit/10000};});return {...t,contributions,value:Math.round(contributions.reduce((n,c)=>n+(c.contribution??0),0)*1000000)/1000000};}).sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name)));
+ return sharedRanks(teams.map(t=>{const contributions=config.events.map(e=>{const rank=rankFor(e,t);const score=e.source==='JUDGING'?judged(e,t):null;const credit=e.source==='SPY'&&config.raceRule==='STATION_PLACEMENTS'?(rank&&t.raceScore!==undefined?t.raceScore:null):e.source==='JUDGING'?(score?score.average!/score.maximum*100:null):rank?placementCredit(e.credits,rank,tieSizes.get(e.id)!.get(rank)!):null;return {eventId:e.id,source:e.source,average:score?.average??null,maximum:score?.maximum??null,rank:rank??null,credit,contribution:credit===null?null:basis(e.weight)*credit/10000};});return {...t,contributions,value:Math.round(contributions.reduce((n,c)=>n+(c.contribution??0),0)*1000000)/1000000};}).sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name)));
 }

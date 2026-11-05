@@ -50,3 +50,7 @@
 .organizer-account:not([open])>.player-account-menu{display:none}
 .organizer-account .player-account-menu a{color:#10243a}
 .organizer-account .screen-awake-control .screen-awake-switch{color:#f2f7fa}
+
+.race-final-panel{margin-block:24px;padding-block:20px;border-block:1px solid #385166;min-width:0}.race-final-panel .station-tiles{margin-block:16px}.race-station-breakdown{margin-top:18px}.race-station-breakdown>details{padding-block:10px;border-bottom:1px solid #385166}.race-final-panel select{max-width:100%;min-height:44px}.race-final-panel .station-detail-body label{display:grid;gap:8px;margin-bottom:16px}
+
+.race-final-entry label{display:grid;gap:8px;margin-bottom:16px}.race-final-entry select{width:100%;max-width:100%;min-height:44px}.race-final-entry button{margin-block:8px}

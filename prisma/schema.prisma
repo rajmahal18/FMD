@@ -19,6 +19,7 @@ enum EventState {
  FINALIZED
 }
 model User {
+ raceFinalResults RaceFinalResult[]
  id String @id @default(cuid())
  email String @unique
  name String
@@ -67,6 +68,7 @@ model EmailOtp {
  @@index([expiresAt])
 }
 model Event {
+ raceFinalResults RaceFinalResult[]
  resultSharing ResultSharing[]
  inboxAttachments InboxAttachment[]
  inboxMessages InboxMessage[]
@@ -311,6 +313,7 @@ model VotingChoice {
  @@id([ballotId,candidateMembershipId])
 }
 model Team {
+ raceFinalResult RaceFinalResult?
  squadHandler SquadHandler?
  id String @id @default(cuid())
  eventId String
@@ -324,6 +327,18 @@ model Team {
  routeChanges RouteChange[]
  routeAssignment TeamRouteAssignment?
  @@unique([eventId,name])
+}
+model RaceFinalResult {
+ eventId String
+ teamId String @unique
+ successful Boolean
+ version Int @default(1)
+ actorId String
+ updatedAt DateTime @updatedAt
+ event Event @relation(fields:[eventId],references:[id],onDelete:Cascade)
+ team Team @relation(fields:[eventId,teamId],references:[eventId,id],onDelete:Cascade)
+ actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
+ @@id([eventId,teamId])
 }
 model SquadHandler {
  eventId String

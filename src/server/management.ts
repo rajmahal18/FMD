@@ -1,3 +1,4 @@
+import {passwordSetupRequired} from './password-setup';
 import {stationStoredName} from "@/lib/station-name";
 import "server-only";
 import { routeCommand } from "@/server/route-management";
@@ -21,7 +22,7 @@ export async function manage(actorId:string,data:FormData):Promise<ManagementRes
   // Serialize commands by actor; same-event commands also lock the event below.
   await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id"=${actorId} FOR UPDATE`;
   const actor=await tx.user.findUnique({where:{id:actorId}});
-  if(!actor?.active||actor.mustChangePassword)throw new InputError("Sign in and complete your password change first.",403);
+  if(!actor?.active||(await passwordSetupRequired(tx,actorId,eventId,actor.mustChangePassword)))throw new InputError("Sign in and complete your password change first.",403);
   const completed=await tx.managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}});
   if(operation==="deleteDraftEvent"&&completed){if(completed.requestHash!==requestHash||completed.operation!==operation)throw new InputError("This request was already saved with different details.",409);return {...completed.responseJson as ManagementResult,replayed:true};}
   if(operation!=="createEvent"){

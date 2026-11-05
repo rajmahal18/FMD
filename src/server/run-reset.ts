@@ -4,7 +4,7 @@ import type {OverallConfig} from '@/lib/overall';
 
 // Event-scoped recovery record. Never include User/Session records or passwords.
 export async function captureRun(tx:Prisma.TransactionClient,eventId:string){
- const [event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores,plannedLineups,resultSharing]=await Promise.all([
+ const [event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores,plannedLineups,resultSharing,raceFinalResults]=await Promise.all([
   tx.event.findUniqueOrThrow({where:{id:eventId}}),
   tx.stationVisit.findMany({where:{eventId},orderBy:{id:'asc'},include:{players:true}}),
   tx.stationOutcome.findMany({where:{eventId},orderBy:{id:'asc'}}),
@@ -25,11 +25,13 @@ export async function captureRun(tx:Prisma.TransactionClient,eventId:string){
   tx.judgingScore.findMany({where:{eventId},orderBy:{id:"asc"}}),
   tx.stationLineup.findMany({where:{eventId}}),
   tx.resultSharing.findMany({where:{eventId},orderBy:{key:'asc'}}),
+  tx.raceFinalResult.findMany({where:{eventId}}),
  ]);
- return JSON.parse(JSON.stringify({version:1,event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores,plannedLineups,resultSharing})) as Prisma.InputJsonObject;
+ return JSON.parse(JSON.stringify({version:1,event,visits,outcomes,entries,corrections,penalties,contacts,credentials,announcements,reroutes,results,ballots,choices,voting,overall,judgingContests,judgingAssignments,judgingScores,plannedLineups,resultSharing,raceFinalResults})) as Prisma.InputJsonObject;
 }
 
 export async function clearOverallRun(tx:Prisma.TransactionClient,eventId:string){
+ await tx.raceFinalResult.deleteMany({where:{eventId}});
  const record=await tx.overallRanking.findUnique({where:{eventId}});
  if(!record)return;
  const config=record.config as OverallConfig;

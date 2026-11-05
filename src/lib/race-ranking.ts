@@ -1,8 +1,10 @@
 export const raceRules={
+ STATION_PLACEMENTS:'Station placements (80%) + Final Station result (20%)',
  TIME:'Shortest total station time, including time penalties',
  POINTS:'Highest station points',
  POINTS_TIME:'Highest points; shortest challenge time breaks ties',
 } as const;
+export function timedRace(rule:string|undefined){return rule==='TIME'||rule==='STATION_PLACEMENTS';}
 export type RaceRule=keyof typeof raceRules;
 export type RaceTeam={id:string;name:string;color?:string;points:number;complete:boolean;challengeSeconds:number|null;completedAt:number|null;rawChallengeSeconds?:number|null;timePenaltySeconds?:number};
 export function rankRace(teams:RaceTeam[],rule:RaceRule='POINTS'){
