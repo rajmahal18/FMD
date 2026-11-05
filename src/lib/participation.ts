@@ -20,3 +20,8 @@ export function validatePlayerSelection(ids:unknown,required:number|null,eligibl
  if(ids.some(id=>!eligible.includes(id)))throw new Error('A selected player is no longer an active participant on your team. Refresh the roster.');
  return [...ids];
 }
+export function playersFromExclusions(excluded:unknown,required:number|null,eligible:readonly string[]):string[]{
+ if(!Array.isArray(excluded)||excluded.length>1000||excluded.some(id=>typeof id!=='string'||!eligible.includes(id))||new Set(excluded).size!==excluded.length)throw new Error('Choose distinct non-players from this team’s active roster.');
+ return validatePlayerSelection(eligible.filter(id=>!excluded.includes(id)),required,eligible);
+}
+export function sameRoster(expected:readonly string[],actual:readonly string[]){return expected.length===actual.length&&new Set(expected).size===expected.length&&expected.every(id=>actual.includes(id));}

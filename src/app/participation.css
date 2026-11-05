@@ -28,3 +28,5 @@
 .player-selection-bar .race-action{max-height:35svh;overflow-y:auto;overscroll-behavior:contain}.selection-dock-space{pointer-events:none}
 
 .player-selection-bar .race-action{margin:0}
+
+.facilitator-lineup .player-option.is-selected{border-color:#f5cb83;background:#352e22}.facilitator-lineup .player-option.is-selected .player-selection-state{color:#f5cb83}.facilitator-lineup .lineup-playing-preview{margin:16px 0}.facilitator-lineup .lineup-playing-preview summary{min-height:44px;padding:10px 0;cursor:pointer}.facilitator-lineup .lineup-playing-preview p{margin:8px 0}

@@ -12,18 +12,11 @@ export async function raceFlowBrowser({role,cookie,pg,event,timerTeam,evaluate,v
   await check('flow-hq-locked-'+policy,`/events/${event.id}`);
   assert(await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Start shared HQ countdown').disabled"));
  }else if(role==='agent'){
-  if(policy==='PRESELECT_APPROVAL'){
-   await visit(`/events/${event.id}`);assert(await evaluate("!!document.querySelector('.player-picker')"));
-   await evaluate("document.querySelectorAll('.player-option input')[0].click();document.querySelectorAll('.player-option input')[1].click()");
-   await click('Save advance lineup');await wait(async()=>(await pg.query('SELECT COUNT(*)::int AS n FROM "StationLineup" WHERE "teamId"=$1',[timerTeam])).rows[0].n===1);
-   assert.equal((await visits()).length,0);
-   await check('flow-advance-lineup-'+policy,`/events/${event.id}`);
-  }
   await visit(`/events/${event.id}/check-in?code=23456789`);
   if(policy!=='SCAN_APPROVAL_TIMED'){
-   await wait(()=>evaluate("!!document.querySelector('.player-picker')"));
-   if(policy!=='PRESELECT_APPROVAL')await evaluate("document.querySelectorAll('.player-option input')[0].click();document.querySelectorAll('.player-option input')[1].click()");
-   await click('Submit lineup');
+   await wait(()=>evaluate("!!document.querySelector('.arrival-review')"));
+   assert.equal(await evaluate("!!document.querySelector('.player-picker')"),false);
+   await click('Record arrival');
   }
   await wait(async()=>(await visits()).length===1);
   const v=(await visits())[0];assert.equal(v.state,'ARRIVED');assert.equal(!!v.startedAt,policy==='SCAN_APPROVAL_TIMED');
@@ -32,14 +25,12 @@ export async function raceFlowBrowser({role,cookie,pg,event,timerTeam,evaluate,v
   assert.equal(await evaluate("!!document.querySelector('.mission-directions p')"),false,'No premature participant instructions');
  }else{
   await check('flow-approval-'+policy,`/events/${event.id}/field`);
-  await click(policy==='SCAN_APPROVAL_TIMED'?'Approve QR arrival':'Approve arrival & lineup - start timer');
-  await wait(async()=>{const v=(await visits())[0];return policy==='SCAN_APPROVAL_TIMED'?!!v.arrivalApprovedAt:v.state==='ACTIVE';});
-  if(policy==='SCAN_APPROVAL_TIMED'){
-   await restore(savedCookies.agent);await visit(`/events/${event.id}`);
-   await wait(()=>evaluate("!!document.querySelector('.player-picker')"));
-   await evaluate("document.querySelectorAll('.player-option input')[0].click();document.querySelectorAll('.player-option input')[1].click()");await click('Submit lineup');
-   await wait(async()=>(await visits())[0].state==='ACTIVE');await restore(cookie);
-  }
+  const before=(await visits())[0];
+  await wait(()=>evaluate("!!document.querySelector('.facilitator-lineup')"));
+  await evaluate("(async()=>{const inputs=document.querySelectorAll('.facilitator-lineup input[type=checkbox]');for(let i=0;i<inputs.length-2;i++){inputs[i].click();await new Promise(r=>setTimeout(r,30));}})()");
+  await click(policy==='SCAN_APPROVAL_TIMED'?'Confirm lineup & begin play':'Confirm lineup & start timer');
+  await wait(async()=>(await visits())[0].state==='ACTIVE');
+  if(before.startedAt)assert.equal(String((await visits())[0].startedAt),String(before.startedAt),'Lineup confirmation preserves the running clock');
   await check('flow-approved-'+policy,`/events/${event.id}/field`);
   await click('Finish challenge');await wait(async()=>(await visits())[0].state==='AWAITING_CONFIRMATION');
   const v=(await visits())[0];await race('confirmResult',{visitId:v.id,successful:true,expectedPenaltySeconds:0},'facilitator');

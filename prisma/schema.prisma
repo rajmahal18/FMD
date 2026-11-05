@@ -43,6 +43,10 @@ model User {
  voidedTimePenalties TimePenaltyEntry[] @relation("PenaltyVoidActor")
 }
 model Session {
+ parentSessionId String?
+ actingEventId String?
+ parentSession Session? @relation("AccountSwitchSessions",fields:[parentSessionId],references:[id],onDelete:Cascade)
+ switchedSessions Session[] @relation("AccountSwitchSessions")
  id String @id @default(cuid())
  tokenHash String @unique
  userId String
@@ -50,6 +54,7 @@ model Session {
  createdAt DateTime @default(now())
  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
  @@index([expiresAt])
+ @@index([parentSessionId])
 }
 model EmailOtp {
  id String @id

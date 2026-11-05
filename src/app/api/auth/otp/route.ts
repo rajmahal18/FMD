@@ -1,3 +1,4 @@
+import {organizerCookie,cookieOptions} from "@/lib/session-cookies";
 import {NextRequest,NextResponse} from "next/server";
 import {randomBytes,randomInt} from "node:crypto";
 import {db} from "@/lib/db";
@@ -84,6 +85,7 @@ export async function POST(request:NextRequest){
   if(!result)return failure("Code is invalid, expired, or has reached its attempt limit. Request a new code.");
   const response=NextResponse.json(result,{headers:{"Cache-Control":"no-store"}});
   response.cookies.set(sessionCookie,token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",expires:expiresAt});
+  response.cookies.set(organizerCookie,"",{...cookieOptions,maxAge:0});
   return response;
  } catch(error) {logFailure("request",error);return failure("Unable to sign in right now. Please try again.",500);}
 }

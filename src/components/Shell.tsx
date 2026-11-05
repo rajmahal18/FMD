@@ -1,3 +1,4 @@
+import {AccountSession} from "./AccountSession";
 import {RoleLabel} from "./RoleLabel";
 import {ScreenAwakeControl} from "./ScreenAwake";
 import {avatarUrl} from "@/lib/avatar";
@@ -18,10 +19,11 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
   const photo=avatarUrl(account?.avatarKey);
   const previewEnabled=eventId?(await db().event.findUnique({where:{id:eventId},select:{screenPreviewEnabled:true}}))?.screenPreviewEnabled??true:true;
   children=<RunRevisionProvider revision={eventId?await runRevision(db(),eventId):0}>{children}</RunRevisionProvider>;
-  if(role==="FACILITATOR"){const hasJudging=!!eventId&&!!account&&await db().judgingAssignment.count({where:{eventId,active:true,membership:{userId:account.id,active:true,role:"FACILITATOR"}}})>0;return <PlayerShell avatarUrl={photo} previewEnabled={previewEnabled} judgingEnabled={hasJudging} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell>;}
-  if(role==="PARTICIPANT"||role==="AGENT")return <PlayerShell avatarUrl={photo} name={name} title={title} eventId={eventId}>{children}</PlayerShell>;
+  const sessionBar=account?<AccountSession key={`${account.id}:${account.accountSwitch?.sessionId??"normal"}`} userId={account.id} name={account.name} switchId={account.accountSwitch?.sessionId} organizerName={account.accountSwitch?.organizerName}/>:null;
+  if(role==="FACILITATOR"){const hasJudging=!!eventId&&!!account&&await db().judgingAssignment.count({where:{eventId,active:true,membership:{userId:account.id,active:true,role:"FACILITATOR"}}})>0;return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} previewEnabled={previewEnabled} judgingEnabled={hasJudging} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;}
+  if(role==="PARTICIPANT"||role==="AGENT")return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;
   const roleLabel=role.replaceAll("_"," ");
-  return <div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":role==="FACILITATOR"?"facilitator-shell":""}`}>
+  return <>{sessionBar}<div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":role==="FACILITATOR"?"facilitator-shell":""}`}>
     <aside>
       <div className="sidebar-aura" aria-hidden="true"/>
       <Link prefetch={false} className="brand-lockup" href="/workspace">
@@ -44,7 +46,7 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
         {role==="FACILITATOR"&&eventId&&<NavigationLink href={`/events/${eventId}/results`}>Final results</NavigationLink>}
         {eventId&&role!=="ORGANIZER"&&<NavigationLink href={`/events/${eventId}/overall`}>Team Building Overall Ranking</NavigationLink>}
         {eventId&&<NavigationLink href={`/events/${eventId}/program`}>Event Program</NavigationLink>}
-        <NavigationLink href="/workspace">My events</NavigationLink>
+        <NavigationLink href="/workspace?list=1">My events</NavigationLink>
       </nav>
       <div className="sidebar-intel-strip" aria-hidden="true">
         <img src="/theme/spy-icon-grid.png" alt="" width={280} height={210}/>
@@ -52,7 +54,8 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
       {role==="FACILITATOR"?<details className="staff-account"><summary aria-label="Account" title="Account"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="9" r="3"/><path d="M5.5 18a7 7 0 0 1 13 0"/></svg></summary><div className="staff-account-menu"><strong>{name}</strong><Link prefetch={false} href="/account/password">Password &amp; access</Link><ScreenAwakeControl/><SignOutForm/></div></details>:<ControllerAccount className="player-account organizer-account"><summary aria-label="Account"><Avatar name={name} src={photo} size="small"/><span>Account</span></summary><div className="player-account-menu">
         <PersonName name={name} avatarUrl={photo}/>
         <span className="account-role"><RoleLabel role={role}/></span>
-        <Link prefetch={false} className="account-link" href="/account/password">Password & access</Link>
+        {eventId&&!account?.accountSwitch&&<Link prefetch={false} href={`/events/${eventId}/switch-account`}>Switch to account</Link>}
+        {!account?.accountSwitch&&<Link prefetch={false} className="account-link" href="/account/password">Password & access</Link>}
         <ScreenAwakeControl/><SignOutForm/>
       </div></ControllerAccount>}
     </aside>
@@ -67,5 +70,5 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
       </header>
       <div className="content-body">{children}</div>
     </main>
-  </div>;
+  </div></>;
 }

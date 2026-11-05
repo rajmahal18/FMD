@@ -22,8 +22,8 @@ Routes support same fixed order, circular order with different starting stations
 
 ## Live station flow
 1. Participant sees one primary current-station card, location and next action.
-2. Captain scans the station QR or enters its manual code, selects exactly the configured player count (at least one if no count is configured), and confirms the lineup. If admitted, this atomically records the lineup and starts the official server timer. Timing includes reading instructions and preparation; participant station instructions are withheld until the visit starts. A queued lineup is saved without starting timing; after admission the captain confirms the players and starts. Started lineups are locked. Scanning alone never records success or points.
-3. Assigned facilitator sees the lineup, individual played/explored counts and station history, then finishes and confirms the physical challenge. Legacy visits at stations without a player requirement may still use facilitator start; missing historical lineups are never inferred.
+2. Captain scans the station QR or enters its manual code to record arrival. After admission, the assigned facilitator selects who will not play and confirms the remaining eligible players against the configured count (at least one if unspecified). Confirmation locks the lineup and starts the official timer, except the QR-start policy preserves timing from admitted arrival. Queued waiting never counts. Participant instructions remain private until ACTIVE. Scanning alone never records success or points.
+3. Assigned facilitator reviews the playing lineup, individual played/explored counts and station history, then finishes and confirms the physical challenge. Existing active and historical lineups remain unchanged; missing historical lineups are never inferred.
 4. Confirmation shows team, station, points, bonus/penalty and next destination.
 5. One server transaction records the outcome, corresponding score entries and progression. A duplicate request returns the original result. Team screens refresh the confirmed state.
 
@@ -37,7 +37,7 @@ Default scoring policy for a legacy points-based event: configured fixed points 
 
 Team total = confirmed station points + confirmed bonuses − confirmed penalties. One canonical calculation drives participant totals, Mission Control and standings. Retries do not sum points automatically; choose the attempt policy before starting. Default is one accepted outcome per team per station. Corrections append reversals/replacements with attribution; no destructive edits to history.
 
-Additional organizer-selected arrival/approval policies and the event-wide Final Station gate/countdown are documented in [RACE_FLOW.md](../RACE_FLOW.md). Existing captain-confirmation timing remains the default; deployment never silently switches a live event policy.
+Arrival timing policies and the event-wide Final Station gate/countdown are documented in [RACE_FLOW.md](../RACE_FLOW.md). All regular-station lineups are facilitator-owned; existing timing policy keys remain compatible.
 
 ## Event controls
 Visible stages: Preparing, Ready, Live, Paused, Ended, Finalized. Start validates setup on the server. Pause blocks normal race mutations and contact issuance/redemption; authorized corrections remain available with an explanation. End closes new submissions; review results before finalizing. Final results are saved revisions. Reopening requires an explicit organizer action and reason; supersede rather than overwrite a prior final revision.
@@ -105,3 +105,13 @@ Judges enter their assigned open contests first. New scores and criterion maxima
 ## Explicit results sharing
 
 Approval and audience release are separate. New race, combined and voting snapshots stay hidden until an organizer reviews and confirms the exact audience and result. Judging defaults to Hidden; explicitly enabled live scores remain live. Combined results cannot expose a hidden included source. Reopening and approving a new snapshot never silently restores its previous release. Existing revealed results are preserved by migration. See [RESULTS_REDESIGN.md](../RESULTS_REDESIGN.md) for the hierarchy, state rules and validation.
+
+
+## Direct activity entry
+
+After password or email-code login, an account with exactly one active real event opens its role-specific activity screen directly. Demo memberships do not force event selection when one real event is available. Judge assignments still open Scoring; other facilitators open station work and participants open their current mission. Multiple real events retain selection; accounts with no real event may enter a sole demo. Account > My events explicitly opens the full chooser, and archived-event browsing stays available. Inactive membership/user checks, password changes and explicit safe destinations remain enforced.
+
+
+## Organizer account switching
+
+An authenticated event organizer may explicitly switch into another active event member with completed password setup for testing. These are real, counted actions under the target account permissions. Keep a visible identity banner and Return to organizer action. Scope delegated sessions to the selected event, revalidate organizer/target access on every request, prevent nested switches and credential changes, and audit the original organizer and delegated identity. Never use a universal password. See [ACCOUNT_SWITCHING.md](../ACCOUNT_SWITCHING.md).

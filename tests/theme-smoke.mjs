@@ -1,3 +1,6 @@
+if(process.env.PARTICIPATION_BROWSER_ONLY){process.env.FACILITATOR_LINEUP_BROWSER_ONLY='1';delete process.env.PARTICIPATION_BROWSER_ONLY;}
+import {facilitatorLineupBrowser} from './facilitator-lineup-browser.mjs';
+import {accountSwitchBrowser} from './account-switch-browser.mjs';
 import {resultCenterBrowser} from './result-center-browser.mjs';
 import {shareResult} from './result-sharing-helpers.mjs';
 import {judgingVisibilityBrowser} from "./judging-visibility-browser.mjs";
@@ -70,6 +73,12 @@ try{
  await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['timer-browser-route',event.id,'Timed route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['timer-browser-assignment',timerTeam,'timer-browser-route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"startedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['timer-browser-visit',event.id,timerTeam,'demo-cipher-room','ACTIVE']);
+ if(process.env.FACILITATOR_LINEUP_BROWSER_ONLY){
+  await pg.query('DELETE FROM "StationVisit" WHERE id=$1',['timer-browser-visit']);
+  await pg.query('UPDATE "Station" SET "playersRequired"=15,"arrivalCode"=$1 WHERE id=$2',['ABCDEFGH','demo-cipher-room']);
+  const members=(await pg.query('SELECT id FROM "User" WHERE email LIKE $1 ORDER BY name LIMIT 18',['%@agents.invalid'])).rows;
+  for(const [i,u] of members.entries())await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role,"teamId") VALUES ($1,$2,$3,$4,$5)',['faci-lineup-browser-'+i,event.id,u.id,'PARTICIPANT',timerTeam]);
+ }
  if(process.env.PARTICIPATION_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY){
   await pg.query('DELETE FROM "StationVisit" WHERE id=$1',['timer-browser-visit']);
   await pg.query('UPDATE "Station" SET "playersRequired"=2,briefing=$1 WHERE id=$2',['Read the cipher and solve the physical challenge.','demo-cipher-room']);
@@ -101,7 +110,7 @@ try{
   await pg.query('UPDATE "Station" SET brawn=5,brain=0,"playersRequired"=6 WHERE id=$1',['demo-cipher-room']);
   await pg.query('INSERT INTO "Station" (id,"eventId",name,location,briefing,"facilitatorInstructions",configured) VALUES ($1,$2,$3,$4,$5,$6,true)',['requirements-editor-station',roster.id,'Station requirements editor','Main hall','Meet the facilitator.','Confirm the result.']);
  }
- if(process.env.JUDGING_BROWSER_ONLY){
+ if(process.env.JUDGING_BROWSER_ONLY||process.env.ACCOUNT_SWITCH_BROWSER_ONLY){
   await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',['judging-browser-bravo',event.id,'Bravo with a long team name']);
   const membership=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event.id,'FACILITATOR'])).rows[0].id;
   const config={target:'TEAM',candidateIds:[timerTeam,'judging-browser-bravo'],criteria:judgingBrowserCriteria};
@@ -142,7 +151,7 @@ try{
  for(let i=0;i<50;i++){try{if((await fetch(appOrigin)).ok)break;}catch{}await new Promise(r=>setTimeout(r,200));}
  proxy=https.createServer({key:fs.readFileSync(privateKey),cert:fs.readFileSync(certificate)},(req,res)=>{
   const upstream=http.request({hostname:'127.0.0.1',port:3188,path:req.url,method:req.method,headers:req.headers},r=>{res.writeHead(r.statusCode,r.headers);r.pipe(res);});
-  upstream.on('error',()=>{res.writeHead(502);res.end();});req.pipe(upstream);
+  upstream.on('error',()=>{if(res.destroyed||res.writableEnded)return;if(!res.headersSent)res.writeHead(502);res.end();});req.pipe(upstream);
  });
  await new Promise(resolve=>proxy.listen(3189,'127.0.0.1',resolve));
  browser=spawn(process.env.CHROMIUM_PATH||(process.platform==='win32'?'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe':'chromium'),['--headless=new','--no-sandbox','--disable-gpu','--no-first-run','--remote-debugging-pipe','--user-data-dir='+path.join(out,'profile'),'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
@@ -167,7 +176,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.WAKE_BROWSER_ONLY||process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.FACILITATOR_LINEUP_BROWSER_ONLY||process.env.ACCOUNT_SWITCH_BROWSER_ONLY||process.env.WAKE_BROWSER_ONLY||process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -177,15 +186,17 @@ try{
  await evaluate(`document.querySelector('input[name=email]').focus()`);
  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('input[name=email]')).outlineStyle`),'none','Keyboard focus must remain visible');
  await evaluate(`document.querySelector('details:has(form[action="/api/auth/login"])').open=true;const form=document.querySelector('form[action="/api/auth/login"]');form.querySelector('input[name=email]').value='organizer@example.test';form.querySelector('input[name=password]').value='${env.SEED_PASSWORD}';form.requestSubmit()`);
- for(let i=0;i<30;i++){if(await evaluate(`location.pathname==='/workspace'`))break;await new Promise(r=>setTimeout(r,200));}
+ for(let i=0;i<30;i++){if(await evaluate(`location.pathname==='/workspace'||location.pathname.startsWith('/events/')`))break;await new Promise(r=>setTimeout(r,200));}
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
- assert.equal(loginState.path,'/workspace');console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.JUDGING_VISIBILITY_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.CATEGORY_VOTING_BROWSER_ONLY?['organizer','agent']:process.env.INBOX_BROWSER_ONLY?['organizer','agent']:process.env.WAKE_BROWSER_ONLY?['facilitator']:process.env.JUDGED_OVERALL_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.SQUAD_HANDLERS_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PREVIEW_TOGGLE_BROWSER_ONLY?['organizer','facilitator']:process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ assert(loginState.path==='/workspace'||loginState.path.startsWith('/events/'));console.log('PASS: browser sign-in form and visible keyboard focus.');
+ for(const role of (process.env.FACILITATOR_LINEUP_BROWSER_ONLY?['agent','facilitator']:process.env.ACCOUNT_SWITCH_BROWSER_ONLY?['organizer']:process.env.JUDGING_VISIBILITY_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.CATEGORY_VOTING_BROWSER_ONLY?['organizer','agent']:process.env.INBOX_BROWSER_ONLY?['organizer','agent']:process.env.WAKE_BROWSER_ONLY?['facilitator']:process.env.JUDGED_OVERALL_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.SQUAD_HANDLERS_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PREVIEW_TOGGLE_BROWSER_ONLY?['organizer','facilitator']:process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
+  if(process.env.FACILITATOR_LINEUP_BROWSER_ONLY){await facilitatorLineupBrowser({role,pg,event,timerTeam,evaluate,visit,check});continue;}
+  if(process.env.ACCOUNT_SWITCH_BROWSER_ONLY){await accountSwitchBrowser({pg,event,evaluate,visit,check});continue;}
   if(process.env.JUDGING_VISIBILITY_BROWSER_ONLY){await judgingVisibilityBrowser({role,pg,event,evaluate,visit,check});continue;}
   if(process.env.CATEGORY_VOTING_BROWSER_ONLY){await categoryVotingBrowser({role,cookie,pg,event,evaluate,visit,check,appOrigin,origin});continue;}
   if(process.env.INBOX_BROWSER_ONLY){await inboxBrowser({role,pg,event,evaluate,visit,check,cmd});continue;}
@@ -222,56 +233,6 @@ try{
    console.log('PASS: '+role+' POS station tiles, lightweight modal, viewport bounds, keyboard focus/Escape and backdrop recovery.');continue;
   }
   if(process.env.ARRIVAL_FLOW_BROWSER_ONLY){await raceFlowBrowser({role,cookie,pg,event,timerTeam,evaluate,visit,check,cmd,origin,appOrigin,policy:process.env.ARRIVAL_FLOW_BROWSER_ONLY});continue;}
-  if(process.env.PARTICIPATION_BROWSER_ONLY){
-   if(role==='agent'){
-    const verifySelection=`for(let i=0;i<40&&!document.querySelector('.player-picker');i++)await new Promise(r=>setTimeout(r,100));document.querySelector('.player-picker')?.scrollIntoView({block:'start'});`;
-    await check('participation-player-picker','/events/'+event.id+'/check-in?code=23456789',`(async()=>{${verifySelection}})()`);
-    assert(await evaluate("!!document.querySelector('.player-picker')"));
-    await evaluate("document.querySelectorAll('.player-option input')[0].click();document.querySelectorAll('.player-option input')[1].click()");await new Promise(r=>setTimeout(r,100));
-    assert.equal(await evaluate("document.querySelectorAll('.player-option.is-selected').length"),2);
-    assert(await evaluate("document.querySelectorAll('.player-option input')[2].disabled"),'Count limit disables unselected players');
-    assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "StationVisit" WHERE "teamId"=$1',[timerTeam])).rows[0].n,0,'QR verification must not start timing or record a visit');
-    await evaluate("(()=>{const input=document.querySelector('.player-picker-tools input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'no-such-teammate');input.dispatchEvent(new Event('input',{bubbles:true}));})()");await new Promise(r=>setTimeout(r,100));
-    assert(await evaluate("!document.querySelector('.player-option')&&document.querySelector('.player-selection-bar').textContent.includes('2 of 2')"),'Search preserves selection and shows no-match recovery');
-    await evaluate("document.querySelector('.player-picker .notice button').click()");await new Promise(r=>setTimeout(r,100));
-    assert.equal(await evaluate("document.querySelectorAll('.player-option.is-selected').length"),2,'Clearing search restores selected rows');
-    for(const width of [320,390,768,1440]){
-     await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});
-     for(const fraction of [0,.5,1]){
-      await evaluate(`(()=>{const list=document.querySelector('.player-options'),r=list.getBoundingClientRect();window.scrollTo(0,scrollY+r.top+Math.max(0,r.height-innerHeight+250)*${fraction}-90);})()`);await new Promise(r=>setTimeout(r,120));
-      const pinned=await evaluate("(()=>{const bar=document.querySelector('.player-selection-bar'),r=bar.getBoundingClientRect();return {position:getComputedStyle(bar).position,top:r.top,bottom:r.bottom,visible:!!bar.getClientRects().length};})()");
-      assert(pinned.visible&&pinned.top>=0&&pinned.bottom<=900,`Selection count must stay visible while browsing the roster at ${width}px / ${fraction}`);
-     }
-     const layout=await evaluate("(()=>{const bar=document.querySelector('.player-selection-bar').getBoundingClientRect(),dock=document.querySelector('.player-bottom-nav').getBoundingClientRect();return {width:innerWidth,scroll:document.documentElement.scrollWidth,bottom:bar.bottom,top:bar.top,dockTop:dock.top,position:getComputedStyle(document.querySelector('.player-bottom-nav')).position};})()");
-     assert(layout.scroll<=width,'Picker must not overflow');assert(layout.top>=0&&layout.bottom<=900,'Selection action remains reachable');if(layout.position==='fixed')assert(layout.bottom<=layout.dockTop,'Selection action stays above bottom navigation');
-     const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,'participation-selected-'+width+'.png'),Buffer.from(image.data,'base64'));
-    }
-    await evaluate("document.querySelector('.player-selection-bar button').click()");
-    for(let i=0;i<40;i++){if(await evaluate("location.pathname.endsWith('/check-in')===false && !!document.querySelector('.station-timer')"))break;await new Promise(r=>setTimeout(r,200));}
-    assert(await evaluate("!!document.querySelector('.station-timer')"),'Captain confirmation starts a visible timer');
-    await evaluate("document.querySelector('.action-feedback-modal[open] button')?.click()");
-    await check('participation-running-mission','/events/'+event.id);
-    const v=(await pg.query('SELECT id FROM "StationVisit" WHERE "teamId"=$1',[timerTeam])).rows[0];assert(v);
-    assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM "StationVisitPlayer" WHERE "visitId"=$1',[v.id])).rows[0].n,2);
-    await check('participation-team-history','/events/'+event.id,"document.querySelector('#team-file').open=true");
-   }else{
-    await check('participation-facilitator-lineup','/events/'+event.id+'/field');
-    assert(await evaluate("document.querySelector('.station-lineup').textContent.includes('0 played / 1 explored')"));
-    for(const width of [320,390,768,1440]){
-     const height=width<768?740:900;
-     await cmd('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<768});await visit('/events/'+event.id+'/field');
-     const consoleLayout=await evaluate("(()=>{const dock=document.querySelector('.field-bottom-nav'),limit=getComputedStyle(dock).position==='fixed'?dock.getBoundingClientRect().top:innerHeight;const targets=[document.querySelector('.station-team:not([hidden]) .station-timer'),...document.querySelectorAll('.station-team:not([hidden]) .time-penalty-actions button'),[...document.querySelectorAll('.station-team:not([hidden]) button')].find(b=>(b.getAttribute('aria-label')||b.textContent)==='Finish challenge')];return {limit,rects:targets.map(e=>e?{top:e.getBoundingClientRect().top,bottom:e.getBoundingClientRect().bottom}:null),lineupOpen:document.querySelector('.station-lineup').open};})()");
-     assert.equal(consoleLayout.lineupOpen,false,'Roster stays folded during urgent station work');
-     assert(consoleLayout.rects.every(r=>r&&r.top>=0&&r.bottom<=consoleLayout.limit),`Timer, penalty buttons and Finish must fit without scrolling at ${width}x${height}: ${JSON.stringify(consoleLayout)}`);
-     const shot=await cmd('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(out,'field-urgent-'+width+'.png'),Buffer.from(shot.data,'base64'));
-    }
-    await evaluate("document.querySelector('.time-penalty-actions button').click()");
-    for(let i=0;i<40;i++){if(await evaluate("!!document.querySelector('.race-action-note')"))break;await new Promise(r=>setTimeout(r,100));}
-    assert(await evaluate("!!document.querySelector('.race-action-note')&&!document.querySelector('.action-feedback-modal[open]')"),'Penalty taps confirm inline without blocking live controls');
-
-   }
-   continue;
-  }
   if(process.env.SCREEN_PREVIEW_BROWSER_ONLY){
    if(role==='agent'){assert.equal((await fetch(appOrigin+'/events/'+event.id+'/preview',{headers:{cookie},redirect:'manual'})).status,404);continue;}
    const before=JSON.stringify((await pg.query('SELECT state,(SELECT COUNT(*)::int FROM "StationVisit" WHERE "eventId"=$1) AS visits,(SELECT COUNT(*)::int FROM "AuditEntry" WHERE "eventId"=$1) AS audits,(SELECT COUNT(*)::int FROM "ScoreLedgerEntry" WHERE "eventId"=$1) AS scores FROM "Event" WHERE id=$1',[event.id])).rows);
@@ -913,7 +874,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.WAKE_BROWSER_ONLY||process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.FACILITATOR_LINEUP_BROWSER_ONLY||process.env.ACCOUNT_SWITCH_BROWSER_ONLY||process.env.WAKE_BROWSER_ONLY||process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');

@@ -12,6 +12,7 @@ let app;
 try{
  await new Promise((resolve,reject)=>{const c=spawn(process.execPath,['--import','tsx','prisma/seed.ts'],{env,stdio:'ignore'});c.on('error',reject);c.on('exit',code=>code?reject(Error('Seed failed')):resolve());});
  const event=(await pg.query('SELECT id FROM "Event" WHERE slug=$1',['classified-demo'])).rows[0].id,team=(await pg.query('SELECT id FROM "Team" WHERE "eventId"=$1 LIMIT 1',[event])).rows[0].id;
+ await pg.query('UPDATE "Event" SET "isDemo"=false WHERE id=$1',[event]);
  const judge=(await pg.query('SELECT m.id,m."userId" FROM "EventMembership" m JOIN "User" u ON u.id=m."userId" WHERE m."eventId"=$1 AND u.email=$2',[event,'facilitator@example.test'])).rows[0];
  app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','3197'],{env,stdio:'ignore'});
  for(let i=0;i<60;i++){try{if((await fetch(origin)).ok)break;}catch{}if(i===59)throw Error('App did not start');await new Promise(r=>setTimeout(r,250));}
@@ -21,6 +22,13 @@ try{
  const get=(url,role='facilitator')=>fetch(origin+url,{headers:{cookie:cookies[role]},redirect:'manual'});
  const data=async(role='organizer')=>(await get(base+'/judging',role)).json();
  const post=(role,body)=>fetch(origin+base+'/judging',{method:'POST',headers:{cookie:cookies[role],origin,'content-type':'application/json'},body:JSON.stringify({runRevision:0,requestKey:randomUUID(),...body})});
+ for(const role of ['organizer','agent','facilitator']){
+  assert.equal((await login(role)).headers.get('location'),origin+'/events/'+event,'Single-event '+role+' skips event selection');
+  assert.equal((await get('/workspace',role)).headers.get('location'),'/events/'+event);
+  assert.equal((await get('/workspace?list=1',role)).status,200,'Explicit event list remains accessible');
+  assert.equal((await get('/workspace?archived=1',role)).status,200,'Archived list is never auto-skipped');
+ }
+ assert.equal((await login('agent','/events/'+event+'/inbox')).headers.get('location'),origin+'/events/'+event+'/inbox','Explicit participant destinations stay intact');
  const config={target:'TEAM',candidateIds:[team],criteria:[{id:'impact',name:'Impact',description:'',maximum:100}]};
  assert.equal((await post('organizer',{operation:'createContest',name:'Fractional maximum',config:{...config,criteria:[{...config.criteria[0],maximum:99.5}]},judgeIds:[judge.id]})).status,400);
  const created=await post('organizer',{operation:'createContest',name:'Editable judging',config,judgeIds:[judge.id]});assert.equal(created.status,200);const id=(await created.json()).targetId;
@@ -81,5 +89,11 @@ try{
  const otp=randomBytes(32).toString('base64url'),code='123456';await pg.query('INSERT INTO "EmailOtp" (id,email,"codeHash","returnTo","expiresAt") VALUES ($1,$2,$3,$4,$5)',[otp,'facilitator@example.test',createHash('sha256').update(otp+':'+code).digest('hex'),'/workspace',new Date(Date.now()+60000).toISOString()]);
  const email=await fetch(origin+'/api/auth/otp',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({operation:'verify',challenge:otp,code})});assert.equal(email.status,200);assert.equal((await email.json()).redirect,pathToJudge);
  await pg.query('INSERT INTO "Event" (id,slug,name) VALUES ($1,$1,$2)',['second-judge-event','Second assignment']);await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) VALUES ($1,$2,$3,$4)',['second-judge-membership','second-judge-event',judge.userId,'FACILITATOR']);assert.equal((await login('facilitator')).headers.get('location'),origin+'/workspace','Multiple events still require event selection');
+ assert.equal((await get('/workspace','facilitator')).status,200,'Multi-event accounts keep the chooser');
+ await pg.query('UPDATE "Event" SET "isDemo"=true WHERE id=$1',['second-judge-event']);assert.equal((await login('facilitator')).headers.get('location'),origin+pathToJudge,'Demo events do not block the single real event');await pg.query('UPDATE "Event" SET "isDemo"=false WHERE id=$1',['second-judge-event']);
+ await pg.query('UPDATE "Event" SET "archivedAt"=NOW() WHERE id=$1',['second-judge-event']);assert.equal((await login('facilitator')).headers.get('location'),origin+pathToJudge,'Archived memberships do not force the chooser');
+ await pg.query('UPDATE "Event" SET "archivedAt"=NULL WHERE id=$1',['second-judge-event']);await pg.query('UPDATE "EventMembership" SET active=false WHERE id=$1',['second-judge-membership']);assert.equal((await login('facilitator')).headers.get('location'),origin+pathToJudge,'Inactive memberships do not force the chooser');
+ await pg.query('UPDATE "EventMembership" SET active=false WHERE id=$1',[judge.id]);assert.equal((await login('facilitator')).headers.get('location'),origin+'/workspace','No active event never redirects into an unauthorized event');assert.equal((await get('/workspace','facilitator')).status,200);assert.equal((await get(pathToJudge,'facilitator')).status,404);
+ console.log('PASS: single-event direct password login/workspace entry for all roles, explicit list/archive/deep links, judge-first landing, multi-event selection and inactive/archive/no-access guards.');
  console.log('PASS: whole-number inputs/API validation, open-only judge desk, password/OTP judge-first entry, explicit links and station access, editable submitted scores, one-row audited updates, replay/stale protection, pause/close races and multi-event selection.');
 }finally{if(app){app.kill();await new Promise(r=>app.once('exit',r));}await socket.stop();await pg.close();}

@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {missionInstruction} from '../src/lib/mission-guidance';
 
 test('captains and ordinary members get the correct arrival responsibility',()=>{
- assert.match(missionInstruction('ARRIVED',true,undefined,''),/Choose the players/);
- assert.match(missionInstruction('ARRIVED',false,undefined,''),/captain is choosing/);
- assert.match(missionInstruction('HEAD_TO_STATION',false,undefined,''),/captain handles/);
+ assert.match(missionInstruction('ARRIVED',true,undefined,''),/facilitator will confirm/);
+ assert.match(missionInstruction('ARRIVED',false,undefined,''),/facilitator will confirm/);
+ assert.match(missionInstruction('HEAD_TO_STATION',false,undefined,''),/captain records/);
 });
 
 test('selection, waiting and facilitator confirmation are never mistaken for completion',()=>{

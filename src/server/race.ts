@@ -2,7 +2,7 @@ import {arrivalPolicy} from "@/lib/arrival-policy";
 import {startFinalStation} from "./final-station";
 import {stationDisplayName} from "@/lib/station-name";
 import {teamParticipation} from "./participation";
-import {validatePlayerSelection} from "@/lib/participation";
+import {playersFromExclusions,sameRoster} from "@/lib/participation";
 import {requireRunRevision} from './run-revision';
 import "server-only";
 import {configurePenaltyButtons,recordTimePenalty,penaltyTotal} from "./time-penalties";
@@ -20,7 +20,7 @@ const inflight=["QUEUED","ARRIVED","ACTIVE","AWAITING_CONFIRMATION"] as const;
 const occupied=["ARRIVED","ACTIVE","AWAITING_CONFIRMATION"] as const;
 export function parseRace(value:unknown):RaceCommand{
  if(!value||typeof value!=="object"||Array.isArray(value))throw new InputError("Invalid race request.");const v=value as Record<string,unknown>;
- const fields:Record<string,string[]>={saveLineup:["stationId","playerIds"],approveArrival:["visitId"],approveLineup:["visitId"],startFinalStation:[],configureTimePenalties:["stationId","penaltyButtons","penaltyRevision"],addTimePenalty:["visitId","penaltyButtonId","expectedSeconds","expectedLabel"],voidTimePenalty:["visitId","penaltyEntryId","reason"],startEvent:[],checkIn:["credential","playerIds"],leaveQueue:["visitId"],admitTeam:["visitId"],startChallenge:["visitId","playerIds"],finishChallenge:["visitId"],confirmResult:["visitId","successful","points","bonus","penalty","reason","expectedPenaltySeconds"]};
+ const fields:Record<string,string[]>={confirmLineup:["visitId","excludedPlayerIds","expectedRosterIds","expectedPlayersRequired"],saveLineup:["stationId","playerIds"],approveArrival:["visitId"],approveLineup:["visitId"],startFinalStation:[],configureTimePenalties:["stationId","penaltyButtons","penaltyRevision"],addTimePenalty:["visitId","penaltyButtonId","expectedSeconds","expectedLabel"],voidTimePenalty:["visitId","penaltyEntryId","reason"],startEvent:[],checkIn:["credential","playerIds"],leaveQueue:["visitId"],admitTeam:["visitId"],startChallenge:["visitId","playerIds"],finishChallenge:["visitId"],confirmResult:["visitId","successful","points","bonus","penalty","reason","expectedPenaltySeconds"]};
  if(typeof v.operation!=="string"||!fields[v.operation]||Object.keys(v).some(k=>!["operation","requestKey","runRevision",...fields[v.operation as string]].includes(k)))throw new InputError("Invalid race action.");
  if(typeof v.requestKey!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v.requestKey))throw new InputError("Refresh the action and try again.");
  if(v.operation==="checkIn"&&(typeof v.credential!=="string"||!v.credential.trim()||v.credential.length>1024))throw new InputError("Enter a station code or scan its QR.");
@@ -32,6 +32,10 @@ export function parseRace(value:unknown):RaceCommand{
  if(v.operation==="voidTimePenalty"&&(typeof v.penaltyEntryId!=="string"||!v.penaltyEntryId||v.penaltyEntryId.length>120||typeof v.reason!=="string"||v.reason.trim().length<5||v.reason.length>500))throw new InputError("Choose a recorded penalty and provide a 5 to 500 character void reason.");
  if(v.expectedPenaltySeconds!==undefined&&(!Number.isSafeInteger(v.expectedPenaltySeconds)||(v.expectedPenaltySeconds as number)<0||(v.expectedPenaltySeconds as number)>86400))throw new InputError("Refresh the station time review.");
  if(v.playerIds!==undefined&&(!Array.isArray(v.playerIds)||!v.playerIds.length||v.playerIds.length>1000||v.playerIds.some(id=>typeof id!=="string"||!id||id.length>120)||new Set(v.playerIds).size!==v.playerIds.length))throw new InputError("Choose distinct players from your team.");
+ if(v.operation==="confirmLineup"){
+  for(const key of ['excludedPlayerIds','expectedRosterIds'])if(!Array.isArray(v[key])||(v[key] as unknown[]).length>1000||(v[key] as unknown[]).some(id=>typeof id!=='string'||!id||id.length>120)||new Set(v[key] as string[]).size!==(v[key] as string[]).length)throw new InputError('Review the current team roster before confirming.');
+  if(v.expectedPlayersRequired!==null&&(!Number.isSafeInteger(v.expectedPlayersRequired)||(v.expectedPlayersRequired as number)<1||(v.expectedPlayersRequired as number)>1000))throw new InputError('Refresh the station player requirement.');
+ }
  return v as RaceCommand;
 }
 async function arrivalBudget(actorId:string,eventId:string){
@@ -77,10 +81,10 @@ export async function raceCommand(actorId:string,eventId:string,body:unknown):Pr
  if(command.operation==="checkIn"&&!await db().managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}}))await arrivalBudget(actorId,eventId);
  return db().$transaction(async tx=>{
   const m=await context(tx,actorId,eventId);await requireRunRevision(tx,eventId,command.runRevision);let team:Awaited<ReturnType<typeof captain>>|undefined;
-  if(command.operation==="startEvent"||command.operation==="startFinalStation"){if(m.role!=="ORGANIZER")throw new InputError("Organizer access is required to start the operation.",403);}else if(["checkIn","saveLineup","leaveQueue"].includes(command.operation)||command.operation==="startChallenge"&&m.role==="PARTICIPANT")team=await captain(tx,m,eventId);
+  if(command.operation==="startEvent"||command.operation==="startFinalStation"){if(m.role!=="ORGANIZER")throw new InputError("Organizer access is required to start the operation.",403);}else if(["checkIn","leaveQueue"].includes(command.operation))team=await captain(tx,m,eventId);
   if(command.operation==="configureTimePenalties"&&!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===command.stationId)))throw new InputError("You are not assigned to this station.",403);
   const visit=command.visitId?await tx.stationVisit.findFirst({where:{id:command.visitId,eventId},include:{station:true,team:true,outcome:true}}):null;
-  if(command.visitId){if(!visit)throw new InputError("Team visit not found in this event.",404);if(command.operation==="leaveQueue"||command.operation==="startChallenge"&&m.role==="PARTICIPANT"){if(visit.teamId!==team!.id)throw new InputError("You can only leave your own team’s queue.",403);}else if(!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===visit.stationId)))throw new InputError("You are not assigned to this station.",403);}
+  if(command.visitId){if(!visit)throw new InputError("Team visit not found in this event.",404);if(command.operation==="leaveQueue"){if(visit.teamId!==team!.id)throw new InputError("You can only leave your own team’s queue.",403);}else if(!mayOperateStation(m.role,m.assignments.some(a=>a.stationId===visit.stationId)))throw new InputError("You are not assigned to this station.",403);}
   const receipt=await tx.managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}});if(receipt){if(receipt.operation!==operation||receipt.requestHash!==requestHash)throw new InputError("This request key was already used with different details. Refresh before retrying.",409);return {...receipt.responseJson as RaceResult,replayed:true};}
   let result:RaceResult;let targetId=visit?.id;let details:Prisma.InputJsonValue={};
   if(command.operation==="configureTimePenalties"){
@@ -112,57 +116,37 @@ export async function raceCommand(actorId:string,eventId:string,body:unknown):Pr
      details={teamId:visit!.teamId,stationId:visit!.stationId,buttonId:command.penaltyButtonId??null,seconds:command.expectedSeconds??null,label:command.expectedLabel??null,penaltyEntryId:command.penaltyEntryId??null,reason:command.reason??null,timePenaltySeconds:result.timePenaltySeconds!,summary:result.message};break;
     }
     case "startFinalStation":{if(m.role!=="ORGANIZER")throw new InputError("Only HQ organizers can start the shared countdown.",403);result=await startFinalStation(tx,eventId);targetId=eventId;break;}
-    case "saveLineup":{
-     if(arrivalPolicy(m.event.arrivalPolicy)!=='PRESELECT_APPROVAL')throw new InputError('Advance lineups are not enabled for this event.',409);
-     const station=await tx.station.findFirst({where:{eventId,id:command.stationId,configured:true,available:true}});if(!station||station.id===m.event.finalStationId)throw new InputError('Choose an available regular station.',409);
-     const route=await tx.teamRouteAssignment.findUnique({where:{teamId:team!.id}});const ids=route?.stationIds as string[]|undefined;
-     const completed=await tx.stationOutcome.findMany({where:{eventId,teamId:team!.id},select:{stationId:true}});
-     if(!route||!ids?.includes(station.id)||!routeProgress(route.mode,ids.filter(id=>id!==m.event.finalStationId),new Set(completed.map(o=>o.stationId)),new Set(),route.startStationId===m.event.finalStationId?null:route.startStationId).unlocked.includes(station.id))throw new InputError('This station is not currently unlocked for your team.',409);
-     if(await tx.stationVisit.count({where:{eventId,teamId:team!.id,stationId:station.id,state:{in:[...inflight,'COMPLETED']}}}))throw new InputError('Update the lineup on your current station instead.',409);
-     const eligible=await tx.eventMembership.findMany({where:{eventId,teamId:team!.id,active:true,role:'PARTICIPANT',user:{active:true}},select:{id:true}});let selected:string[];try{selected=validatePlayerSelection(command.playerIds,station.playersRequired,eligible.map(m=>m.id));}catch(e){throw new InputError((e as Error).message);}
-     await tx.stationLineup.upsert({where:{teamId_stationId:{teamId:team!.id,stationId:station.id}},create:{eventId,teamId:team!.id,stationId:station.id,playerIds:selected},update:{playerIds:selected}});
-     targetId=station.id;details={teamId:team!.id,stationId:station.id,playerIds:selected};result={message:'Advance lineup saved. Scan the station QR on arrival; the facilitator starts timing by approving arrival and lineup.'};break;
-    }
-    case "approveArrival":case "approveLineup":{
-     const policy=arrivalPolicy(m.event.arrivalPolicy);if(policy==='CAPTAIN_CONFIRM'||visit!.state!=='ARRIVED'||!visit!.station.available||visit!.stationId===m.event.finalStationId)throw new InputError('This visit is not waiting for approval.',409);
-     const ids=(await tx.stationVisitPlayer.findMany({where:{visitId:visit!.id}})).map(p=>p.membershipId);
-     if(command.operation==='approveArrival'){
-      if(policy!=='SCAN_APPROVAL_TIMED'||visit!.arrivalApprovedAt)throw new InputError('This arrival does not need separate approval.',409);
-      await tx.stationVisit.update({where:{id:visit!.id},data:{arrivalApprovedAt:new Date(),startedAt:visit!.startedAt??new Date()}});
-      result={message:'Arrival approved. The timer is running; the captain can now submit the lineup.',state:'ARRIVED'};
-     }else{
-      if(policy==='SCAN_APPROVAL_TIMED'||!visit!.lineupSubmittedAt)throw new InputError('Wait for the captain to submit the lineup.',409);
-      const eligible=await tx.eventMembership.findMany({where:{eventId,teamId:visit!.teamId,active:true,role:'PARTICIPANT',user:{active:true}},select:{id:true}});try{validatePlayerSelection(ids,visit!.station.playersRequired,eligible.map(m=>m.id));}catch(e){throw new InputError((e as Error).message);}
-      const now=new Date();await tx.stationVisit.update({where:{id:visit!.id},data:{arrivalApprovedAt:now,state:'ACTIVE',startedAt:now}});result={message:'Arrival and lineup approved. The timer has started for instructions and play.',state:'ACTIVE'};
-     }break;
+    case "saveLineup":throw new InputError('The assigned facilitator now confirms the lineup at the station. Refresh your mission.',403);
+    case "approveArrival":case "approveLineup":throw new InputError('Use Confirm lineup at the station. The facilitator selects who will not play and approves arrival together.',409);
+    case "confirmLineup":{
+     if(visit!.stationId===m.event.finalStationId)throw new InputError('HQ confirms the full-team Final Station lineup.',409);
+     if(visit!.state!=='ARRIVED'||!visit!.station.available)throw new InputError('The team must be admitted and waiting for lineup confirmation.',409);
+     const eligible=(await tx.eventMembership.findMany({where:{eventId,teamId:visit!.teamId,active:true,role:'PARTICIPANT',user:{active:true}},select:{id:true},orderBy:{id:'asc'}})).map(p=>p.id);
+     if(!sameRoster(command.expectedRosterIds!,eligible)||command.expectedPlayersRequired!==visit!.station.playersRequired)throw new InputError('The roster or player requirement changed. Refresh and review who will not play again.',409);
+     let ids:string[];try{ids=playersFromExclusions(command.excludedPlayerIds,visit!.station.playersRequired,eligible);}catch(e){throw new InputError((e as Error).message);}
+     const before=(await tx.stationVisitPlayer.findMany({where:{visitId:visit!.id},select:{membershipId:true}})).map(p=>p.membershipId);
+     await tx.stationVisitPlayer.deleteMany({where:{visitId:visit!.id}});
+     await tx.stationVisitPlayer.createMany({data:ids.map(membershipId=>({eventId,visitId:visit!.id,membershipId}))});
+     const now=new Date();await tx.stationVisit.update({where:{id:visit!.id},data:{state:'ACTIVE',arrivalApprovedAt:visit!.arrivalApprovedAt??now,lineupSubmittedAt:now,startedAt:visit!.startedAt??now,finishedAt:null}});
+     details={teamId:visit!.teamId,stationId:visit!.stationId,beforePlayerIds:before,playerIds:ids,excludedPlayerIds:command.excludedPlayerIds!,confirmedByMembershipId:m.id,preservedStartedAt:!!visit!.startedAt};
+     result={message:`Lineup confirmed: ${ids.length} playing, ${command.excludedPlayerIds!.length} not playing. ${visit!.startedAt?'The existing timer continues.':'The timer has started, including instructions and preparation.'}`,teamName:visit!.team.name,stationName:stationDisplayName(visit!.station.name),state:'ACTIVE'};break;
     }
     case "checkIn":{
      const {station,existing}=await resolveArrival(tx,eventId,team!.id,command.credential!);await promoteQueue(tx,station,actorId);
      const current=existing?await tx.stationVisit.findUnique({where:{id:existing.id}}):null;
      if(current&&current.state!=="CANCELLED"){result={message:"Your team is already checked in here.",teamName:team!.name,stationName:stationDisplayName(station.name),state:current.state,replayed:true};targetId=current.id;break;}
      const occupancy=await tx.stationVisit.count({where:{eventId,stationId:station.id,state:{in:[...occupied]}}});const queue=await stationQueue(tx,eventId,station.id);const decision=admission(station.capacity,station.queueEnabled,occupancy,queue.map(v=>v.teamId),team!.id);if(decision==="FULL")throw new InputError("This station is full. Wait nearby and retry; no arrival or points were recorded.",409);
-     let playerIds:string[]=[];
-     if(arrivalPolicy(m.event.arrivalPolicy)==='PRESELECT_APPROVAL'&&command.playerIds===undefined){const plan=await tx.stationLineup.findUnique({where:{teamId_stationId:{teamId:team!.id,stationId:station.id}}});if(plan)command.playerIds=plan.playerIds as string[];}
-     if(arrivalPolicy(m.event.arrivalPolicy)==='SCAN_APPROVAL_TIMED'&&command.playerIds!==undefined)throw new InputError("Wait for facilitator arrival approval before submitting players.",409);
-     if(command.playerIds!==undefined||(station.playersRequired!==null&&arrivalPolicy(m.event.arrivalPolicy)==='CAPTAIN_CONFIRM')){const eligible=await tx.eventMembership.findMany({where:{eventId,teamId:team!.id,active:true,role:"PARTICIPANT",user:{active:true}},select:{id:true}});try{playerIds=validatePlayerSelection(command.playerIds,station.playersRequired,eligible.map(p=>p.id));}catch(e){throw new InputError((e as Error).message);}}
-     const policy=arrivalPolicy(m.event.arrivalPolicy);const starts=decision==="ADMIT"&&(policy==='SCAN_APPROVAL_TIMED'||policy==='CAPTAIN_CONFIRM'&&playerIds.length>0);
-     const state=decision==="WAIT"?"QUEUED":starts&&policy==='CAPTAIN_CONFIRM'?"ACTIVE":"ARRIVED";const values={state,arrivalAt:new Date(),arrivalApprovedAt:null,lineupSubmittedAt:playerIds.length?new Date():null,queuedAt:state==="QUEUED"?new Date():null,startedAt:starts?new Date():null,finishedAt:null,confirmedAt:null} as const;const saved=await tx.stationVisit.upsert({where:{teamId_stationId:{teamId:team!.id,stationId:station.id}},create:{eventId,teamId:team!.id,stationId:station.id,...values},update:values});await tx.stationVisitPlayer.deleteMany({where:{visitId:saved.id}});if(playerIds.length)await tx.stationVisitPlayer.createMany({data:playerIds.map(membershipId=>({eventId,visitId:saved.id,membershipId}))});targetId=saved.id;details={teamId:team!.id,stationId:station.id,state,playerIds};result={message:state!=="QUEUED"&&policy!=="CAPTAIN_CONFIRM"?(starts?"QR arrival recorded. Timing is running; wait for facilitator arrival approval.":"QR arrival and lineup recorded. Wait for facilitator approval to start timing."):state==="QUEUED"?"Your lineup is saved and your team joined the queue. Timing starts only after admission and captain confirmation.":starts?"Players confirmed. The timer has started, including instruction reading and preparation.":"Arrival confirmed. Choose players on your mission to start the timer.",teamName:team!.name,stationName:stationDisplayName(station.name),state,...((playerIds.length||policy!=="CAPTAIN_CONFIRM")?{redirect:`/events/${eventId}`}:{})};break;
+     if(command.playerIds!==undefined)throw new InputError('Lineup confirmation has moved to the assigned facilitator. Refresh and record arrival without selecting players.',409);
+     const policy=arrivalPolicy(m.event.arrivalPolicy),starts=decision==='ADMIT'&&policy==='SCAN_APPROVAL_TIMED';
+     const state=decision==='WAIT'?'QUEUED':'ARRIVED';const values={state,arrivalAt:new Date(),arrivalApprovedAt:null,lineupSubmittedAt:null,queuedAt:state==='QUEUED'?new Date():null,startedAt:starts?new Date():null,finishedAt:null,confirmedAt:null} as const;
+     const saved=await tx.stationVisit.upsert({where:{teamId_stationId:{teamId:team!.id,stationId:station.id}},create:{eventId,teamId:team!.id,stationId:station.id,...values},update:values});await tx.stationVisitPlayer.deleteMany({where:{visitId:saved.id}});
+     targetId=saved.id;details={teamId:team!.id,stationId:station.id,state,lineupOwner:'FACILITATOR'};result={message:state==='QUEUED'?'Your team joined the queue. The facilitator confirms the lineup after admission.':starts?'QR arrival recorded. The timer is running; the facilitator will confirm who plays.':'Arrival recorded. The assigned facilitator will confirm the lineup and start timing.',teamName:team!.name,stationName:stationDisplayName(station.name),state,redirect:`/events/${eventId}`};break;
     }
     case "leaveQueue":if(visit!.state!=="QUEUED")throw new InputError("Your team is no longer in the waiting queue. Refresh your mission.",409);await tx.stationVisit.update({where:{id:visit!.id},data:{state:"CANCELLED"}});await promoteQueue(tx,visit!.station,actorId);result={message:"Your team left the waiting queue. No result or points were recorded.",teamName:visit!.team.name,stationName:stationDisplayName(visit!.station.name),state:"CANCELLED"};break;
     case "admitTeam":{
-     if(!visit!.station.available||visit!.state!=="QUEUED")throw new InputError("This team cannot be admitted now. Refresh the station.",409);const queue=await stationQueue(tx,eventId,visit!.stationId);const occupancy=await tx.stationVisit.count({where:{eventId,stationId:visit!.stationId,state:{in:[...occupied]}}});if(queue[0]?.id!==visit!.id||admission(visit!.station.capacity,true,occupancy,queue.map(v=>v.teamId),visit!.teamId)!=="ADMIT")throw new InputError("Admit the first waiting team when a place is available.",409);await tx.stationVisit.update({where:{id:visit!.id},data:{state:"ARRIVED",...(m.event.arrivalPolicy==='SCAN_APPROVAL_TIMED'?{startedAt:new Date()}:{} )}});result={message:"Team admitted. The captain can confirm its players and start the timer.",teamName:visit!.team.name,stationName:stationDisplayName(visit!.station.name),state:"ARRIVED"};break;
+     if(!visit!.station.available||visit!.state!=="QUEUED")throw new InputError("This team cannot be admitted now. Refresh the station.",409);const queue=await stationQueue(tx,eventId,visit!.stationId);const occupancy=await tx.stationVisit.count({where:{eventId,stationId:visit!.stationId,state:{in:[...occupied]}}});if(queue[0]?.id!==visit!.id||admission(visit!.station.capacity,true,occupancy,queue.map(v=>v.teamId),visit!.teamId)!=="ADMIT")throw new InputError("Admit the first waiting team when a place is available.",409);await tx.stationVisit.update({where:{id:visit!.id},data:{state:"ARRIVED",...(m.event.arrivalPolicy==='SCAN_APPROVAL_TIMED'?{startedAt:new Date()}:{} )}});result={message:"Team admitted. The assigned facilitator can now confirm who will not play.",teamName:visit!.team.name,stationName:stationDisplayName(visit!.station.name),state:"ARRIVED"};break;
     }
-    case "startChallenge":{
-     if(visit!.stationId===m.event.finalStationId)throw new InputError("Only HQ can start the shared Final Station.",409);
-     const policy=arrivalPolicy(m.event.arrivalPolicy);if(policy!=='CAPTAIN_CONFIRM'&&m.role!=='PARTICIPANT')throw new InputError("Approve the arrival and submitted lineup using the station approval controls.",409);if(policy==='SCAN_APPROVAL_TIMED'&&!visit!.arrivalApprovedAt)throw new InputError("Wait for the facilitator to approve your QR arrival before submitting the lineup.",409);
-     if(!visit!.station.available||visit!.state!=="ARRIVED")throw new InputError("Your team must be admitted before starting. Refresh the mission.",409);
-     if(m.role==="PARTICIPANT"){
-      const eligible=await tx.eventMembership.findMany({where:{eventId,teamId:visit!.teamId,active:true,role:"PARTICIPANT",user:{active:true}},select:{id:true}});let ids:string[];
-      try{ids=validatePlayerSelection(command.playerIds,visit!.station.playersRequired,eligible.map(p=>p.id));}catch(e){throw new InputError((e as Error).message);}
-      await tx.stationVisitPlayer.deleteMany({where:{visitId:visit!.id}});await tx.stationVisitPlayer.createMany({data:ids.map(membershipId=>({eventId,visitId:visit!.id,membershipId}))});details={teamId:visit!.teamId,stationId:visit!.stationId,playerIds:ids};
-     }else if(visit!.station.playersRequired!==null||await tx.stationVisitPlayer.count({where:{visitId:visit!.id}}))throw new InputError("The team captain must confirm the players and start the timer.",409);
-     const starts=policy==='CAPTAIN_CONFIRM'||policy==='SCAN_APPROVAL_TIMED';await tx.stationVisit.update({where:{id:visit!.id},data:{state:starts?"ACTIVE":"ARRIVED",lineupSubmittedAt:new Date(),startedAt:starts?(visit!.startedAt??new Date()):null,finishedAt:null}});result={message:starts?"Players confirmed. The timer is running, including instructions and preparation.":"Lineup submitted. Wait for facilitator approval; timing has not started.",teamName:visit!.team.name,stationName:stationDisplayName(visit!.station.name),state:starts?"ACTIVE":"ARRIVED"};break;
-    }
+    case "startChallenge":throw new InputError('The assigned facilitator must confirm who will not play using the station lineup control.',409);
     case "finishChallenge":if(!visit!.station.available||visit!.state!=="ACTIVE")throw new InputError("This challenge is not active. Refresh the station.",409);await tx.stationVisit.update({where:{id:visit!.id},data:{state:"AWAITING_CONFIRMATION",finishedAt:visit!.stationId===m.event.finalStationId&&m.event.finalDeadlineAt&&m.event.finalDeadlineAt<new Date()?m.event.finalDeadlineAt:new Date()}});result={message:"Challenge finished. Review and confirm its result next.",teamName:visit!.team.name,stationName:stationDisplayName(visit!.station.name),state:"AWAITING_CONFIRMATION"};break;
     default:throw new InputError("Unknown race action.");
    }

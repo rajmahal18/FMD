@@ -2,14 +2,14 @@
 
 Organizer configuration: **Event setup → Prepare event → Arrival, lineup & Final Station**. Save while Preparing, before visits exist. Existing events retain `CAPTAIN_CONFIRM`; deployment never switches a live event's timing policy. Settings include a stale-value check, permissions, audit and idempotent receipt.
 
-| Policy | Lineup | Timer starts | Facilitator action |
-| --- | --- | --- | --- |
-| Captain confirmation (existing) | After QR verification | Captain confirms players, after admission | Finish and confirm |
-| Advance lineup | Captain may save for an unlocked station before arrival | Facilitator approves recorded arrival and submitted lineup | Approve arrival + lineup, then finish/confirm |
-| QR starts timing | Only after facilitator approves recorded arrival | Server records the valid QR arrival; when queued, starts on admission | Approve arrival; captain submits players to begin play |
-| QR + lineup approval | Submitted with/after QR arrival | Facilitator approves arrival and lineup | Review selected players, approve, finish/confirm |
+| Timing setting | Lineup confirmation | Timer starts |
+| --- | --- | --- |
+| Facilitator starts timer (`CAPTAIN_CONFIRM`, legacy `PRESELECT_APPROVAL` / `ARRIVAL_LINEUP_APPROVAL`) | Assigned facilitator selects who will not play, reviews the remaining players and confirms | Confirmation after admission |
+| QR starts timer (`SCAN_APPROVAL_TIMED`) | Assigned facilitator selects who will not play and confirms | Admitted QR arrival; queued teams start only on admission |
 
-Recording arrival is a write through the existing idempotent race API; the read-only arrival-preview endpoint never starts timing. For the QR-start policy, the browser records the verified scan automatically through a persisted race request. Pending responses retain safe retries. Instructions stay private until the visit becomes ACTIVE, even when timing is already running during approval/selection. Selection remains captain-owned and validates current active team membership and exact required count; facilitators cannot bypass approval through the old start action. Queue waiting is excluded under every policy. Approval/selection never resets an existing start time. Selection is not full-squad arrival attendance and does not trigger an automatic incomplete-squad penalty.
+The captain records arrival only. Every regular station uses facilitator-owned lineup confirmation. With 19 eligible members and 15 required players, the facilitator selects four sit-outs; the other 15 become the locked lineup. The server checks active membership, assignment, exact required count and a current roster/count snapshot. Stale selections must be refreshed. Legacy captain submission/start/advance-lineup commands cannot write a lineup. Previously saved advance lineups remain historical records and are not applied automatically.
+
+Arrival and confirmation use idempotent race requests. Instructions remain private until ACTIVE. Queue waiting is excluded; confirmation preserves any existing start timestamp. Already started and historical lineups stay unchanged. Sit-outs are not an attendance declaration and do not trigger an automatic incomplete-squad penalty. Final Station retains its shared full-team flow.
 
 ## Final Station setup and start
 
@@ -29,4 +29,4 @@ This adds final outcome points and arrival policies. It does **not** change exis
 
 Deploy `20261103180000_arrival_policies_final_station` before deploying the new app. No live database is modified by tests. `npm test`, `npm run build`, and `node tests/integration.mjs` cover existing flows plus policy sequencing, current-roster validation, permissions, start preservation, queue admission, all-team final gate, shared start/replay and fixed 100/50 deadline handling.
 
-After building, run `tests/theme-smoke.mjs` with `ARRIVAL_FLOW_BROWSER_ONLY` set to each of `PRESELECT_APPROVAL`, `SCAN_APPROVAL_TIMED`, `ARRIVAL_LINEUP_APPROVAL` for real browser actions and 320/390/768/1440px layouts/contrast. `PARTICIPATION_BROWSER_ONLY=1` checks the existing captain-start flow and sticky lineup count. Integration uses an isolated PostgreSQL-compatible database.
+After building, run `tests/theme-smoke.mjs` with `ARRIVAL_FLOW_BROWSER_ONLY` set to each of `PRESELECT_APPROVAL`, `SCAN_APPROVAL_TIMED`, `ARRIVAL_LINEUP_APPROVAL` for real browser actions and 320/390/768/1440px layouts/contrast. `FACILITATOR_LINEUP_BROWSER_ONLY=1` checks captain arrival, facilitator sit-outs, timer start and the sticky selection dock. Integration uses an isolated PostgreSQL-compatible database.

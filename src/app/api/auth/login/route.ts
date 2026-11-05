@@ -6,6 +6,7 @@ import { hashPassword,verifyPassword,tokenHash } from "@/lib/password";
 import { isSameOrigin } from "@/lib/policy";
 import { sessionCookie,sessionLifetimeMs,defaultEntryPath } from "@/lib/auth";
 import {accountQrRoles, playerAccessPath, validPlayerCode} from "@/lib/player-access";
+import {organizerCookie,cookieOptions} from "@/lib/session-cookies";
 export const runtime="nodejs";
 const dummy=hashPassword(randomBytes(32).toString("hex"));
 export async function POST(request:NextRequest){
@@ -28,5 +29,5 @@ export async function POST(request:NextRequest){
  await db().$transaction([db().session.create({data:{tokenHash:tokenHash(token),userId:user.id,expiresAt}}),db().auditEntry.create({data:{actorId:user.id,action:"SIGN_IN"}})]);
  const destination=returnTo||await defaultEntryPath(user.id);
  const response=NextResponse.redirect(new URL(user.mustChangePassword?`/account/password${destination!=="/workspace"?`?returnTo=${encodeURIComponent(destination)}`:""}`:destination,expected),303);
- response.cookies.set(sessionCookie,token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",expires:expiresAt});return response;
+ response.cookies.set(sessionCookie,token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",expires:expiresAt});response.cookies.set(organizerCookie,"",{...cookieOptions,maxAge:0});return response;
 }
