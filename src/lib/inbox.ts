@@ -1,6 +1,6 @@
 import {InputError} from './validation';
 import type {InboxFile} from './inbox-files';
-export type InboxItem={id:string;subject:string;body:string;senderName:string;recipientName:string;createdAt:string;response:string|null;respondedAt:string|null;attachments:InboxFile[];deliveries:{id:string;name:string;kind:string;status:string}[]};
+export type InboxItem={id:string;isTest:boolean;subject:string;body:string;senderName:string;recipientName:string;createdAt:string;response:string|null;respondedAt:string|null;attachments:InboxFile[];deliveries:{id:string;name:string;kind:string;status:string}[]};
 export type InboxData={eventId:string;actorId:string;organizer:boolean;blocked:boolean;emailConfigured:boolean;people:{id:string;name:string;teamId:string|null;team:string|null}[];messages:InboxItem[]};
 export function parseInboxAction(value:unknown){
  if(!value||typeof value!=='object'||Array.isArray(value))throw new InputError('Choose an inbox action.');
@@ -9,13 +9,13 @@ export function parseInboxAction(value:unknown){
  const id=typeof v.id==='string'&&v.id.length<=120?v.id:'';
  if(v.operation==='respond'&&id&&(v.response==='YES'||v.response==='NO'))return {operation:'respond' as const,requestKey:v.requestKey,id,response:v.response};
  if(v.operation==='retry'&&id)return {operation:'retry' as const,requestKey:v.requestKey,id};
- if(v.operation==='send'){
+ if(v.operation==='send'||v.operation==='sendTest'){
   const subject=typeof v.subject==='string'?v.subject.trim():'',body=typeof v.body==='string'?v.body.trim():'';
   const recipientIds=v.recipientIds??(typeof v.recipientId==='string'?[v.recipientId]:[]),attachmentIds=v.attachmentIds??[];
   if(!subject||subject.length>120||/[\r\n]/.test(subject)||!body||body.length>5000)throw new InputError('Enter a subject (up to 120 characters) and a message (up to 5,000 characters).');
-  if(!Array.isArray(recipientIds)||!recipientIds.length||recipientIds.length>50||recipientIds.some(id=>typeof id!=='string'||!id||id.length>120)||new Set(recipientIds).size!==recipientIds.length)throw new InputError('Choose 1–50 distinct participants.');
+  if(v.operation==='send'&&(!Array.isArray(recipientIds)||!recipientIds.length||recipientIds.length>50||recipientIds.some(id=>typeof id!=='string'||!id||id.length>120)||new Set(recipientIds).size!==recipientIds.length))throw new InputError('Choose 1–50 distinct participants.');
   if(!Array.isArray(attachmentIds)||attachmentIds.length>5||attachmentIds.some(id=>typeof id!=='string'||!id||id.length>120)||new Set(attachmentIds).size!==attachmentIds.length)throw new InputError('Choose up to 5 distinct attachments.');
-  return {operation:'send' as const,requestKey:v.requestKey,recipientIds:[...recipientIds].sort() as string[],attachmentIds:[...attachmentIds].sort() as string[],subject,body};
+  return {operation:v.operation as 'send'|'sendTest',requestKey:v.requestKey,recipientIds:v.operation==='send'?[...(recipientIds as string[])].sort():[],attachmentIds:[...attachmentIds].sort() as string[],subject,body};
  }
  throw new InputError('Choose a valid inbox action.');
 }

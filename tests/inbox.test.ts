@@ -4,6 +4,12 @@ import {parseInboxAction,offerEmail} from '../src/lib/inbox';
 import {safeReturnPath} from '../src/lib/race';
 import {inboxFileInfo,inboxFileLimit} from '../src/lib/inbox-files';
 const requestKey='11111111-1111-4111-8111-111111111111';
+test('self-test uses bounded compose content and ignores supplied recipients',()=>{
+ const value={operation:'sendTest',requestKey,subject:' Offer ',body:' Test ',recipientIds:['real-recipient'],attachmentIds:['briefer']};
+ const parsed=parseInboxAction(value);assert.equal(parsed.operation,'sendTest');
+ if(parsed.operation==='sendTest'){assert.deepEqual(parsed.recipientIds,[]);assert.deepEqual(parsed.attachmentIds,['briefer']);assert.equal(parsed.subject,'Offer');}
+ assert.throws(()=>parseInboxAction({...value,body:''}));assert.throws(()=>parseInboxAction({...value,attachmentIds:['a','a']}));
+});
 test('offers require an individual recipient, bounded content and a retry key',()=>{
  assert.equal(parseInboxAction({operation:'send',requestKey,recipientId:'agent',subject:' Offer ',body:' Hello '}).operation,'send');
  for(const edit of [{subject:'one\nBcc: other@example.test'},{body:''},{body:'x'.repeat(5001)},{recipientId:''},{requestKey:'bad'}])assert.throws(()=>parseInboxAction({operation:'send',requestKey,recipientId:'agent',subject:'Offer',body:'Hello',...edit}));

@@ -92,6 +92,30 @@ try{
  await pg.query('UPDATE "User" SET "mustChangePassword"=false WHERE email=$1',['agent@example.test']);
  const back=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:'agent@example.test',password:env.SEED_PASSWORD,returnTo:link}),redirect:'manual'});assert.equal(back.headers.get('location'),origin+link);
  assert.equal((await get('/api/events/missing/inbox')).status,403);
+ // Self-tests must be private to the organizer and preserve every existing real offer/response.
+ const realBefore=(await pg.query('SELECT * FROM "InboxMessage" WHERE "isTest"=false ORDER BY id')).rows;
+ const testAttachment=await (await upload('organizer','self-test.txt','Test briefer only')).json();
+ const selfTest={operation:'sendTest',subject:'Confidential invitation',body:'Review the briefer and confirm Yes or No.',recipientIds:[member],attachmentIds:[testAttachment.id],requestKey:randomUUID()};
+ assert.equal((await post('agent',selfTest)).status,403);assert.equal((await post('facilitator',selfTest)).status,403);
+ const attempts=await Promise.all([post('organizer',selfTest),post('organizer',selfTest)]);assert(attempts.every(r=>r.status===200));const testId=(await attempts[0].json()).id;
+ const testOwn=(await (await get(api,'organizer')).json()).messages.find(m=>m.id===testId);assert(testOwn.isTest);assert.equal(testOwn.attachments[0].id,testAttachment.id);assert.equal(testOwn.deliveries.length,1);assert.equal(testOwn.deliveries[0].kind,'OFFER');
+ assert(!(await (await get(api,'agent')).json()).messages.some(m=>m.id===testId));
+ assert.equal((await get(fileApi+'/'+testAttachment.id,'agent')).status,404);
+ assert.equal((await post('agent',{operation:'respond',id:testId,response:'YES',requestKey:randomUUID()})).status,404);
+ await pg.query('UPDATE "EventMembership" SET role=$1 WHERE id=$2',['ORGANIZER','inbox-other']);
+ assert(!(await (await get(api,'other')).json()).messages.some(m=>m.id===testId));
+ assert.equal((await post('other',{operation:'respond',id:testId,response:'YES',requestKey:randomUUID()})).status,403);
+ assert.equal((await post('other',{operation:'retry',id:testOwn.deliveries[0].id,requestKey:randomUUID()})).status,404);
+ const testAnswer={operation:'respond',id:testId,response:'YES',requestKey:randomUUID()};
+ assert.equal((await post('organizer',testAnswer)).status,200);assert.equal((await post('organizer',testAnswer)).status,200);
+ assert.equal((await post('organizer',{...testAnswer,response:'NO',requestKey:randomUUID()})).status,409);
+ const testState=(await pg.query('SELECT response,"respondedAt" FROM "InboxMessage" WHERE id=$1',[testId])).rows[0];assert.equal(testState.response,'YES');assert(testState.respondedAt);
+ assert.equal((await pg.query('SELECT count(*)::int n FROM "InboxDelivery" WHERE "messageId"=$1',[testId])).rows[0].n,1,'Test responses must not notify other organizers');
+ const nextTest=await (await post('organizer',{...selfTest,requestKey:randomUUID()})).json();assert.notEqual(nextTest.id,testId);
+ assert.equal((await post('organizer',{operation:'respond',id:nextTest.id,response:'NO',requestKey:randomUUID()})).status,200);
+ assert.deepEqual((await pg.query('SELECT * FROM "InboxMessage" WHERE "isTest"=false ORDER BY id')).rows,realBefore);
+ assert.equal((await pg.query('SELECT count(*)::int n FROM "InboxMessage" WHERE "isTest"=true')).rows[0].n,2);
  await pg.query('UPDATE "Event" SET "archivedAt"=NOW() WHERE id=$1',[event]);assert.equal((await post('organizer',{...command,requestKey:randomUUID()})).status,409);assert.equal((await get(api)).status,200);
+ assert.equal((await post('organizer',{...selfTest,requestKey:randomUUID()})).status,409);
  console.log('PASS: private inbox, bulk one-per-team selection, atomic concurrent batch send, shared private attachments/download/delete, upload bounds/type/replay, independent Yes/No, organizer copies/status, login return, permissions and pause/archive.');
 }finally{if(app){app.kill();await new Promise(r=>app.once('exit',r));}await socket.stop();await pg.close();}

@@ -1,0 +1,1 @@
+ALTER TABLE "InboxMessage" ADD COLUMN "isTest" BOOLEAN NOT NULL DEFAULT false;

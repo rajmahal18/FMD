@@ -27,10 +27,24 @@ export async function inboxBrowser({role,pg,event,evaluate,visit,check,cmd}){
   const filePath=path.resolve('.tmp/stability-evidence/inbox-app-briefer.pdf');fs.writeFileSync(filePath,'%PDF-1.7\nApp briefer\n%%EOF');
   const doc=await cmd('DOM.getDocument'),fileNode=await cmd('DOM.querySelector',{nodeId:doc.root.nodeId,selector:'.inbox-compose input[type=file]'});await cmd('DOM.setFileInputFiles',{nodeId:fileNode.nodeId,files:[filePath]});
   await wait(()=>evaluate("document.querySelector('.inbox-upload-list')?.textContent.includes('Ready')"));
+  const realBefore=(await pg.query('SELECT count(*)::int n FROM "InboxMessage" WHERE "eventId"=$1 AND "isTest"=false',[event.id])).rows[0].n;
+  await evaluate("[...document.querySelectorAll('.inbox-compose button')].find(b=>b.textContent==='Send test to myself').click()");
+  await wait(()=>evaluate("document.querySelector('.inbox-detail .notice')?.textContent.includes('Test offer')"));
+  const testOffer=(await pg.query('SELECT id FROM "InboxMessage" WHERE "eventId"=$1 AND "isTest"=true',[event.id])).rows[0];
+  assert(testOffer);assert.equal((await pg.query('SELECT count(*)::int n FROM "InboxMessage" WHERE "eventId"=$1 AND "isTest"=false',[event.id])).rows[0].n,realBefore);
+  assert.equal(await evaluate("document.querySelectorAll('.inbox-recipient-option input:checked').length"),2);
+  assert.equal(await evaluate("document.querySelector('.inbox-compose textarea').value"),'App briefer attached. Please confirm your offer.');
+  assert(await evaluate("document.querySelector('.inbox-detail .inbox-attachments').textContent.includes('inbox-app-briefer.pdf')"));
+  for(const width of [320,390,768,1440]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'));const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.resolve('.tmp/stability-evidence/inbox-self-test-'+width+'.png'),Buffer.from(shot.data,'base64'));}
+  await evaluate("[...document.querySelectorAll('.inbox-offer-action button')].find(b=>b.textContent==='Yes, accept').click()");
+  assert.equal((await pg.query('SELECT response FROM "InboxMessage" WHERE id=$1',[testOffer.id])).rows[0].response,null);
+  await evaluate("[...document.querySelectorAll('.inbox-offer-action button')].find(b=>b.textContent==='Confirm acceptance').click()");
+  await wait(async()=>(await pg.query('SELECT response FROM "InboxMessage" WHERE id=$1',[testOffer.id])).rows[0].response==='YES');
+  await wait(()=>evaluate("!document.querySelector('.inbox-pending')"));
   await evaluate("document.querySelector('.inbox-compose form').requestSubmit()");assert(await evaluate("document.querySelector('.inbox-review').textContent.includes('2 recipients')"));
   for(const width of [320,390,768,1440]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'));const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.resolve('.tmp/stability-evidence/inbox-bulk-review-'+width+'.png'),Buffer.from(shot.data,'base64'));}
   await evaluate("[...document.querySelectorAll('.inbox-review button')].find(b=>b.textContent==='Send to 2 participants').click()");
-  await wait(async()=>(await pg.query('SELECT count(*)::int AS n FROM "InboxMessage" WHERE "eventId"=$1 AND subject=$2',[event.id,'Double Agent offer'])).rows[0].n===2);
+  await wait(async()=>(await pg.query('SELECT count(*)::int AS n FROM "InboxMessage" WHERE "eventId"=$1 AND subject=$2 AND "isTest"=false',[event.id,'Double Agent offer'])).rows[0].n===2);
   assert.equal((await pg.query('SELECT count(*)::int AS n FROM "InboxAttachment" WHERE "eventId"=$1',[event.id])).rows[0].n,1);
   await wait(()=>evaluate("!document.querySelector('.inbox-pending')"));
  }else{
