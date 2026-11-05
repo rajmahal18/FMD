@@ -45,6 +45,10 @@
 .judging-roster small{display:block;font-size:13px;color:#bdcddb}
 .judging-score-sheet{border-left:3px solid #72d5e3;padding:20px 24px;background:#0e2237}
 .judging-score-sheet>.judging-heading{margin-top:0}
+.judging-submission-summary{border-left-color:#83d6b2}
+.judging-submission-summary .judging-score-total{border-left-color:#83d6b2;background:#123e31}
+.judging-submission-summary .judging-score-total strong{color:#b8f2d4}
+.judging-score-sheet .judging-unsubmitted-note{padding:12px 14px;border-left:3px solid #e7b65e;background:#382f1c;color:#f8d99b;overflow-wrap:anywhere}
 .judging-workspace .judging-score-sheet h3{font-size:28px;color:#f2f7fa}
 .judging-score-sheet fieldset{border:0;margin:0;padding:0;opacity:1}
 .judging-score-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;align-items:center;gap:20px;padding:20px 0;border-top:1px solid #426078}
