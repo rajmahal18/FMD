@@ -812,6 +812,7 @@ try{
  assert.equal((await race(speed.e,'voidTimePenalty',{visitId:speedVisit.id,penaltyEntryId:tenEntry.id,reason:'Too late to void'},cookies.organizer)).status,409);
  const speedField=await (await get('/api/events/'+speed.e+'/field?stationId='+speed.s1,cookies.facilitator)).json();assert.equal(speedField.raceRule,'TIME');assert.equal(speedField.history[0].timePenaltySeconds,30);assert.equal(speedField.history[0].timePenalties.length,4);assert(speedField.history[0].timePenalties.every(p=>p.actorName));
  const speedMission=await (await get('/api/events/'+speed.e+'/mission',cookies.agent)).json();assert.equal(speedMission.teamTimeSeconds,undefined);assert.equal(speedMission.visits[0].timePenaltySeconds,undefined);assert.equal(speedMission.visits[0].durationSeconds,undefined);assert.equal(speedMission.visits[0].startedAt,null);assert.equal(speedMission.visits[0].finishedAt,undefined);
+ await new Promise(resolve=>setTimeout(resolve,5100)); // reviewed TIME results retain station occupancy during the release countdown
  assert.equal((await race(speed.e,'checkIn',{credential:await stationCode(speed.s1)},aliceCookie)).status,200);const speedOther=await visitFor(speed.b,speed.s1);
  await race(speed.e,'confirmLineup',{visitId:speedOther.id},cookies.facilitator);await race(speed.e,'finishChallenge',{visitId:speedOther.id},cookies.facilitator);
  await pg.query('UPDATE "StationVisit" SET "startedAt"=$1,"finishedAt"=$2 WHERE id=$3',['2026-10-20T01:00:00Z','2026-10-20T01:02:20Z',speedOther.id]);

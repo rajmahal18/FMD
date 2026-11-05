@@ -24,7 +24,7 @@ export async function stationHandoffBrowser({role,cookie,pg,event,timerTeam,eval
   await visit(base+'/field?stationId='+station);assert.equal(await evaluate("document.querySelectorAll('.penalty-phase').length"),1,'Only after-limit buttons remain after Finish');
   await click('+30 sec - Unfinished task');await wait(async()=>await sum()===70);
   await check('handoff-after-activity',base+'/field?stationId='+station);
-  await click('Review station time');await click('Confirm station time');await wait(async()=>(await row()).state==='COMPLETED');
+  await click('Review station time');await click('Confirm result & release squad');await wait(async()=>(await row()).state==='COMPLETED');
   const records=(await pg.query('SELECT phase FROM "TimePenaltyEntry" WHERE "visitId"=$1',[(await row()).id])).rows;assert.equal(records.filter(r=>r.phase==='AFTER_LIMIT').length,2);
  }else{
   assert.equal((await fetch(appOrigin+'/api/events/'+event.id+'/field-arrivals',{headers:{cookie}})).status,403);

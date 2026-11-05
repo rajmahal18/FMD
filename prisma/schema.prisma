@@ -478,6 +478,9 @@ enum VisitState {
  CANCELLED
 }
 model StationVisit {
+ timerDeadlineAt DateTime?
+ timerSnapshotAt DateTime?
+ releaseAt DateTime?
  id String @id @default(cuid())
  eventId String
  teamId String
@@ -500,6 +503,7 @@ model StationVisit {
  station Station @relation(fields:[eventId,stationId],references:[eventId,id],onDelete:Cascade)
  @@unique([teamId,stationId])
  @@index([stationId,state,queuedAt])
+ @@index([eventId,releaseAt])
 }
 
 model StationLineup {

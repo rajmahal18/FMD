@@ -1,4 +1,5 @@
 "use client";
+import {StationRelease} from "./StationRelease";
 import {StationPhoto} from "./StationPhoto";
 import {RoleLabel} from "./RoleLabel";
 import {SpyIcon} from "./SpyIcon";
@@ -20,6 +21,7 @@ import {PendingRaceRequests,RaceAction} from "./RaceAction";
 import {useCallback,useEffect,useRef,useState} from "react";
 import type {MissionData} from "@/lib/mission";
 const copy:Record<string,{title:string;instruction:string}>={
+ RELEASING:{title:"Result confirmed",instruction:"Stay at the station until the release countdown ends."},
  DETAILS_HIDDEN:{title:"Stations not released yet",instruction:"Wait for the organizer to release the stations."},
  REVIEW_REQUIRED:{title:"Progress needs organizer review",instruction:"A station confirmation needs review. Stay with your team and ask the organizer for help."},
  NO_TEAM:{title:"Waiting for your team",instruction:"Ask the organizer to assign you to a team."},
@@ -57,7 +59,8 @@ export function ParticipantMission({initial,briefing="",voting=false}:{initial:M
  <h2 id="mission-state" tabIndex={-1}><SpyIcon name={isFinished?"mission":view.status==="ACTIVE"?"history":["HEAD_TO_STATION","ARRIVED"].includes(view.status)?"station":"history"}/><span>{finalWaiting?"Regular stations complete. Gather at HQ":freeChoice?(data.agent.isCaptain?"Choose your next station":"Station preview"):view.status==="ARRIVED"?"Waiting for facilitator":state.title}</span></h2>
  {showStation&&<div className="destination"><h3>{current.name}</h3><div className="destination-location"><SpyIcon name="station"/><strong>{current.location||"Ask the organizer for the location"}</strong></div><StationPhoto eventId={data.eventId} stationId={current.id} photoKey={current.photoKey} name={current.name}/><StationRequirements station={current.id===data.finalStation?.stationId?{...current,playersRequired:data.team?.members.length??null}:current}/>{current.id===data.finalStation?.stationId&&<p>All team members play.</p>}</div>}
  <p className="next-action">{finalWaiting?"Wait at HQ with your full squad. The organizer starts the Final Station only after every team clears its regular stations.":view.status==="ARRIVED"?(view.active?.startedAt?"The timer is running. Your facilitator will confirm who plays at this station.":"Your facilitator will select who will not play and confirm the lineup to start timing."):missionInstruction(view.status,data.agent.isCaptain,playing,state.instruction)}</p>{view.status==='ACTIVE'&&playing!==undefined&&<p className="mission-lineup-status">{playing?"You are selected to play this station.":"You are supporting this station; you are not in the playing lineup."}</p>}
- {view.active?.startedAt&&["ARRIVED","ACTIVE"].includes(view.active.state)&&current?.id!==data.finalStation?.stationId&&<VisitTimer visit={{startedAt:view.active.startedAt,finishedAt:view.active.finishedAt??null,timePenaltySeconds:0}} checkedAt={data.checkedAt} limit={current?.timeLimitMinutes??null}/>}
+ {view.active?.startedAt&&["ARRIVED","ACTIVE"].includes(view.active.state)&&current?.id!==data.finalStation?.stationId&&<VisitTimer visit={{startedAt:view.active.startedAt,finishedAt:view.active.finishedAt??null,timerDeadlineAt:view.active.timerDeadlineAt,timePenaltySeconds:0}} checkedAt={data.checkedAt} limit={current?.timeLimitMinutes??null} onExpire={()=>void refresh()}/>}
+ {view.status==="RELEASING"&&view.active?.releaseAt&&<StationRelease releaseAt={view.active.releaseAt} checkedAt={data.checkedAt} onRelease={()=>void refresh()}/>}
  {data.finalStation&&(finalWaiting||view.active?.stationId===data.finalStation.stationId||data.finalStation.ownComplete)&&<FinalStationNotice status={data.finalStation} checkedAt={data.checkedAt}/>}
  {showStation&&!view.active?.startedAt&&!current.briefing&&policy==='CAPTAIN_CONFIRM'&&<p className="fine">Station instructions unlock when the facilitator confirms the lineup.</p>}
  {showStation&&<>

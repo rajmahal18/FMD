@@ -17,13 +17,13 @@ export async function configurePenaltyButtons(tx:Tx,eventId:string,m:{role:'ORGA
  await tx.station.update({where:{id:station.id},data:{timePenaltyButtons:buttons as unknown as Prisma.InputJsonValue,timePenaltyRevision:{increment:1}}});
  return {message:'Violation buttons saved. Previously recorded penalties are unchanged.',stationName:stationDisplayName(station.name)};
 }
-export async function recordTimePenalty(tx:Tx,actorId:string,visit:{id:string;eventId:string;teamId:string;stationId:string;state:string;startedAt:Date|null;station:{available:boolean;timePenaltyButtons:unknown};outcome:unknown},c:RaceCommand):Promise<RaceResult>{
+export async function recordTimePenalty(tx:Tx,actorId:string,visit:{id:string;eventId:string;teamId:string;stationId:string;state:string;startedAt:Date|null;finishedAt?:Date|null;station:{available:boolean;timePenaltyButtons:unknown};outcome:unknown},c:RaceCommand):Promise<RaceResult>{
  if(visit.outcome||!visit.station.available)throw new InputError('This station result is closed or unavailable.',409);
  if(c.operation==='addTimePenalty'){
  const buttons=visit.station.timePenaltyButtons as TimePenaltyButton[];const button=buttons.find(b=>b.id===c.penaltyButtonId);
  if(!button||button.seconds!==c.expectedSeconds||button.label!==c.expectedLabel||penaltyPhase(button)!==(c.expectedPhase??'DURING'))throw new InputError('This violation button changed. Refresh and review it before adding a penalty.',409);
- const phase=penaltyPhase(button),running=visit.state==='ACTIVE'||visit.state==='ARRIVED'&&!!visit.startedAt;
- if(!running&&!(phase==='AFTER_LIMIT'&&visit.state==='AWAITING_CONFIRMATION'))throw new InputError('During-activity penalties require a running challenge. After-limit penalties remain available until result confirmation.',409);
+ const phase=penaltyPhase(button),running=!visit.finishedAt&&(visit.state==='ACTIVE'||visit.state==='ARRIVED'&&!!visit.startedAt);
+ if(!running&&!(phase==='AFTER_LIMIT'&&(visit.state==='AWAITING_CONFIRMATION'||visit.state==='ARRIVED'&&!!visit.finishedAt)))throw new InputError('During-activity penalties require a running challenge. After-limit penalties remain available until result confirmation.',409);
  if(await penaltyTotal(tx,visit.id)+button.seconds>86400)throw new InputError('Station time penalties cannot exceed 24 hours.',409);
  await tx.timePenaltyEntry.create({data:{eventId:visit.eventId,visitId:visit.id,teamId:visit.teamId,stationId:visit.stationId,actorId,phase,buttonId:button.id,label:button.label,seconds:button.seconds}});
  return {message:`Added ${button.seconds} seconds: ${button.label}.`,timePenaltySeconds:await penaltyTotal(tx,visit.id)};
