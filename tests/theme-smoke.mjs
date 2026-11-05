@@ -1,3 +1,4 @@
+import {teamProgressBrowser} from './team-progress-browser.mjs';
 import {stationHandoffBrowser} from './station-handoff-browser.mjs';
 import {verifySubmittedSummary} from './judging-summary-browser.mjs';
 import {verifyJudgingFocus} from './judging-focus-browser.mjs';
@@ -76,6 +77,22 @@ try{
  await pg.query('INSERT INTO "RoutePlan" (id,"eventId",name,mode,"stationIds") VALUES ($1,$2,$3,$4,$5)',['timer-browser-route',event.id,'Timed route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['timer-browser-assignment',timerTeam,'timer-browser-route','FIXED',JSON.stringify(['demo-cipher-room'])]);
  await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"startedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',['timer-browser-visit',event.id,timerTeam,'demo-cipher-room','ACTIVE']);
+ if(process.env.TEAM_PROGRESS_BROWSER_ONLY){
+  const actor=(await pg.query('SELECT "userId" FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[event.id,'FACILITATOR'])).rows[0].userId;
+  for(const [id,name,state] of [['done','Alpha','COMPLETED'],['wait','Bravo','ARRIVED'],['review','Charlie','AWAITING_CONFIRMATION'],['new','Echo','NONE']]){
+   const team='progress-'+id;
+   await pg.query('INSERT INTO "Team" (id,"eventId",name) VALUES ($1,$2,$3)',[team,event.id,name]);
+   await pg.query('INSERT INTO "TeamRouteAssignment" (id,"teamId","routeId","routeRevision",mode,"stationIds") VALUES ($1,$2,$3,1,$4,$5)',['assignment-'+team,team,'timer-browser-route','FIXED',JSON.stringify(['demo-cipher-room'])]);
+   if(state==='NONE')continue;
+   const visit='progress-'+id+'-visit';
+   await pg.query('INSERT INTO "StationVisit" (id,"eventId","teamId","stationId",state,"startedAt","finishedAt","confirmedAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())',[visit,event.id,team,'demo-cipher-room',state,state==='ARRIVED'?null:'2026-11-05T01:00:00Z',state==='ARRIVED'?null:'2026-11-05T01:02:00Z',state==='COMPLETED'?'2026-11-05T01:02:05Z':null]);
+   if(state==='COMPLETED'){
+    const outcome='progress-done-outcome';
+    await pg.query('INSERT INTO "StationOutcome" (id,"eventId","teamId","stationId","visitId","actorId",successful,"basePoints","durationSeconds","resultHash","confirmationJson") VALUES ($1,$2,$3,$4,$5,$6,true,100,120,$7,$8)',[outcome,event.id,team,'demo-cipher-room',visit,actor,'progress-fixture','{}']);
+    await pg.query('INSERT INTO "ScoreLedgerEntry" (id,"eventId","teamId","stationId","outcomeId",kind,amount) VALUES ($1,$2,$3,$4,$5,$6,100)',['progress-done-ledger',event.id,team,'demo-cipher-room',outcome,'STATION']);
+   }
+  }
+ }
  if(process.env.STATION_HANDOFF_BROWSER_ONLY){
   await pg.query('DELETE FROM "StationVisit" WHERE id=$1',['timer-browser-visit']);
   await pg.query('UPDATE "Event" SET "arrivalPolicy"=$1 WHERE id=$2',['SCAN_APPROVAL_TIMED',event.id]);
@@ -184,7 +201,7 @@ try{
     assert(await evaluate("document.querySelector('.player-content').getBoundingClientRect().bottom-110 <= document.querySelector('.player-bottom-nav,.field-bottom-nav').getBoundingClientRect().top"),'Bottom padding must keep the end of page content above navigation');
     await evaluate("window.scrollTo(0,0)");
    }
-   if(process.env.STATION_HANDOFF_BROWSER_ONLY||process.env.FACILITATOR_LINEUP_BROWSER_ONLY||process.env.ACCOUNT_SWITCH_BROWSER_ONLY||process.env.WAKE_BROWSER_ONLY||process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
+   if(process.env.TEAM_PROGRESS_BROWSER_ONLY||process.env.STATION_HANDOFF_BROWSER_ONLY||process.env.FACILITATOR_LINEUP_BROWSER_ONLY||process.env.ACCOUNT_SWITCH_BROWSER_ONLY||process.env.WAKE_BROWSER_ONLY||process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)result.contrast=await evaluate('('+auditContrast.toString()+')()');
    checks.push({label,...result});console.log(JSON.stringify({label,...result}));
    if(width===320||width===1440){const image=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});fs.writeFileSync(path.join(out,label+'-'+width+'.png'),Buffer.from(image.data,'base64'));}
   }
@@ -198,11 +215,12 @@ try{
  const loginState=await evaluate(`({path:location.pathname,query:location.search,message:document.querySelector('[role=alertdialog][open]')?.textContent,valid:document.querySelector('form')?.checkValidity()})`);
  console.log('Browser sign-in result: '+JSON.stringify(loginState));
  assert(loginState.path==='/workspace'||loginState.path.startsWith('/events/'));console.log('PASS: browser sign-in form and visible keyboard focus.');
- for(const role of (process.env.STATION_HANDOFF_BROWSER_ONLY?['facilitator','agent']:process.env.FACILITATOR_LINEUP_BROWSER_ONLY?['agent','facilitator']:process.env.ACCOUNT_SWITCH_BROWSER_ONLY?['organizer']:process.env.JUDGING_VISIBILITY_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.CATEGORY_VOTING_BROWSER_ONLY?['organizer','agent']:process.env.INBOX_BROWSER_ONLY?['organizer','agent']:process.env.WAKE_BROWSER_ONLY?['facilitator']:process.env.JUDGED_OVERALL_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.SQUAD_HANDLERS_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PREVIEW_TOGGLE_BROWSER_ONLY?['organizer','facilitator']:process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
+ for(const role of (process.env.TEAM_PROGRESS_BROWSER_ONLY?['facilitator']:process.env.STATION_HANDOFF_BROWSER_ONLY?['facilitator','agent']:process.env.FACILITATOR_LINEUP_BROWSER_ONLY?['agent','facilitator']:process.env.ACCOUNT_SWITCH_BROWSER_ONLY?['organizer']:process.env.JUDGING_VISIBILITY_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.CATEGORY_VOTING_BROWSER_ONLY?['organizer','agent']:process.env.INBOX_BROWSER_ONLY?['organizer','agent']:process.env.WAKE_BROWSER_ONLY?['facilitator']:process.env.JUDGED_OVERALL_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.SQUAD_HANDLERS_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PREVIEW_TOGGLE_BROWSER_ONLY?['organizer','facilitator']:process.env.STATION_TILES_BROWSER_ONLY?['organizer','agent']:process.env.ARRIVAL_FLOW_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PARTICIPATION_BROWSER_ONLY?['agent','facilitator']:process.env.CONTROLLER_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.PROGRAM_BROWSER_ONLY?['organizer','facilitator','agent']:process.env.FREE_ROAM_BROWSER_ONLY?['organizer','agent']:process.env.LISTS_BROWSER_ONLY?['organizer']:process.env.ERROR_BROWSER_ONLY?['organizer']:process.env.ROSTER_BROWSER_ONLY?['organizer','facilitator']:process.env.RESET_BROWSER_ONLY?['organizer']:process.env.VOTING_BROWSER_ONLY?['organizer','agent','facilitator']:process.env.LIVE_OPERATIONS_BROWSER_ONLY?['organizer','facilitator']:process.env.ADMIN_BROWSER_ONLY?['organizer']:process.env.PLAYER_BROWSER_ONLY?['agent']:process.env.NAV_BROWSER_ONLY?['agent','facilitator']:process.env.TIME_PENALTY_BROWSER_ONLY?['facilitator']:['organizer','facilitator','agent'])){
   await cmd('Network.clearBrowserCookies');
   const response=await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:role+'@example.test',password:env.SEED_PASSWORD}),redirect:'manual'});assert.equal(response.status,303);
   const cookie=response.headers.get('set-cookie').split(';')[0];const split=cookie.indexOf('=');await cmd('Network.setCookie',{name:cookie.slice(0,split),value:cookie.slice(split+1),url:origin,httpOnly:true,secure:true,path:'/'});
 
+  if(process.env.TEAM_PROGRESS_BROWSER_ONLY){await teamProgressBrowser({pg,event,evaluate,visit,check,cookie,origin,appOrigin});continue;}
   if(process.env.STATION_HANDOFF_BROWSER_ONLY){await stationHandoffBrowser({role,cookie,pg,event,timerTeam,evaluate,visit,check,origin,appOrigin,password:env.SEED_PASSWORD});continue;}
   if(process.env.FACILITATOR_LINEUP_BROWSER_ONLY){await facilitatorLineupBrowser({role,pg,event,timerTeam,evaluate,visit,check});continue;}
   if(process.env.ACCOUNT_SWITCH_BROWSER_ONLY){await accountSwitchBrowser({pg,event,evaluate,visit,check});continue;}
@@ -568,7 +586,7 @@ try{
    await visit(base);await evaluate("document.querySelector('.station-team:not([hidden]) textarea').focus()");await cmd('Input.insertText',{text:'Keep this facilitator draft'});
    await evaluate("document.querySelector('.field-bottom-nav a[href$=\"#field-history\"]').click()");await evaluate("document.querySelector('.field-bottom-nav a:not([href*=judging])').click()");
    assert.equal(await evaluate("document.querySelector('.station-team textarea').value"),'Keep this facilitator draft');
-   await evaluate("window.__controllerNavigation='same-document';document.querySelector('.field-bottom-nav a[href$=\"/people\"]').click()");await wait(()=>evaluate("!!document.querySelector('.roster-tabs')"));
+   await evaluate("window.__controllerNavigation='same-document';document.querySelector('.field-bottom-nav a[href$=\"#team-progress\"]').click()");await wait(()=>evaluate("!!document.querySelector('#team-progress:not([hidden])')"));
    await evaluate("document.querySelector('.field-bottom-nav a[href=\""+base+"/field\"]').click()");await wait(()=>evaluate("!!document.querySelector('.station-team textarea')"));
    assert.equal(await evaluate('window.__controllerNavigation'),'same-document');
    await wait(()=>evaluate("document.querySelector('.station-team textarea').value==='Keep this facilitator draft'"));
@@ -885,7 +903,7 @@ try{
   }
  }
  fs.writeFileSync(path.join(out,'checks.json'),JSON.stringify({checks,errors},null,2));
- if(process.env.STATION_HANDOFF_BROWSER_ONLY||process.env.FACILITATOR_LINEUP_BROWSER_ONLY||process.env.ACCOUNT_SWITCH_BROWSER_ONLY||process.env.WAKE_BROWSER_ONLY||process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
+ if(process.env.TEAM_PROGRESS_BROWSER_ONLY||process.env.STATION_HANDOFF_BROWSER_ONLY||process.env.FACILITATOR_LINEUP_BROWSER_ONLY||process.env.ACCOUNT_SWITCH_BROWSER_ONLY||process.env.WAKE_BROWSER_ONLY||process.env.JUDGED_OVERALL_BROWSER_ONLY||process.env.SQUAD_HANDLERS_BROWSER_ONLY||process.env.PREVIEW_TOGGLE_BROWSER_ONLY||process.env.STATION_TILES_BROWSER_ONLY||process.env.ARRIVAL_FLOW_BROWSER_ONLY||process.env.VISIBILITY_BROWSER_ONLY||process.env.SPY_THEME_BROWSER_ONLY||process.env.PARTICIPANT_VISIBILITY_BROWSER_ONLY||process.env.PARTICIPATION_BROWSER_ONLY||process.env.STATION_REQUIREMENTS_BROWSER_ONLY||process.env.JUDGING_BROWSER_ONLY||process.env.SCREEN_PREVIEW_BROWSER_ONLY)assert(checks.every(c=>!c.contrast?.length),'Text contrast issues detected; see checks.json');
  assert.deepEqual(errors,[]);assert(checks.every(c=>c.scrollWidth<=c.width),'Horizontal overflow detected');assert(checks.every(c=>!c.brokenImages.length),'Broken image assets');
  assert(checks.every(c=>!c.hud||c.hud==='absolute'),'Decorative HUD must not occupy layout space');
  assert(checks.every(c=>!c.blocked.length),'Decorative layers must not block controls');
