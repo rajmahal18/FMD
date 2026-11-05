@@ -6,6 +6,7 @@ const roleIcons:Record<string,{path:string;color:string}>={
  'Technical Analyst':{path:'M7 7h10v10H7zM10 10h4v4h-4zM9 3v4m6-4v4M9 17v4m6-4v4M3 9h4m-4 6h4m10-6h4m-4 6h4',color:'violet'},
  'Support Specialist':{path:'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Zm0 5v8m-4-4h8',color:'green'},
  Organizer:{path:'M4 5h16v14H4zM4 10h16M9 10v9M8 3v4m8-4v4',color:'violet'},
+ Judge:{path:"M4 21h16M8 17l9-9-4-4-9 9 4 4Zm2-10 7 7M3 18l3 3",color:"gold"},
  Facilitator:{path:'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Zm-4 9 3 3 5-6',color:'cyan'},
  Participant:{path:'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2',color:'cyan'},
 };

@@ -115,3 +115,7 @@ After password or email-code login, an account with exactly one active real even
 ## Organizer account switching
 
 An authenticated event organizer may explicitly switch into another active event member with completed password setup for testing. These are real, counted actions under the target account permissions. Keep a visible identity banner and Return to organizer action. Scope delegated sessions to the selected event, revalidate organizer/target access on every request, prevent nested switches and credential changes, and audit the original organizer and delegated identity. Never use a universal password. See [ACCOUNT_SWITCHING.md](../ACCOUNT_SWITCHING.md).
+
+## Focused judge navigation
+
+An active facilitator with an active assignment to any Open judging contest enters Scoring with all field navigation and activity account links hidden. Identity, password/access, screen-awake and logout remain available. Opening scoring brings an already signed-in assigned judge into this view; closing the last assigned open contest restores normal facilitator navigation. Closed/draft assignments do not force judging entry. Multiple open assigned contests retain focus until all close. Organizer and participant navigation, scoring permissions and saved sheets remain unchanged.

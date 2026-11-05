@@ -1,3 +1,4 @@
+import {judgingNavigation} from '@/server/judging-navigation';
 import {AccountSession} from "./AccountSession";
 import {RoleLabel} from "./RoleLabel";
 import {ScreenAwakeControl} from "./ScreenAwake";
@@ -20,7 +21,7 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
   const previewEnabled=eventId?(await db().event.findUnique({where:{id:eventId},select:{screenPreviewEnabled:true}}))?.screenPreviewEnabled??true:true;
   children=<RunRevisionProvider revision={eventId?await runRevision(db(),eventId):0}>{children}</RunRevisionProvider>;
   const sessionBar=account?<AccountSession key={`${account.id}:${account.accountSwitch?.sessionId??"normal"}`} userId={account.id} name={account.name} switchId={account.accountSwitch?.sessionId} organizerName={account.accountSwitch?.organizerName}/>:null;
-  if(role==="FACILITATOR"){const hasJudging=!!eventId&&!!account&&await db().judgingAssignment.count({where:{eventId,active:true,membership:{userId:account.id,active:true,role:"FACILITATOR"}}})>0;return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} previewEnabled={previewEnabled} judgingEnabled={hasJudging} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;}
+  if(role==="FACILITATOR"){const judging=eventId&&account?await judgingNavigation(account.id,eventId):{judgingEnabled:false,focused:false};return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} previewEnabled={previewEnabled} judgingEnabled={judging.judgingEnabled} judgingFocused={judging.focused} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;}
   if(role==="PARTICIPANT"||role==="AGENT")return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;
   const roleLabel=role.replaceAll("_"," ");
   return <>{sessionBar}<div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":role==="FACILITATOR"?"facilitator-shell":""}`}>

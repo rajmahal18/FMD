@@ -193,9 +193,17 @@ try{
  const createdJudging=await jc('createContest',newContest);assert.equal(createdJudging.status,200);contestId=createdJudging.targetId;
  assert.equal((await get('/events/'+judgedEvent+'/judging-settings',cookies.facilitator)).status,404);
  assert.equal((await get('/events/'+judgedEvent+'/judging-settings',cookies.organizer)).status,200);
- assert.equal((await get('/events/'+judgedEvent,cookies.facilitator)).headers.get('location'),'/events/'+judgedEvent+'/judging');
+ assert.equal((await get('/events/'+judgedEvent,cookies.facilitator)).status,200,'Draft judging assignments keep normal facilitator entry');
+ const judgingFocusPath='/api/events/'+judgedEvent+'/judging-focus';
+ const judgingFocus=async cookie=>(await get(judgingFocusPath,cookie)).json();
+ assert.equal((await get(judgingFocusPath)).status,401);
+ assert.equal((await get(judgingFocusPath,cookies.agent)).status,403);
+ assert.deepEqual(await judgingFocus(cookies.facilitator),{focused:false,judgingEnabled:true});
+ assert.deepEqual(await judgingFocus(unassignedJudgeCookie),{focused:false,judgingEnabled:false});
  assert.deepEqual((await judgingData(cookies.agent)).contests,[]);assert.deepEqual((await judgingData(unassignedJudgeCookie)).contests,[]);
  assert.equal((await jc('open')).status,200);
+ assert.deepEqual(await judgingFocus(cookies.facilitator),{focused:true,judgingEnabled:true});
+ assert.equal((await get('/events/'+judgedEvent,cookies.facilitator)).headers.get('location'),'/events/'+judgedEvent+'/judging');
  assert.equal((await jc('saveDraft',{candidateId:jt1,version:0,scores:{impact:9}},unassignedJudgeCookie)).status,403);
  assert.equal((await jc('saveDraft',{candidateId:jt1,version:0,scores:{impact:9}},cookies.organizer)).status,403);
  assert.equal((await jc('saveDraft',{candidateId:jt1,version:0,scores:{impact:9}},cookies.facilitator)).status,200);

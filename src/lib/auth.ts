@@ -8,7 +8,7 @@ import {sessionCookie} from './session-cookies';
 export {sessionCookie} from './session-cookies';
 export const sessionLifetimeMs=30*24*60*60*1000;
 export async function defaultEntryPath(userId:string,client:Pick<Prisma.TransactionClient,'eventMembership'>=db()){
- const memberships=await client.eventMembership.findMany({where:{userId,active:true,user:{active:true},event:{archivedAt:null}},orderBy:{event:{isDemo:'asc'}},take:2,select:{eventId:true,role:true,event:{select:{isDemo:true}},judgingAssignments:{where:{active:true},select:{contestId:true}}}});
+ const memberships=await client.eventMembership.findMany({where:{userId,active:true,user:{active:true},event:{archivedAt:null}},orderBy:{event:{isDemo:'asc'}},take:2,select:{eventId:true,role:true,event:{select:{isDemo:true}},judgingAssignments:{where:{active:true,contest:{state:"OPEN"}},select:{contestId:true}}}});
  const real=memberships.filter(m=>!m.event.isDemo),available=real.length?real:memberships;
  const only=available.length===1?available[0]:null;
  if(!only)return '/workspace';

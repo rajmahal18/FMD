@@ -1,3 +1,4 @@
+import {verifyJudgingFocus} from './judging-focus-browser.mjs';
 if(process.env.PARTICIPATION_BROWSER_ONLY){process.env.FACILITATOR_LINEUP_BROWSER_ONLY='1';delete process.env.PARTICIPATION_BROWSER_ONLY;}
 import {facilitatorLineupBrowser} from './facilitator-lineup-browser.mjs';
 import {accountSwitchBrowser} from './account-switch-browser.mjs';
@@ -264,7 +265,7 @@ try{
     await resultCenterBrowser({pg,event,evaluate,visit,check});
    }else if(role==='facilitator'){
     await check('judging-score-sheet','/events/'+event.id+'/judging');assert.equal(await evaluate("document.querySelectorAll('.judging-workspace>.record-picker>section:not([hidden])').length"),1,'Only open assigned contests are listed');
-    assert(await evaluate("!!document.querySelector('.field-bottom-nav a[href$=\"/judging\"]')"),'Assigned judges need a navigation entry');
+    await verifyJudgingFocus({evaluate,visit,pg,event,check});
     await cmd('Emulation.setDeviceMetricsOverride',{width:320,height:900,deviceScaleFactor:1,mobile:true});await visit('/events/'+event.id+'/judging');
     await verifyJudgingInputs({evaluate,pg,event,check,cmd});
     await evaluate("const input=document.querySelector('.judging-score-sheet input[type=number]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'27');input.dispatchEvent(new Event('input',{bubbles:true}));");
@@ -294,7 +295,7 @@ try{
     const adminCookie=(await fetch(appOrigin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({email:'organizer@example.test',password:env.SEED_PASSWORD}),redirect:'manual'})).headers.get('set-cookie').split(';')[0];
     for(const [operation,revision] of [['close',1],['publish',2]]){const r=await fetch(appOrigin+'/api/events/'+event.id+'/judging',{method:'POST',headers:{origin,cookie:adminCookie,'content-type':'application/json'},body:JSON.stringify({operation,revision,contestId:'judging-browser-gala',runRevision:0,requestKey:crypto.randomUUID()})});assert.equal(r.status,200);}
     await shareResult({origin:appOrigin,requestOrigin:origin,eventId:event.id,cookie:adminCookie,key:'judging:judging-browser-gala'});
-    await visit('/events/'+event.id);assert(await evaluate("location.pathname.endsWith('/judging')&&document.body.textContent.includes('No open judging events.')"));
+    await visit('/events/'+event.id);assert(await evaluate("!!document.querySelector('.field-bottom-nav')&&!!document.querySelector('.field-board-controller')"),'Closed scoring restores normal facilitator entry');
     await evaluate("document.querySelector('.field-bottom-nav a[href$=\"/field\"]').click()");for(let i=0;i<60;i++){if(await evaluate("!!document.querySelector('.field-board-controller')"))break;await new Promise(r=>setTimeout(r,100));}assert(await evaluate("!!document.querySelector('.field-board-controller')"),'Judge station navigation must remain reachable');
 
    }else{
