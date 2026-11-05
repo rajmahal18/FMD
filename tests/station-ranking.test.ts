@@ -22,8 +22,8 @@ test('penalties affect only their station placement and ties average occupied cr
  const rows=rankStationRace(teams,changed,finals),a=rows.find(r=>r.id==='a')!,b=rows.find(r=>r.id==='b')!;
  assert.equal(a.breakdown.stationScores[0].points,95);assert.equal(b.breakdown.stationScores[0].points,95);assert.equal(rows.find(r=>r.id==='c')!.breakdown.stationScores[0].rank,3);
 });
-test('failed final gets zero; missing final or incomplete station leaves ranks pending',()=>{
- const rows=rankStationRace(teams,outcomes,finals.map(f=>f.teamId==='a'?{...f,successful:false}:f));assert.equal(rows.find(r=>r.id==='a')!.value,80);assert.equal(rows[0].id,'b');
+test('failed final gets ten weighted points; missing final or incomplete station leaves ranks pending',()=>{
+ const rows=rankStationRace(teams,outcomes,finals.map(f=>f.teamId==='a'?{...f,successful:false}:f));assert.equal(rows.find(r=>r.id==='a')!.value,90);assert.equal(rows.find(r=>r.id==='a')!.breakdown.finalContribution,10);assert.equal(rows[0].id,'b');
  assert(rankStationRace(teams,outcomes,[finals[0]]).every(r=>r.pending&&r.rank===0));
  assert(rankStationRace(teams,outcomes,[]).every(r=>r.pending&&r.rank===0));
  assert(rankStationRace(teams,outcomes.slice(1),finals).every(r=>r.pending&&r.rank===0));

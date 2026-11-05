@@ -16,7 +16,7 @@ export async function setupStationScoringBrowser({pg,event,timerTeam}){
    await pg.query('INSERT INTO "ScoreLedgerEntry" (id,"eventId","teamId","stationId","outcomeId",kind,amount) VALUES ($1,$2,$3,$4,$5,$6,100)',['score-ledger-'+i+'-'+j,event.id,team,stationId,outcome,'STATION']);
   }
  }
- const config={raceRule:'STATION_PLACEMENTS',raceScoring:{credits:[100,90,80,70,60],regularWeight:80,finalWeight:20,successScore:100,failedScore:0,stationIds},events:[{id:'race',name:'Amazing Race',source:'SPY',weight:45,credits:[100,90,80,70,60],ranks:{}},{id:'other',name:'Other activity',source:'MANUAL',weight:55,credits:[100,90,80,70,60],ranks:Object.fromEntries(teams.map((id,i)=>[id,i+1]))}]};
+ const config={raceRule:'STATION_PLACEMENTS',raceScoring:{credits:[100,90,80,70,60],regularWeight:80,finalWeight:20,successScore:100,failedScore:50,stationIds},events:[{id:'race',name:'Amazing Race',source:'SPY',weight:45,credits:[100,90,80,70,60],ranks:{}},{id:'other',name:'Other activity',source:'MANUAL',weight:55,credits:[100,90,80,70,60],ranks:Object.fromEntries(teams.map((id,i)=>[id,i+1]))}]};
  await pg.query('UPDATE "OverallRanking" SET config=$1 WHERE "eventId"=$2',[JSON.stringify(config),event.id]);
 }
 export async function stationScoringBrowser({pg,event,timerTeam,evaluate,visit,check}){

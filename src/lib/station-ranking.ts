@@ -1,5 +1,5 @@
 import {placementCredit} from './placement-credit';
-export const stationScoring={credits:[100,90,80,70,60],regularWeight:80,finalWeight:20,successScore:100,failedScore:0} as const;
+export const stationScoring={credits:[100,90,80,70,60],regularWeight:80,finalWeight:20,successScore:100,failedScore:50} as const;
 export type StationRacePolicy={credits:number[];regularWeight:number;finalWeight:number;successScore:number;failedScore:number;stationIds?:string[]};
 export type StationRaceBreakdown={regularPoints:number;regularMaximum:number;regularContribution:number;finalSuccessful:boolean|null;finalContribution:number|null;completedStations:number;stationCount:number;stationScores:{stationId:string;rank:number|null;points:number|null;complete:boolean}[]};
 export function rankStationRace(teams:{id:string;name:string;color?:string;stationIds:string[]}[],outcomes:{teamId:string;stationId:string;durationSeconds:number|null;timePenaltySeconds:number}[],finals:{teamId:string;successful:boolean}[],policy:StationRacePolicy={...stationScoring,credits:[...stationScoring.credits]}){

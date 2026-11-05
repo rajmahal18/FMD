@@ -29,7 +29,7 @@ try{
    await pg.query('INSERT INTO "ScoreLedgerEntry" (id,"eventId","teamId","stationId","outcomeId",kind,amount) VALUES ($1,$2,$3,$4,$5,$6,100)',['ledger-'+outcome,eventId,teams[i],stations[j],outcome,'STATION']);
   }
  }
- const config={raceRule:'STATION_PLACEMENTS',raceScoring:{credits:[100,90,80,70,60],regularWeight:80,finalWeight:20,successScore:100,failedScore:0,stationIds:stations},events:[{id:'race',name:'Amazing Race',source:'SPY',weight:45,credits:[100,90,80,70,60],ranks:{}},{id:'other',name:'Other',source:'MANUAL',weight:55,credits:[100,90,80,70,60],ranks:Object.fromEntries(teams.map((id,i)=>[id,i+1]))}]};
+ const config={raceRule:'STATION_PLACEMENTS',raceScoring:{credits:[100,90,80,70,60],regularWeight:80,finalWeight:20,successScore:100,failedScore:50,stationIds:stations},events:[{id:'race',name:'Amazing Race',source:'SPY',weight:45,credits:[100,90,80,70,60],ranks:{}},{id:'other',name:'Other',source:'MANUAL',weight:55,credits:[100,90,80,70,60],ranks:Object.fromEntries(teams.map((id,i)=>[id,i+1]))}]};
  await pg.query('INSERT INTO "OverallRanking" ("eventId",config) VALUES ($1,$2)',[eventId,JSON.stringify(config)]);
  app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p','3206'],{env,stdio:'ignore'});
  for(let i=0;i<80;i++){try{if((await fetch(origin)).ok)break;}catch{}await new Promise(r=>setTimeout(r,250));}
@@ -53,7 +53,7 @@ try{
  assert.equal((await post('/race-final',{operation:'setRaceFinal',teamId:'foreign-team',successful:true,version:0})).status,404);
  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['PAUSED',eventId]);assert.equal((await post('/race-final',{operation:'setRaceFinal',teamId:teams[1],successful:true,version:0})).status,409);await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['LIVE',eventId]);
  for(let i=1;i<teams.length;i++)assert.equal((await post('/race-final',{operation:'setRaceFinal',teamId:teams[i],successful:i!==2&&i!==4,version:0})).status,200);
- data=await (await get('/race-final')).json();const b=data.standings.find(r=>r.id===teams[1]);assert.equal(b.breakdown.regularPoints,630);assert.equal(b.breakdown.regularMaximum,700);assert.equal(b.value,92);assert.equal(data.standings[0].value,100);
+ data=await (await get('/race-final')).json();const b=data.standings.find(r=>r.id===teams[1]);assert.equal(b.breakdown.regularPoints,630);assert.equal(b.breakdown.regularMaximum,700);assert.equal(b.value,92);assert.equal(data.standings[0].value,100);assert.equal(data.standings.find(r=>r.id===teams[2]).breakdown.finalContribution,10);assert.equal(data.standings.find(r=>r.id===teams[2]).value,74);
  assert.deepEqual(data.standings.map(r=>r.id),[a,teams[1],teams[3],teams[2],teams[4]]);
  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['ENDED',eventId]);
  const previewBody={operation:'finalizeResults',reason:'Verified seven station placements and manual finale'};
