@@ -3,6 +3,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword, validPassword } from "../src/lib/password";
 import { operationRoster } from "./operation-roster";
+import operationSquads from './operation-squads.json';
 
 const connectionString=process.env.DATABASE_URL;
 if(!connectionString)throw Error("Set DATABASE_URL in .env first.");
@@ -29,7 +30,11 @@ async function main(temporaryPassword:string){
 
  let created=0;
  for(const [teamIndex,group] of operationRoster.entries()){
-   const team=await db.team.upsert({where:{eventId_name:{eventId:event.id,name:group.team}},update:{color:group.color},create:{eventId:event.id,name:group.team,color:group.color}});
+   // Poster labels stay stable import identifiers; reuse renamed squads without creating duplicate teams.
+   const squadName=operationSquads[group.team as keyof typeof operationSquads];
+   const existing=await db.team.findMany({where:{eventId:event.id,name:{in:[group.team,squadName]}}});
+   if(existing.length>1)throw Error(`Both ${group.team} and ${squadName} exist. Resolve duplicate squads before importing.`);
+   const team=existing[0]?await db.team.update({where:{id:existing[0].id},data:{color:group.color}}):await db.team.create({data:{eventId:event.id,name:group.team,color:group.color}});
    for(const [index,agent] of group.members.entries()){
       // Synthetic addresses are placeholders only; organizers must replace with real emails before issuing account access.
       const email=`classified.t${teamIndex+1}.${String(index+1).padStart(2,"0")}@agents.invalid`;
@@ -38,7 +43,7 @@ async function main(temporaryPassword:string){
       else if(user.name!==agent.name)throw Error(`Placeholder identity collision: ${email}. Manual review required.`);
       await db.eventMembership.upsert({where:{eventId_userId:{eventId:event.id,userId:user.id}},update:{role:"PARTICIPANT",teamId:team.id,active:true},create:{eventId:event.id,userId:user.id,role:"PARTICIPANT",teamId:team.id}});
    }
-   console.log(`${group.team}: ${group.members.length} agents linked`);
+   console.log(`${team.name}: ${group.members.length} agents linked`);
  }
  console.log(`\nRoster ready: ${names.length} agents; ${created} new placeholder accounts. Event slug: ${eventSlug}. Replace placeholder emails before real deployment.`);
 }

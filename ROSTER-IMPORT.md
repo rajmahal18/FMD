@@ -1,5 +1,9 @@
 # Operation Classified — Team 1–5 roster import
 
+The original poster labels map to these squad names: Team 1 → **Blue Huntrix**, Team 2 → **Vanguard Elite**, Team 3 → **Scarlet Swag**, Team 4 → **Task Force V**, Team 5 → **Green Phantom**. Mapping is recorded in `prisma/operation-squads.json`.
+
+The roster importer recognizes both poster labels and renamed squads and reuses the existing team ID. It preserves renamed display names and refuses ambiguous duplicate teams. For the existing event, `node scripts/rename-operation-squads.mjs --apply` applies the names atomically to teams and result display snapshots, preserves all numeric scores, IDs, approvals and sharing settings, and records an audit entry. Run `--test` to verify the rename against an isolated database. Repeated application is a no-op.
+
 Source: five organizer-provided roster posters, transcribed into `prisma/operation-roster.ts` (93 participants). Verify spelling and office codes against the originals before issuing access.
 
 1. `npm ci`
