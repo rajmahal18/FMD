@@ -14,7 +14,6 @@ import {useScreenPreview} from './ScreenPreviewContext';
 import {ErrorNotice} from '@/components/ErrorNotice';
 
 import {timeoutSignal} from "@/lib/timeout-signal";
-import {formatSeconds} from "@/lib/time-penalties";
 import {Announcements} from "./Announcements";
 import {PendingRaceRequests,RaceAction} from "./RaceAction";
 import {useCallback,useEffect,useRef,useState} from "react";
@@ -57,7 +56,7 @@ export function ParticipantMission({initial,briefing="",voting=false}:{initial:M
  <h2 id="mission-state" tabIndex={-1}><SpyIcon name={isFinished?"mission":view.status==="ACTIVE"?"history":["HEAD_TO_STATION","ARRIVED"].includes(view.status)?"station":"history"}/><span>{finalWaiting?"Regular stations complete. Gather at HQ":freeChoice?(data.agent.isCaptain?"Choose your next station":"Station preview"):view.status==="ARRIVED"?"Waiting for facilitator":state.title}</span></h2>
  {showStation&&<div className="destination"><h3>{current.name}</h3><div className="destination-location"><SpyIcon name="station"/><strong>{current.location||"Ask the organizer for the location"}</strong></div><StationRequirements station={current.id===data.finalStation?.stationId?{...current,playersRequired:data.team?.members.length??null}:current}/>{current.id===data.finalStation?.stationId&&<p>All team members play.</p>}</div>}
  <p className="next-action">{finalWaiting?"Wait at HQ with your full squad. The organizer starts the Final Station only after every team clears its regular stations.":view.status==="ARRIVED"?(view.active?.startedAt?"The timer is running. Your facilitator will confirm who plays at this station.":"Your facilitator will select who will not play and confirm the lineup to start timing."):missionInstruction(view.status,data.agent.isCaptain,playing,state.instruction)}</p>{view.status==='ACTIVE'&&playing!==undefined&&<p className="mission-lineup-status">{playing?"You are selected to play this station.":"You are supporting this station; you are not in the playing lineup."}</p>}
- {view.active?.startedAt&&current?.id!==data.finalStation?.stationId&&<VisitTimer visit={{startedAt:view.active.startedAt,finishedAt:view.active.finishedAt??null,timePenaltySeconds:view.active.timePenaltySeconds??0}} checkedAt={data.checkedAt} limit={current?.timeLimitMinutes??null}/>}
+ {view.active?.startedAt&&["ARRIVED","ACTIVE"].includes(view.active.state)&&current?.id!==data.finalStation?.stationId&&<VisitTimer visit={{startedAt:view.active.startedAt,finishedAt:view.active.finishedAt??null,timePenaltySeconds:0}} checkedAt={data.checkedAt} limit={current?.timeLimitMinutes??null}/>}
  {data.finalStation&&(finalWaiting||view.active?.stationId===data.finalStation.stationId||data.finalStation.ownComplete)&&<FinalStationNotice status={data.finalStation} checkedAt={data.checkedAt}/>}
  {showStation&&!view.active?.startedAt&&!current.briefing&&policy==='CAPTAIN_CONFIRM'&&<p className="fine">Station instructions unlock when the facilitator confirms the lineup.</p>}
  {showStation&&<>
@@ -68,7 +67,6 @@ export function ParticipantMission({initial,briefing="",voting=false}:{initial:M
  {view.status==="HEAD_TO_STATION"&&data.agent.isCaptain&&<Link prefetch={false} className="button mission-arrival" href={`/events/${data.eventId}/check-in`}><SpyIcon name="scan"/>Scan station code <span aria-hidden="true">&#8594;</span></Link>}
  {view.status==="HEAD_TO_STATION"&&!data.agent.isCaptain&&<p>{data.team?.captainName??"Your captain"} handles team check-in.</p>}
  {view.status==="QUEUED"&&data.agent.isCaptain&&view.active?.visitId&&<RaceAction eventId={data.eventId} actorId={data.agent.id} input={{operation:"leaveQueue",visitId:view.active.visitId}} label="Leave waiting queue" description={`Leave queue: ${data.team?.name} at ${current.name}`} confirm="Leave this station's waiting queue?" onSuccess={()=>void refresh()}/>}
- {!!view.active?.timePenaltySeconds&&<p className="notice">Recorded time penalties: +{view.active.timePenaltySeconds} seconds</p>}
  {(current.briefing||current.timeLimitMinutes)&&<details key={current.id} className="mission-directions" open={view.status==='ACTIVE'}><summary>Station instructions</summary>{current.briefing&&<p>{current.briefing}</p>}{current.timeLimitMinutes&&<p>Time limit: {current.timeLimitMinutes} minutes. {current.id===data.finalStation?.stationId?"HQ starts one shared countdown for all squads.":policy==='CAPTAIN_CONFIRM'?"Timing starts when the facilitator confirms the lineup.":policy==='SCAN_APPROVAL_TIMED'?"Timing runs from the recorded QR arrival, including facilitator lineup confirmation.":"Timing starts when the facilitator approves arrival and lineup."}</p>}</details>}
  </>}
  {stationIds.length>0&&<div className="mission-progress"><label htmlFor="mission-progress">{view.progress.completedCount} of {stationIds.length} stations completed</label><progress id="mission-progress" max={stationIds.length} value={view.progress.completedCount}/></div>}

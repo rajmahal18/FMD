@@ -119,3 +119,7 @@ An authenticated event organizer may explicitly switch into another active event
 ## Focused judge navigation
 
 An active facilitator with an active assignment to any Open judging contest enters Scoring with all field navigation and activity account links hidden. Identity, password/access, screen-awake and logout remain available. Opening scoring brings an already signed-in assigned judge into this view; closing the last assigned open contest restores normal facilitator navigation. Closed/draft assignments do not force judging entry. Multiple open assigned contests retain focus until all close. Organizer and participant navigation, scoring permissions and saved sheets remain unchanged.
+
+## Station time privacy and facilitator handoff
+
+Participant/captain mission responses and station detail screens omit completed elapsed time, penalties, totals and timing endpoints. Only a running clock remains visible before Finish. Staff retain exact times for review and scoring. Penalty buttons have During activity or After time limit categories; existing buttons and entries default to During. After-limit penalties may be recorded early for testing and after Finish until result confirmation, with phase saved on each entry. Live assigned facilitators automatically open the newly arrived team timer/controls, including from other event pages. Preserve pending result input/dialogs before switching, assignment permissions, judge focus and queue admission rules.

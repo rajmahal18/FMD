@@ -528,6 +528,7 @@ model StationOutcome {
 }
 
 model TimePenaltyEntry {
+ phase String @default("DURING")
  id String @id @default(cuid())
  eventId String
  teamId String

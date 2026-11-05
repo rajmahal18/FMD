@@ -35,3 +35,5 @@
 .player-account-menu{max-height:calc(100dvh - 84px - env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain}.screen-awake-control .screen-awake-switch strong{padding:0}.player-shell .screen-awake-control .screen-awake-switch{justify-content:space-between}.player-account-menu .screen-awake-control small{color:#425c70}
 
 .judging-score-row .judging-score-input{min-width:0}.judging-score-row .judging-score-input input{flex:1;min-width:0}
+
+.penalty-phase{margin-block:12px}.penalty-phase h5{font-size:15px;line-height:1.4;margin:0 0 8px;color:#f2f7fa}.penalty-phase .fine{margin:4px 0 10px}
