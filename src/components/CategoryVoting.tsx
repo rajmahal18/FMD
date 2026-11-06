@@ -21,6 +21,6 @@ export function CategoryBallot({poll,people,disabled,onSubmit,easyMode=false}:{p
 export function VotingResults({poll}:{poll:VotingPoll}){
  if(!poll.results)return null;
  const squadResults=poll.results.some(r=>r.squadId);
- const groups=squadResults?[...new Map(poll.results.filter(r=>r.squadId).map(r=>[r.squadId!,{id:r.squadId!,name:r.squadName??'Squad'}])).values()]:poll.categories?.length?[{id:'MALE',name:'Male'},{id:'FEMALE',name:'Female'}]:[{id:'',name:''}];
+ const groups=squadResults?[...new Map(poll.results.filter(r=>r.squadId).map(r=>[r.squadId!,{id:r.squadId!,name:r.squadName??'Squad'}])).values()]:(poll.resultCategories??poll.categories)?.length?[{id:'MALE',name:'Male'},{id:'FEMALE',name:'Female'}]:[{id:'',name:''}];
  return <>{groups.map(group=><section className="voting-result-category" key={group.id}>{group.name&&<h3>{group.name}</h3>}<ol className="bounded-records" tabIndex={0} aria-label={group.name?`${group.name} voting results`:'Candidate voting results'}>{poll.results!.filter(r=>!group.id||(squadResults?r.squadId===group.id:r.category===group.id)).map(r=><li key={r.id}><span className="voting-rank">{r.rank===null?'—':`#${r.rank}`}</span><strong>{r.name}</strong><span>{r.votes} vote{r.votes===1?'':'s'}</span></li>)}</ol></section>)}</>;
 }

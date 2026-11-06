@@ -1,0 +1,1 @@
+export function participantVotingFocused(event:{participantVotingOnly?:boolean;state:string;archivedAt?:Date|string|null}){return !!event.participantVotingOnly&&!event.archivedAt&&['ENDED','FINALIZED'].includes(event.state);}

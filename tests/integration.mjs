@@ -1,3 +1,5 @@
+import {verifyParticipantFocus} from './participant-focus-integration.mjs';
+import {verifyFiveCongenial} from './congenial-five-integration.mjs';
 import {verifyMeetingVoting} from './meeting-voting-integration.mjs';
 import {verifyCornerstone} from './cornerstone-integration.mjs';
 import {shareResult} from './result-sharing-helpers.mjs';
@@ -238,7 +240,7 @@ try{
  const publishedJudging=(await judgingData(cookies.agent)).contests[0];assert.equal(publishedJudging.published.rows[0].average,22);assert.equal(publishedJudging.breakdown,undefined);assert.deepEqual(publishedJudging.ownSheets,[]);assert.deepEqual(publishedJudging.candidates,[]);
  assert(!JSON.stringify(publishedJudging).includes('Judge Two'));assert.equal((await get('/events/'+judgedEvent+'/judging',cookies.agent)).status,200);
  const firstPublication=(await pg.query('SELECT "publishedResults" FROM "JudgingContest" WHERE id=$1',[contestId])).rows[0].publishedResults;
- const autoOverall=await judgedOverall('finalize',1);assert.equal(autoOverall.status,200,JSON.stringify(autoOverall));assert.deepEqual(autoOverall.finalized.rows.map(r=>[r.value,r.rank]),[[88,1],[88,1]],'Overall uses actual 22/25 averages, not 100/90 credits');
+ const autoOverall=await judgedOverall('finalize',1);assert.equal(autoOverall.status,200,JSON.stringify(autoOverall));assert.deepEqual(autoOverall.finalized.rows.map(r=>[r.value,r.rank]),[[95,1],[95,1]],'Tied judges ranks split 100/90 credits; raw 22/25 averages stay unchanged');
  assert.equal((await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json()).published,false,'Approval alone must not reveal combined results');await share(judgedEvent,'overall');
  const autoPublic=await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json();assert(autoPublic.published);assert(!JSON.stringify(autoPublic).includes('Judge Two'));assert(!JSON.stringify(autoPublic).includes('judgeMembershipId'));
 
@@ -254,7 +256,7 @@ try{
  const staleJudged=await (await get('/api/events/'+judgedEvent+'/overall?view=draft',cookies.organizer)).json();assert(staleJudged.stale);assert.equal((await (await get('/api/events/'+judgedEvent+'/overall',cookies.agent)).json()).published,false,'Re-publication does not silently republish an old overall snapshot');
  const reopenedJudged=await judgedOverall('reopen',staleJudged.revision);assert.equal(reopenedJudged.status,200);
  assert.equal((await judgedOverall('finalize',reopenedJudged.revision,{expectedJudgingRevisions:{[contestId]:1}})).status,409,'A stale judging revision cannot be finalized');
- const revisedJudged=await judgedOverall('finalize',reopenedJudged.revision);assert.equal(revisedJudged.status,200);assert.deepEqual(revisedJudged.finalized.rows.map(r=>r.value),[90,88]);
+ const revisedJudged=await judgedOverall('finalize',reopenedJudged.revision);assert.equal(revisedJudged.status,200);assert.deepEqual(revisedJudged.finalized.rows.map(r=>r.value),[100,90]);
  console.log('PASS: published judging-to-overall auto ranking/normalization, unpublished/private source guards, source revision checks and correction invalidation/re-finalization.');
 
  const individualNominee=(await pg.query('SELECT id FROM "EventMembership" WHERE "eventId"=$1 AND role=$2',[judgedEvent,'PARTICIPANT'])).rows[0].id;
@@ -577,7 +579,9 @@ try{
  };
  await verifySquadHandlers({pg,prepareRace,command,get,cookies,aliceCookie,origin});
  await verifyCornerstone({prepareRace,command,get,postJson,cookies,aliceCookie});
+ await verifyParticipantFocus({pg,prepareRace,get,cookies});
  await verifyMeetingVoting({pg,prepareRace,command,get,postJson,cookies,aliceCookie});
+ await verifyFiveCongenial({pg,prepareRace,command,get,postJson,cookies});
  await verifyRaceFlows({pg,prepareRace,command,race,cookies,aliceCookie,get});
  // Assigned facilitator confirms the complement of non-playing members.
  {

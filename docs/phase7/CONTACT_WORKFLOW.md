@@ -54,3 +54,15 @@ Each participant later submits one Male and one Female choice together from thei
 This implementation reuses ContactRecord, VotingEvent configuration JSON and existing ballots. No schema migration or live data rewrite is needed. Configure the new format deliberately after deployment. Legacy contact policies and other ballot formats retain their behavior.
 
 Validation: meeting-voting-integration.mjs via the integration suite; MEETING_VOTING_BROWSER_ONLY=1 node tests/theme-smoke.mjs; contact/voting unit tests.
+
+
+## Final Congeniality rule: five choices
+
+The final Most Congenial format allows 1 to 5 distinct people from Agents I met in one final ballot. Each chosen person receives one vote; votes cannot be stacked on the same person. Self-votes and unmet people remain blocked. There is no Male/Female quota on the five choices, but results still rank Male and Female candidates separately with shared ties. The 40-contact scanning limit is independent of this five-vote limit.
+
+The configuration uses maxChoices=5, no ballot categories, and resultCategories for the Male/Female winner groups. Older two-category met-agent ballots remain supported so existing votes are never reinterpreted. Other award formats are unchanged. No schema migration is needed.
+
+
+## Final update: direct Congeniality voting
+
+Most Congenial now uses congeniality=true, without metAgentsOnly. Every active participant can select 1 to 5 distinct active participants directly; scanning and Agents I met are not prerequisites. Self-votes remain blocked, one final ballot is allowed, and Male/Female result groups still determine the winners with shared ties. Contact history and its 40-person limit remain separate and optional. The original met-only formats remain supported for existing historical configurations. No migration is needed.

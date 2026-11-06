@@ -95,3 +95,30 @@ test('met-agent ballots require a mutual accepted meeting for each Male/Female c
  assert.equal(parseVotingInput(input).config.metAgentsOnly,true);
  for(const patch of [{metAgentsOnly:'yes'},{allowSelf:true},{allowSameTeam:false},{squadAward:true},{categories:undefined}])assert.throws(()=>parseVotingInput({...input,config:{...c,...patch}}));
 });
+
+
+test('five congeniality choices are distinct met agents, without gender quotas, with separate result winners',()=>{
+ const candidates=['m1','m2','m3','f1','f2','f3'],people=candidates.map(id=>({...two,id}));
+ const c:VotingConfig={...config,metAgentsOnly:true,candidateIds:candidates,maxChoices:5,resultCategories:[{id:'MALE',name:'Male',candidateIds:['m1','m2','m3']},{id:'FEMALE',name:'Female',candidateIds:['f1','f2','f3']}]};
+ const voter={...one,metAgentIds:candidates};
+ assert.deepEqual(validateBallot(['m1','m2','m3','f1','f2'],c,voter,people),['f1','f2','m1','m2','m3']);
+ assert.deepEqual(validateBallot(['m1'],c,voter,people),['m1']);
+ for(const choices of [[],candidates,['m1','m1']])assert.throws(()=>validateBallot(choices,c,voter,people));
+ assert.throws(()=>validateBallot(['f3'],c,{...voter,metAgentIds:['m1']},people));
+ const input={name:'Most Congenial',instructions:'',opensAt:'2026-10-20T10:00:00Z',closesAt:'2026-10-20T11:00:00Z',config:c};
+ const parsed=parseVotingInput(input).config;assert.equal(parsed.maxChoices,5);assert.equal(parsed.categories,undefined);assert.equal(parsed.resultCategories?.length,2);
+ for(const patch of [{maxChoices:4},{allowSelf:true},{categories:c.resultCategories},{resultCategories:undefined}])assert.throws(()=>parseVotingInput({...input,config:{...c,...patch}}));
+ const rows=votingStandings(c,people,['m1','m1','f1','f2','f2'].map(candidateMembershipId=>({candidateMembershipId})));
+ assert.equal(rows.find(r=>r.id==='m1')?.rank,1);assert.equal(rows.find(r=>r.id==='f2')?.rank,1);assert.equal(rows.find(r=>r.id==='f1')?.rank,2);
+});
+
+
+test('direct Congeniality does not require meetings and keeps five distinct choices with Male/Female winners',()=>{
+ const candidates=['m1','m2','m3','f1','f2','f3'],people=candidates.map(id=>({...two,id}));
+ const c:VotingConfig={...config,congeniality:true,maxChoices:5,candidateIds:candidates,resultCategories:[{id:'MALE',name:'Male',candidateIds:['m1','m2','m3']},{id:'FEMALE',name:'Female',candidateIds:['f1','f2','f3']}]};
+ assert.deepEqual(validateBallot(candidates.slice(0,5),c,one,people),['f1','f2','m1','m2','m3']);assert(completeCandidatePool(c,one,people));
+ assert(!eligibleCandidate(c,one,{...people[0],role:'FACILITATOR'}));assert.throws(()=>validateBallot(candidates,c,one,people));assert.throws(()=>validateBallot(['m1','m1'],c,one,people));
+ const input={name:'Most Congenial',instructions:'',opensAt:'2026-10-20T10:00:00Z',closesAt:'2026-10-20T11:00:00Z',config:c};
+ assert.equal(parseVotingInput(input).config.congeniality,true);assert.equal(parseVotingInput(input).config.metAgentsOnly,undefined);
+ for(const patch of [{metAgentsOnly:true},{allowSelf:true},{congeniality:'yes'},{resultCategories:undefined}])assert.throws(()=>parseVotingInput({...input,config:{...c,...patch}}));
+});

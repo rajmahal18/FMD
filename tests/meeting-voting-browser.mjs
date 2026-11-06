@@ -10,27 +10,31 @@ export async function meetingVotingBrowser({role,cookie,pg,event,evaluate,visit,
   organizerCookie=cookie;
   const first=(await pg.query('SELECT m."teamId" FROM "EventMembership" m JOIN "User" u ON u.id=m."userId" WHERE m."eventId"=$1 AND u.email=$2',[event.id,'agent@example.test'])).rows[0].teamId;
   await pg.query('UPDATE "User" SET sex=$1 WHERE email=$2',['M','agent@example.test']);
-  await pg.query('UPDATE "Event" SET state=$1 WHERE id=$2',['FINALIZED',event.id]);
-  for(const [id,sex,code] of [['meeting-male','M','91827364'],['meeting-female','F','91827365'],['meeting-female-two','F','91827366']]){
+  await pg.query('UPDATE "Event" SET state=$1,"participantVotingOnly"=true WHERE id=$2',['FINALIZED',event.id]);
+  for(const [id,sex,code] of [['meeting-male','M','91827364'],['meeting-female','F','91827365'],['meeting-female-two','F','91827366'],['meeting-male-two','M','91827367'],['meeting-female-three','F','91827368']]){
    await pg.query('INSERT INTO "User" (id,email,name,sex,"passwordHash") SELECT $1,$2,$3,$4,"passwordHash" FROM "User" WHERE email=$5',[id,id+'@example.test',id+' with a long agent name',sex,'agent@example.test']);
    await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role,"teamId") VALUES ($1,$2,$1,$3,$4)',[id,event.id,'PARTICIPANT',first]);
    const hash=v=>createHash('sha256').update(v).digest('hex');
    await pg.query('INSERT INTO "ContactCredential" (id,"eventId","issuerMembershipId","tokenHash","codeHash","expiresAt") VALUES ($1,$2,$3,$4,$5,$6)',['credential-'+id,event.id,id,hash(id),hash(`contact-code:${event.id}:${code}`),new Date(Date.now()+3600000).toISOString()]);
   }
-  await pg.query('INSERT INTO "ContactPolicy" (id,"eventId",mode,"sameTeamAllowed","outgoingLimit","mutualConfirmation","reciprocityAllowed",visibility,"tieRule",enabled,"opensAt","closesAt") VALUES ($1,$2,$3,true,40,true,true,$4,$5,true,$6,$7)',['meeting-policy',event.id,'INTERACTION','PUBLIC','SHARED',new Date(Date.now()-60000).toISOString(),new Date(Date.now()+3600000).toISOString()]);
-  const prepare="(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Create voting event').click();await new Promise(r=>setTimeout(r,50));const select=document.querySelector('.voting-editor select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'MET_AGENTS');select.dispatchEvent(new Event('change',{bubbles:true}));})()";
+  await pg.query('INSERT INTO "ContactPolicy" (id,"eventId",mode,"sameTeamAllowed","outgoingLimit","mutualConfirmation","reciprocityAllowed",visibility,"tieRule",enabled,"opensAt","closesAt") VALUES ($1,$2,$3,true,40,false,true,$4,$5,true,$6,$7)',['meeting-policy',event.id,'INTERACTION','SELF','SHARED',new Date(Date.now()-60000).toISOString(),new Date(Date.now()+3600000).toISOString()]);
+  const prepare="(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Create voting event').click();await new Promise(r=>setTimeout(r,50));const select=document.querySelector('.voting-editor select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'CONGENIALITY');select.dispatchEvent(new Event('change',{bubbles:true}));})()";
   await check('meeting-vote-setup',base+'/voting-settings',prepare);
-  assert.equal(await evaluate("document.querySelector('.voting-editor input[maxlength]').value"),'Most Congenial - Male & Female');
+  assert.equal(await evaluate("document.querySelector('.voting-editor input[maxlength]').value"),'Most Congenial');
   assert(!(await evaluate("!!document.querySelector('.voting-candidate-setup')")));
   await evaluate("(()=>{const inputs=document.querySelectorAll('.voting-editor input[type=datetime-local]');for(let i=0;i<2;i++){const d=new Date(Date.now()+(i?3600000:-60000));Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(inputs[i],new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16));inputs[i].dispatchEvent(new Event('input',{bubbles:true}));inputs[i].dispatchEvent(new Event('change',{bubbles:true}));}})()");
   await evaluate("document.querySelector('.voting-editor button[type=submit]').click()");
-  assert(await evaluate("document.body.textContent.includes('Saving activates mutual Agents I met')"));
+  assert(await evaluate("document.body.textContent.includes('Review voting configuration')"));
   await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Save voting event').click()");
   await wait(async()=>(await pg.query('SELECT count(*)::int n FROM "VotingEvent" WHERE "eventId"=$1',[event.id])).rows[0].n===1);
   const poll=(await pg.query('SELECT id,revision FROM "VotingEvent" WHERE "eventId"=$1',[event.id])).rows[0];
   assert.equal((await pg.query('SELECT "mutualConfirmation" FROM "ContactPolicy" WHERE "eventId"=$1',[event.id])).rows[0].mutualConfirmation,false);
   await post({operation:'setEnabled',id:poll.id,revision:poll.revision,enabled:true});
  }else{
+  await visit(base);assert.equal(await evaluate('location.pathname'),voting);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.player-bottom-nav a')].map(a=>a.textContent.trim())"),['Voting']);
+  assert(!(await evaluate("!!document.querySelector('.inbox-entry')")));
+  await check('participant-voting-only',voting);
   await check('meeting-vote-empty-list',contact,"[...document.querySelectorAll('.contact-mode-tabs button')].find(b=>b.textContent.startsWith('Agents I met')).click()");
   assert(await evaluate("document.querySelector('.met-agent-list').textContent.includes('No vote is cast')"));
   for(const code of ['91827364','91827365']){
@@ -43,11 +47,11 @@ export async function meetingVotingBrowser({role,cookie,pg,event,evaluate,visit,
   assert.equal((await pg.query('SELECT count(*)::int n FROM "VotingBallot" WHERE "eventId"=$1',[event.id])).rows[0].n,0);
   await pg.query('UPDATE "ContactPolicy" SET enabled=false WHERE "eventId"=$1',[event.id]);
   await check('meeting-vote-closed-scanning-list',contact);assert.equal(await evaluate("document.querySelectorAll('.met-agent-list .list-row').length"),2);
-  await check('meeting-vote-personal-ballot',voting);assert.equal(await evaluate("document.querySelectorAll('.voting-category-male input').length"),1);assert.equal(await evaluate("document.querySelectorAll('.voting-category-female input').length"),1);
-  await evaluate("(async()=>{document.querySelector('.voting-category-male input').click();await new Promise(r=>setTimeout(r,30));[...document.querySelectorAll('button')].find(b=>b.textContent==='Next: choose Female')?.click();await new Promise(r=>setTimeout(r,30));document.querySelector('.voting-category-female input').click();await new Promise(r=>setTimeout(r,30));document.querySelector('.category-ballot button[type=submit]').click();})()");
+  await check('meeting-vote-personal-ballot',voting);assert.equal(await evaluate("document.querySelectorAll('.voting-candidate input[type=checkbox]').length"),5);
+  await evaluate("(async()=>{for(const input of document.querySelectorAll('.voting-candidate input'))input.click();await new Promise(r=>setTimeout(r,30));document.querySelector('.voting-ballot button[type=submit]').click();})()");
   await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Submit final ballot').click()");
   await wait(async()=>(await pg.query('SELECT count(*)::int n FROM "VotingBallot" WHERE "eventId"=$1',[event.id])).rows[0].n===1);
-  await check('meeting-vote-receipt',voting);assert.equal(await evaluate("document.querySelectorAll('.voting-receipt .category-choices>div').length"),2);
+  await check('meeting-vote-receipt',voting);assert.equal(await evaluate("document.querySelectorAll('.voting-receipt li').length"),5);
   const poll=(await pg.query('SELECT id,revision FROM "VotingEvent" WHERE "eventId"=$1',[event.id])).rows[0];
   await post({operation:'setEnabled',id:poll.id,revision:poll.revision,enabled:false});await post({operation:'publish',id:poll.id,revision:poll.revision+1});
   await shareResult({origin:appOrigin,requestOrigin:origin,eventId:event.id,cookie:organizerCookie,key:'voting:'+poll.id});

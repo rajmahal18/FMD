@@ -22,7 +22,7 @@ New scores accept whole numbers within `0..criterion maximum`. Integer hundredth
 
 Criteria, entrants and judge assignments lock after the first saved draft or score. Before scoring, close the contest before changing its configuration. An organizer may close scoring, withdraw a publication with a reason, reopen a specific submitted judge/entrant sheet with a reason, and open scoring for resubmission. Previous scores and publication snapshots are preserved in the audit. Publishing saves an aggregate snapshot; event members see published totals, never private judge sheets.
 
-Judging does not write to the Spy Chase score ledger, Agent Contact, or voting ballots. Linked Overall ranking components use published judges' actual average scores; see `docs/OVERALL_RANKING.md` for component weights and publication behavior.
+Judging does not write to the Spy Chase score ledger, Agent Contact, or voting ballots. Linked Overall components use published activity ranks and placement credits; raw judge averages determine those ranks; see `docs/OVERALL_RANKING.md` for component weights and publication behavior.
 
 ## Keeping the screen awake
 

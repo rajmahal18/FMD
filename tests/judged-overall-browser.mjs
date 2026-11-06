@@ -13,7 +13,7 @@ export async function judgedOverallBrowser({role,pg,event,evaluate,visit,check})
   await wait(()=>evaluate("document.querySelectorAll('.overall-judge-rows li').length===5"));
   await check('judged-overall-auto-ranks',base+'/overall',"document.querySelectorAll('.overall-standing').forEach(d=>d.open=true)");
   assert.deepEqual(await evaluate("[...document.querySelectorAll('.overall-standing summary>strong')].map(e=>Number(e.textContent.split('.')[0]))"),[1,2,3,4,5]);
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('.overall-standing summary>span')].map(e=>e.textContent)"),['92%','90%','88%','86%','84%']);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.overall-standing summary>span')].map(e=>e.textContent)"),['100%','90%','80%','70%','60%']);
   await visit(base+'/overall');await evaluate("document.querySelector('.overall-entry-details').open=true");await click('Approve combined results');await evaluate("document.querySelector('.action-feedback-modal[open] .action-feedback-actions button:last-child').click()");await wait(async()=>!!(await pg.query('SELECT finalized FROM "OverallRanking" WHERE "eventId"=$1',[event.id])).rows[0].finalized);
   await shareInBrowser({evaluate,eventId:event.id,key:'judging:overall-auto-judging'});await shareInBrowser({evaluate,eventId:event.id,key:'overall'});
  }else{

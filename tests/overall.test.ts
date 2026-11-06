@@ -4,21 +4,21 @@ import {resolveOverallJudging,defaultOverall,overallComplete,overallStandings,va
 const teams=Array.from({length:6},(_,i)=>({id:`t${i+1}`,name:`Team ${i+1}`,color:'#72D5E3',points:600-i*100}));
 const event=(patch:Partial<ComponentEvent>={}):ComponentEvent=>({id:'spy',name:'Spy Chase',weight:40,source:'SPY',credits:[100,90,80,70,60],ranks:{},...patch});
 
-test('judged components use normalized actual averages instead of placement credits',()=>{
+test('judged components use placement credits and preserve the raw judge averages',()=>{
  const config={events:[event({source:'JUDGING',contestId:'gala',weight:45})]};
  const judging=[{id:'gala',name:'Gala',revision:5,published:true,rows:[{id:'t1',rank:1,average:92,maximum:100},{id:'t2',rank:2,average:88,maximum:100}]}];
  const rows=overallStandings(config,teams.slice(0,2),judging);
- assert.deepEqual(rows.map(r=>r.value),[41.4,39.6]);
- assert.equal(rows[0].contributions[0].credit,92);
+ assert.deepEqual(rows.map(r=>r.value),[45,40.5]);
+ assert.equal(rows[0].contributions[0].credit,100);
  assert.equal(rows[0].contributions[0].average,92);
  assert.equal(overallStandings(config,teams.slice(0,2),[{...judging[0],published:false}])[0].contributions[0].rank,null);
 });
 
-test('judged ties preserve actual equal scores and differing contest maxima normalize fairly',()=>{
+test('judged ties split occupied placement credits regardless of criterion maximum',()=>{
  const config={events:[event({source:'JUDGING',contestId:'banner',weight:100})]};
  const source={id:'banner',name:'Banner',revision:3,published:true,rows:[{id:'t1',rank:1,average:22,maximum:25},{id:'t2',rank:1,average:22,maximum:25}]};
  const rows=overallStandings(config,teams.slice(0,2),[source]);
- assert.deepEqual(rows.map(r=>[r.rank,r.value]),[[1,88],[1,88]]);
+ assert.deepEqual(rows.map(r=>[r.rank,r.value]),[[1,95],[1,95]]);
  const missing=overallStandings(config,teams,[source]);assert(!overallComplete(config,missing));
  assert.throws(()=>validateOverall({events:[event({source:'JUDGING'})]},teams.map(t=>t.id)));
  assert.throws(()=>validateOverall({events:[event({source:'JUDGING',contestId:'same'}),event({id:'other',source:'JUDGING',contestId:'same'})]},teams.map(t=>t.id)));
@@ -66,6 +66,14 @@ test('organizer live previews include submitted averages while official results 
  const config={events:[event({source:'JUDGING',contestId:'gala',weight:100})]};
  const source={id:'gala',name:'Gala',revision:1,published:false,rows:[],liveRows:[{id:'t1',rank:null,average:85,maximum:100,submitted:1,judges:2},{id:'t2',rank:null,average:null,maximum:100,submitted:0,judges:2}]};
  const official=overallStandings(config,teams.slice(0,2),[source]);assert(official.every(r=>r.contributions[0].contribution===null));
- const preview=overallStandings(config,teams.slice(0,2),[source],true);assert.equal(preview.find(r=>r.id==='t1')!.value,85);assert.equal(preview.find(r=>r.id==='t2')!.contributions[0].contribution,null);assert(!overallComplete(config,preview));
+ const preview=overallStandings(config,teams.slice(0,2),[source],true);assert.equal(preview.find(r=>r.id==='t1')!.value,0);assert.equal(preview.find(r=>r.id==='t1')!.contributions[0].average,85);assert.equal(preview.find(r=>r.id==='t2')!.contributions[0].contribution,null);assert(!overallComplete(config,preview));
  const completeSource={...source,liveRows:[{id:'t1',rank:1,average:85,maximum:100},{id:'t2',rank:2,average:65,maximum:100}]};assert(overallComplete(config,overallStandings(config,teams.slice(0,2),[completeSource],true)));assert(!overallComplete(config,overallStandings(config,teams.slice(0,2),[completeSource])));
+});
+
+
+test('all five judged places receive 100/90/80/70/60 credits for Gala, Banner and Chant',()=>{
+ const source={id:'judged',name:'Judged',revision:1,published:true,rows:teams.slice(0,5).map((t,i)=>({id:t.id,rank:i+1,average:78-i*5,maximum:100}))};
+ for(const weight of [45,5]){const rows=overallStandings({events:[event({source:'JUDGING',contestId:'judged',weight})]},teams.slice(0,5),[source]);assert.deepEqual(rows.map(r=>r.contributions[0].credit),[100,90,80,70,60]);assert.deepEqual(rows.map(r=>r.value),weight===45?[45,40.5,36,31.5,27]:[5,4.5,4,3.5,3]);assert.equal(rows[0].contributions[0].average,78);}
+ const tied={...source,rows:source.rows.map((r,i)=>({...r,rank:i<2?1:i+1,average:i<2?78:r.average}))};
+ assert.deepEqual(overallStandings({events:[event({source:'JUDGING',contestId:'judged',weight:45})]},teams.slice(0,5),[tied]).map(r=>r.value),[42.75,42.75,36,31.5,27]);
 });

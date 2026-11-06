@@ -51,3 +51,22 @@ Participants and facilitators use the same focused voting desk, separate from or
 Male/Female ballots show one category at a time: choose Male, continue to Female, review both choices, then submit. Single awards show the selected name before review. Switching awards preserves unsubmitted choices while the page remains mounted. Confirmed server ballots show a completed receipt rather than another voting form. An interrupted response offers Check submission using the saved request key. Candidate changes, closed voting, archive state and organizer sharing retain existing server rules.
 
 Validation: EASY_VOTING_BROWSER_ONLY=1 node tests/theme-smoke.mjs covers participant and facilitator eligibility, multi-award navigation, retained choices, category steps, review/edit and interrupted submission recovery.
+
+
+## Final Congeniality rule: five choices
+
+The final Most Congenial format allows 1 to 5 distinct people from Agents I met in one final ballot. Each chosen person receives one vote; votes cannot be stacked on the same person. Self-votes and unmet people remain blocked. There is no Male/Female quota on the five choices, but results still rank Male and Female candidates separately with shared ties. The 40-contact scanning limit is independent of this five-vote limit.
+
+The configuration uses maxChoices=5, no ballot categories, and resultCategories for the Male/Female winner groups. Older two-category met-agent ballots remain supported so existing votes are never reinterpreted. Other award formats are unchanged. No schema migration is needed.
+
+
+## Final update: direct Congeniality voting
+
+Most Congenial now uses congeniality=true, without metAgentsOnly. Every active participant can select 1 to 5 distinct active participants directly; scanning and Agents I met are not prerequisites. Self-votes remain blocked, one final ballot is allowed, and Male/Female result groups still determine the winners with shared ties. Contact history and its 40-person limit remain separate and optional. The original met-only formats remain supported for existing historical configurations. No migration is needed.
+
+
+## Participant voting-only phase
+
+Event.participantVotingOnly is an opt-in navigation flag, default false. For enabled events in Ended or Finalized state, participants land directly on Voting and see only the Voting tab. Other event navigation and the inbox shortcut are hidden; identity, password/security, wake-lock and sign-out controls remain. Facilitator and organizer navigation is unchanged. Live/Preparing/Ready/Paused and archived events keep normal navigation, so a reset or resumed race does not lose its mission controls. Existing routes and server permissions are preserved; this is a navigation focus mode.
+
+Migration 20261106020000_participant_voting_focus adds one default-false boolean column without deleting or resetting records. Enable it per event. The Operation Classified event was configured explicitly, leaving other events off. Verification: participant-navigation.test.ts, full integration suite and MEETING_VOTING_BROWSER_ONLY browser checks.

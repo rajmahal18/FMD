@@ -34,9 +34,14 @@ try{
  let data=await read();assert.equal(data.complete,false);assert(data.rows.every(r=>r.rank===null));assert.equal(data.activities[1].judges.length,2);assert(!JSON.stringify(data).includes('sheet-inactive-judge'));
  const partial=data.rows.find(r=>r.id===teams[0].id).values[1];assert.equal(partial.judgeSum,80);assert.equal(partial.average,80);assert.equal(partial.submitted,1);assert.equal(partial.rank,null);assert.equal(partial.judgeScores.filter(x=>x===null).length,1);
  for(let i=0;i<2;i++)assert.equal((await judge('submitScore',{candidateId:teams[i].id,version:1,scores:{impact:90-i*20}},'sheet-judge-two')).status,200);
- data=await read();assert.equal(data.complete,true);const a=data.rows.find(r=>r.id===teams[0].id),b=data.rows.find(r=>r.id===teams[1].id);assert.equal(a.values[1].judgeSum,170);assert.equal(a.values[1].average,85);assert.equal(a.values[0].credit,95);assert.equal(a.values[0].contribution,42.75);assert.equal(a.total,90);assert.equal(b.total,82);assert.equal(a.rank,1);
+ data=await read();assert.equal(data.complete,true);const a=data.rows.find(r=>r.id===teams[0].id),b=data.rows.find(r=>r.id===teams[1].id);assert.equal(a.values[1].judgeSum,170);assert.equal(a.values[1].average,85);assert.equal(a.values[0].credit,95);assert.equal(a.values[0].contribution,42.75);assert.equal(a.values[1].credit,100);assert.equal(a.values[1].contribution,45);assert.equal(a.total,96.75);assert.equal(b.total,93.25);assert.equal(a.rank,1);
  const finalize=async()=>{const x=await (await get(base+'/overall?view=draft')).json();return post('/overall',{operation:'finalize',revision:x.revision,config:x.config,expectedJudgingRevisions:{[contest]:x.judgingSources[0].revision}});};
  assert.equal((await finalize()).status,400);assert.equal((await judge('close')).status,200);assert.equal((await judge('publish')).status,200);assert.equal((await finalize()).status,200);
+ const preserved=(await pg.query('SELECT finalized FROM "OverallRanking" WHERE "eventId"=$1',[event])).rows[0].finalized;
+ await pg.query('UPDATE "OverallRanking" SET finalized=finalized-$2 WHERE "eventId"=$1',[event,'judgingContributionMethod']);
+ assert.equal((await read()).stale,true);assert.equal((await read('agent')).visible,false);
+ assert.equal((await pg.query("SELECT finalized->'rows' rows FROM \"OverallRanking\" WHERE \"eventId\"=$1",[event])).rows[0].rows.length,2);
+ await pg.query('UPDATE "OverallRanking" SET finalized=$2 WHERE "eventId"=$1',[event,JSON.stringify(preserved)]);
  const sharingPreview=async()=>{const center=await (await get(base+'/result-sharing')).json(),item=center.items.find(i=>i.key==='overall-breakdown');return post('/result-sharing',{operation:'preview',key:item.key,facilitators:'PUBLISHED',participants:'PUBLISHED',sourceRevision:item.sourceRevision,sharingRevision:item.sharingRevision,runRevision:center.runRevision});};
  assert.equal((await sharingPreview()).status,409);
  for(const key of ['race','judging:'+contest,'overall'])await shareResult({origin,eventId:event,cookie:cookies.organizer,key});

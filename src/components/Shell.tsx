@@ -1,3 +1,4 @@
+import {participantVotingFocused} from '@/lib/participant-navigation';
 import {judgingNavigation} from '@/server/judging-navigation';
 import {AccountSession} from "./AccountSession";
 import {RoleLabel} from "./RoleLabel";
@@ -18,11 +19,12 @@ import {PlayerShell} from "./PlayerShell";
 export async function Shell({name,title,role,children,eventId}:{name:string;title:string;role:string;children:React.ReactNode;eventId?:string}){
   const account=await currentUser();
   const photo=avatarUrl(account?.avatarKey);
-  const previewEnabled=eventId?(await db().event.findUnique({where:{id:eventId},select:{screenPreviewEnabled:true}}))?.screenPreviewEnabled??true:true;
+  const navigationEvent=eventId?await db().event.findUnique({where:{id:eventId},select:{screenPreviewEnabled:true,participantVotingOnly:true,state:true,archivedAt:true}}):null;
+  const previewEnabled=navigationEvent?.screenPreviewEnabled??true;
   children=<RunRevisionProvider revision={eventId?await runRevision(db(),eventId):0}>{children}</RunRevisionProvider>;
   const sessionBar=account?<AccountSession key={`${account.id}:${account.accountSwitch?.sessionId??"normal"}`} userId={account.id} name={account.name} switchId={account.accountSwitch?.sessionId} organizerName={account.accountSwitch?.organizerName}/>:null;
   if(role==="FACILITATOR"){const judging=eventId&&account?await judgingNavigation(account.id,eventId):{judgingEnabled:false,focused:false};return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} previewEnabled={previewEnabled} judgingEnabled={judging.judgingEnabled} judgingFocused={judging.focused} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;}
-  if(role==="PARTICIPANT"||role==="AGENT")return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;
+  if(role==="PARTICIPANT"||role==="AGENT")return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} votingOnly={!!navigationEvent&&participantVotingFocused(navigationEvent)} name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;
   const roleLabel=role.replaceAll("_"," ");
   return <>{sessionBar}<div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":role==="FACILITATOR"?"facilitator-shell":""}`}>
     <aside>

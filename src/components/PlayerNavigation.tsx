@@ -8,14 +8,16 @@ function Icon({kind}:{kind:'contact'|'mission'|'ranks'|'voting'|'profile'}){
  if(kind==='profile')return <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>;
  return <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{kind==='contact'?<><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM20 14v6h-6"/></>:kind==='mission'?<><path d="m12 3 8 5v8l-8 5-8-5V8Z"/><path d="m8 12 3 3 5-6"/></>:<><path d="M4 20h16M7 16v-5M12 16V4M17 16V8"/></>}</svg>;
 }
-export function PlayerNavigation({eventId}:{eventId:string}){
+export function PlayerNavigation({eventId,votingOnly=false}:{eventId:string;votingOnly?:boolean}){
  const base=`/events/${eventId}`,actualPath=usePathname(),previewPath=useScreenPreviewPath(),path=previewPath??actualPath;
  const mission=path===base||path===`${base}/check-in`,contact=path===`${base}/contact`,ranked=path===`${base}/results`||path===`${base}/overall`||path===`${base}/judging`;
  return <nav className="player-bottom-nav" aria-label="Event navigation"><div className="player-bottom-inner">
   <Link prefetch={false} href={`${base}/voting`} className={`player-bottom-item${path===`${base}/voting`?' active':''}`} aria-current={path===`${base}/voting`?'page':undefined}><Icon kind="voting"/><span>Voting</span></Link>
+  {!votingOnly&&<>
   <Link prefetch={false} href={`${base}/contact`} className={`player-bottom-item${contact?' active':''}`} aria-current={contact?'page':undefined}><Icon kind="contact"/><span>Contact</span></Link>
   <Link prefetch={false} href={base} className={`player-bottom-item player-mission-link${mission?' active':''}`} aria-current={mission?'page':undefined}><span className="player-mission-icon"><Icon kind="mission"/></span><span>Spy Chase</span></Link>
   <Link prefetch={false} href={`${base}/results`} className={`player-bottom-item${ranked?' active':''}`} aria-current={ranked?'page':undefined}><Icon kind="ranks"/><span>Results</span></Link>
   <Link prefetch={false} href={`${base}/agents/me`} className={`player-bottom-item${path===`${base}/agents/me`?' active':''}`} aria-current={path===`${base}/agents/me`?'page':undefined}><Icon kind="profile"/><span>Profile</span></Link>
+ </>}
  </div></nav>;
 }

@@ -26,7 +26,7 @@ export async function readVoting(actorId:string,eventId:string):Promise<VotingDa
   const shared=!!p.publishedAt&&(organizer||await snapshotShared(tx,eventId,'voting:'+p.id,p.revision,m.role));
   const c=p.config as VotingConfig,own=p.ballots.find(b=>b.voterMembershipId===m.id),candidates=people.filter(person=>eligibleCandidate(c,voter,person));
   for(const person of candidates)visiblePeople.add(person.id);for(const choice of own?.choices??[])visiblePeople.add(choice.candidateMembershipId);
-  return {id:p.id,revision:p.revision,name:p.name,instructions:p.instructions,opensAt:p.opensAt.toISOString(),closesAt:p.closesAt.toISOString(),enabled:p.enabled,publishedAt:shared?p.publishedAt!.toISOString():null,config:organizer?c:null,status:!organizer&&p.publishedAt&&!shared?'Closed':votingStatus(p,m.event),eligible:eligibleVoter(c,voter),maxChoices:c.maxChoices,allowSelf:c.allowSelf,allowSameTeam:c.allowSameTeam,candidateIds:candidates.map(a=>a.id),...(c.metAgentsOnly?{metAgentsOnly:true}:{}),...(c.categories?{categories:c.categories.map(group=>({...group,candidateIds:group.candidateIds.filter(id=>candidates.some(p=>p.id===id)||own?.choices.some(choice=>choice.candidateMembershipId===id))}))}:{}),ownChoices:own?own.choices.map(v=>v.candidateMembershipId):null,ballotCount:organizer||shared?p.ballots.length:null,results:shared?p.publishedResults as VotingPoll['results']:organizer?votingStandings(c,people,p.ballots.flatMap(b=>b.choices)):null};
+  return {id:p.id,revision:p.revision,name:p.name,instructions:p.instructions,opensAt:p.opensAt.toISOString(),closesAt:p.closesAt.toISOString(),enabled:p.enabled,publishedAt:shared?p.publishedAt!.toISOString():null,config:organizer?c:null,status:!organizer&&p.publishedAt&&!shared?'Closed':votingStatus(p,m.event),eligible:eligibleVoter(c,voter),maxChoices:c.maxChoices,allowSelf:c.allowSelf,allowSameTeam:c.allowSameTeam,candidateIds:candidates.map(a=>a.id),...(c.resultCategories?{resultCategories:c.resultCategories.map(({id,name})=>({id,name}))}:{}),...(c.metAgentsOnly?{metAgentsOnly:true}:{}),...(c.categories?{categories:c.categories.map(group=>({...group,candidateIds:group.candidateIds.filter(id=>candidates.some(p=>p.id===id)||own?.choices.some(choice=>choice.candidateMembershipId===id))}))}:{}),ownChoices:own?own.choices.map(v=>v.candidateMembershipId):null,ballotCount:organizer||shared?p.ballots.length:null,results:shared?p.publishedResults as VotingPoll['results']:organizer?votingStandings(c,people,p.ballots.flatMap(b=>b.choices)):null};
  }));
  return {eventId,actorId,membershipId:m.id,organizer,timezone:m.event.timezone,archived:!!m.event.archivedAt,eventState:m.event.state,people:organizer?people.map(({metAgentIds,...person})=>person):people.filter(p=>visiblePeople.has(p.id)).map(({sex,metAgentIds,...person})=>person),teams:organizer?await tx.team.findMany({where:{eventId},select:{id:true,name:true},orderBy:{name:'asc'}}):[],polls:rows,checkedAt:new Date().toISOString()};
  },{isolationLevel:'RepeatableRead',timeout:20000});}
@@ -48,18 +48,19 @@ export async function votingAction(actorId:string,eventId:string,value:unknown){
   if(operation!=='create'&&!p)throw new InputError('Voting event not found.',404);
   if(operation==='create'||operation==='update'){
    const input=parseVotingInput(v.input),c=input.config;
-   if(c.metAgentsOnly){
+   if(c.metAgentsOnly||c.congeniality){
     const existing=await meetingVotingEvent(tx,eventId);if(existing&&existing.id!==p?.id)throw new InputError('An Agents I met ballot already exists. Edit that event instead.',409);
-    const policy=await tx.contactPolicy.findUnique({where:{eventId}});if(!policy||policy.mode!=='INTERACTION')throw new InputError('Configure an Interaction contact policy and QR collection window first.',409);
-    if(await tx.contactRecord.count({where:{eventId,state:'PENDING'}}))throw new InputError('Resolve existing pending contact requests before enabling scan-then-vote.',409);
+    const policy=await tx.contactPolicy.findUnique({where:{eventId}});if(c.metAgentsOnly&&(!policy||policy.mode!=='INTERACTION'))throw new InputError('Configure an Interaction contact policy and QR collection window first.',409);
+    if(c.metAgentsOnly&&await tx.contactRecord.count({where:{eventId,state:'PENDING'}}))throw new InputError('Resolve existing pending contact requests before enabling scan-then-vote.',409);
     const participants=people.filter(person=>person.active&&person.role==='PARTICIPANT');
     if(participants.some(person=>!profileVotingCategory(person.sex)))throw new InputError('Set the Male/Female profile for every active participant before creating this ballot.');
-    c.categories=(['MALE','FEMALE'] as const).map(category=>({id:category,name:category==='MALE'?'Male':'Female',candidateIds:participants.filter(person=>profileVotingCategory(person.sex)===category).map(person=>person.id)}));
-    if(c.categories.some(group=>group.candidateIds.length<2))throw new InputError('At least two Male and two Female participants are needed for voting without self-votes.');
-    c.candidateIds=c.categories.flatMap(group=>group.candidateIds);
-    await tx.contactPolicy.update({where:{eventId},data:{mutualConfirmation:false,visibility:'SELF',revision:{increment:1}}});
+    const groups=(['MALE','FEMALE'] as const).map(category=>({id:category,name:category==='MALE'?'Male':'Female',candidateIds:participants.filter(person=>profileVotingCategory(person.sex)===category).map(person=>person.id)}));
+    if(groups.some(group=>group.candidateIds.length<(c.maxChoices===5?1:2)))throw new InputError('At least two Male and two Female participants are needed for voting without self-votes.');
+    if(c.maxChoices===5){c.resultCategories=groups;delete c.categories;}else c.categories=groups;
+    c.candidateIds=groups.flatMap(group=>group.candidateIds);
+    if(c.metAgentsOnly)await tx.contactPolicy.update({where:{eventId},data:{mutualConfirmation:false,visibility:'SELF',revision:{increment:1}}});
    }
-   if((p?.config as VotingConfig|null)?.metAgentsOnly&&!c.metAgentsOnly)throw new InputError('Keep the Agents I met format to preserve this event workflow.',409);
+   if((p?.config as VotingConfig|null)?.metAgentsOnly&&!c.metAgentsOnly&&!c.congeniality)throw new InputError('Keep the Agents I met format to preserve this event workflow.',409);
    if(c.squadAward){
     const squads=await tx.team.findMany({where:{eventId},select:{id:true,name:true},orderBy:{name:'asc'}});
     c.squadGroups=squads.map(t=>({...t,candidateIds:people.filter(person=>person.active&&person.role==='PARTICIPANT'&&person.teamId===t.id).map(person=>person.id)}));
@@ -72,9 +73,9 @@ export async function votingAction(actorId:string,eventId:string,value:unknown){
    for(const memberId of [...c.candidateIds,...c.voterMembershipIds])if(!people.some(person=>person.id===memberId&&person.active))throw new InputError('Choose active people from this event.');
    const teams=await tx.team.findMany({where:{eventId},select:{id:true}});if(c.voterTeamIds.some(teamId=>!teams.some(t=>t.id===teamId)))throw new InputError('Choose teams from this event.');
    const voters=people.filter(person=>eligibleVoter(c,person));if(!voters.length)throw new InputError('The selected voter rules match no active members.');
-   if(!c.metAgentsOnly&&voters.some(voter=>!completeCandidatePool(c,voter,people)))throw new InputError('Some eligible voters have no eligible candidate in a required category. Review self-voting, same-team voting and candidate assignments.');
+   if(!c.metAgentsOnly&&!c.congeniality&&voters.some(voter=>!completeCandidatePool(c,voter,people)))throw new InputError('Some eligible voters have no eligible candidate in a required category. Review self-voting, same-team voting and candidate assignments.');
    const data={name:input.name,instructions:input.instructions,config:c as unknown as Prisma.InputJsonValue,opensAt:new Date(input.opensAt),closesAt:new Date(input.closesAt)};
-   const saved=p?await tx.votingEvent.update({where:{id:p.id},data:{...data,revision:{increment:1}}}):await tx.votingEvent.create({data:{eventId,...data}});id=saved.id;if(c.metAgentsOnly)await tx.auditEntry.create({data:{eventId,actorId,action:'CONTACT_MEETING_VOTING_CONFIGURED',targetId:id,detailsJson:{summary:'Mutual Agents I met; private lists; no recipient acceptance; scans are not award votes. Existing QR window, limits and enabled setting preserved.'}}});message=p?'Voting configuration saved.':'Voting event created. Enable it in Live operations when ready.';details={summary:message,before:p?{name:p.name,config:p.config,opensAt:p.opensAt.toISOString(),closesAt:p.closesAt.toISOString()}:null,after:JSON.parse(JSON.stringify(data))};
+   const saved=p?await tx.votingEvent.update({where:{id:p.id},data:{...data,revision:{increment:1}}}):await tx.votingEvent.create({data:{eventId,...data}});id=saved.id;if(c.metAgentsOnly||c.congeniality)await tx.auditEntry.create({data:{eventId,actorId,action:'CONTACT_MEETING_VOTING_CONFIGURED',targetId:id,detailsJson:{summary:c.congeniality?'Congeniality: up to five distinct active participants, no scan prerequisite, no self-voting, separate Male/Female winners. Contact settings preserved.':'Mutual Agents I met; private lists; no recipient acceptance; scans are not award votes. Existing QR window, limits and enabled setting preserved.'}}});message=p?'Voting configuration saved.':'Voting event created. Enable it in Live operations when ready.';details={summary:message,before:p?{name:p.name,config:p.config,opensAt:p.opensAt.toISOString(),closesAt:p.closesAt.toISOString()}:null,after:JSON.parse(JSON.stringify(data))};
   }else if(operation==='cast'){
    const c=p!.config as VotingConfig,voter=people.find(person=>person.id===m.id)!;
    const choices=validateBallot(v.choices,c,voter,people),previous=p!.ballots.find(b=>b.voterMembershipId===m.id);
@@ -91,7 +92,7 @@ export async function votingAction(actorId:string,eventId:string,value:unknown){
    if(operation==='setEnabled'){
     if(typeof v.enabled!=='boolean')throw new InputError('Choose whether voting is enabled.');
     if(v.enabled&&new Date(p!.closesAt)<=now)throw new InputError('This voting window has ended.',409);
-    if(v.enabled){const c=p!.config as VotingConfig;const voters=people.filter(person=>eligibleVoter(c,person));if(!voters.length||!c.metAgentsOnly&&voters.some(voter=>!completeCandidatePool(c,voter,people)))throw new InputError('Review voter and candidate eligibility before enabling voting.',409);}
+    if(v.enabled){const c=p!.config as VotingConfig;const voters=people.filter(person=>eligibleVoter(c,person));if(!voters.length||!c.metAgentsOnly&&!c.congeniality&&voters.some(voter=>!completeCandidatePool(c,voter,people)))throw new InputError('Review voter and candidate eligibility before enabling voting.',409);}
     await tx.votingEvent.update({where:{id},data:{enabled:v.enabled,revision:{increment:1}}});message=v.enabled?'Voting enabled within its scheduled window.':'Voting closed. Recorded ballots are preserved.';
    }else{
     if(p!.enabled&&now<p!.closesAt)throw new InputError('Close voting or wait until its window ends before publishing.',409);

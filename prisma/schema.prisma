@@ -94,6 +94,7 @@ model Event {
  hideEventDetails Boolean @default(false)
  hideStationDetails Boolean @default(false)
  screenPreviewEnabled Boolean @default(true)
+ participantVotingOnly Boolean @default(false)
  arrivalPolicy String @default("CAPTAIN_CONFIRM")
  finalStationId String?
  finalStartedAt DateTime?
