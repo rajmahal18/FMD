@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+export async function verifyCornerstone({prepareRace,command,get,postJson,cookies,aliceCookie}){
+ const g=await prepareRace('Cornerstone automatic squads');
+ const a2=await command('addMember',{eventId:g.e,name:'Cornerstone Alpha',email:'cornerstone-alpha@example.test',role:'PARTICIPANT',teamId:g.a});
+ const b2=await command('addMember',{eventId:g.e,name:'Cornerstone Bravo',email:'cornerstone-bravo@example.test',role:'PARTICIPANT',teamId:g.b});
+ assert.equal((await command('assignSquadHandler',{eventId:g.e,teamId:g.a,membershipId:g.mf})).status,200);
+ const api=`/api/events/${g.e}/voting`,post=(operation,values={},cookie=cookies.organizer,key=crypto.randomUUID())=>postJson(api,{operation,requestKey:key,...values},cookie);
+ const input={name:'Cornerstone Award',instructions:'',opensAt:new Date(Date.now()-60000).toISOString(),closesAt:new Date(Date.now()+3600000).toISOString(),config:{squadAward:true,voterMode:'PARTICIPANTS',voterRoles:[],voterTeamIds:[],voterMembershipIds:[],candidateIds:[g.ma,g.mb],maxChoices:1,allowSelf:false,allowSameTeam:true}};
+ assert.equal((await post('create',{input},cookies.facilitator)).status,403);
+ const created=await post('create',{input});assert.equal(created.status,200);
+ let poll=(await (await get(api,cookies.organizer)).json()).polls.find(p=>p.id===created.id);
+ assert.equal(poll.config.candidateIds.length,4);assert.equal(poll.config.squadGroups.length,2);
+ assert.equal((await post('setEnabled',{id:poll.id,revision:poll.revision,enabled:true})).status,200);
+ const own=(await (await get(api,cookies.agent)).json()).polls.find(p=>p.id===created.id);
+ assert.deepEqual(own.candidateIds,[a2.targetId]);
+ const handler=(await (await get(api,cookies.facilitator)).json()).polls.find(p=>p.id===created.id);
+ assert.equal(handler.eligible,true);assert.deepEqual(new Set(handler.candidateIds),new Set([g.ma,a2.targetId]));
+ for(const [cookie,choice] of [[cookies.agent,g.ma],[cookies.agent,g.mb],[cookies.facilitator,g.mb]])assert.equal((await post('cast',{id:poll.id,choices:[choice]},cookie)).status,409);
+ const key=crypto.randomUUID();assert.equal((await post('cast',{id:poll.id,choices:[a2.targetId]},cookies.agent,key)).status,200);assert.equal((await post('cast',{id:poll.id,choices:[a2.targetId]},cookies.agent,key)).replayed,true);
+ assert.equal((await post('cast',{id:poll.id,choices:[g.ma]},cookies.facilitator)).status,200);
+ assert.equal((await post('cast',{id:poll.id,choices:[b2.targetId]},aliceCookie)).status,200);
+ poll=(await (await get(api,cookies.organizer)).json()).polls.find(p=>p.id===created.id);
+ assert.equal(poll.ballotCount,3);assert.equal(poll.results.filter(r=>r.rank===1).length,3);
+ assert.equal((await post('update',{id:poll.id,revision:poll.revision,input})).status,409);
+ assert.equal((await post('setEnabled',{id:poll.id,revision:poll.revision,enabled:false})).status,200);
+ poll=(await (await get(api,cookies.organizer)).json()).polls.find(p=>p.id===created.id);
+ assert.equal((await post('publish',{id:poll.id,revision:poll.revision})).status,200);
+ poll=(await (await get(api,cookies.organizer)).json()).polls.find(p=>p.id===created.id);
+ assert.equal(poll.results.filter(r=>r.rank===1&&r.squadId===g.a).length,2);assert.equal(poll.results.filter(r=>r.rank===1&&r.squadId===g.b).length,1);
+ console.log('PASS: automatic squad award roster; assigned handler ballot; cross-squad/self-vote rejection; replay; separate tied winners; immutable approved results.');
+}

@@ -1,3 +1,4 @@
+import {shareResult} from './result-sharing-helpers.mjs';
 import assert from 'node:assert/strict';
 let organizerCookie;
 export async function categoryVotingBrowser({role,cookie,pg,event,evaluate,visit,check,appOrigin,origin}){
@@ -8,6 +9,11 @@ export async function categoryVotingBrowser({role,cookie,pg,event,evaluate,visit
   organizerCookie=cookie;
   await pg.query('UPDATE "User" SET sex=$1 WHERE email=$2',['M','agent@example.test']);
   for(const id of ['male-one','male-two','female-one','female-two']){await pg.query('INSERT INTO "User" (id,email,name,sex,"passwordHash") SELECT $1,$2,$3,$4,"passwordHash" FROM "User" WHERE email=$5',[id,id+'@example.test',id.replaceAll('-',' ')+' with a long candidate name',id.startsWith('female')?'F':'M','agent@example.test']);await pg.query('INSERT INTO "EventMembership" (id,"eventId","userId",role) VALUES ($1,$2,$1,$3)',[id,event.id,'PARTICIPANT']);}
+  await check('squad-voting-automatic-setup',setup,"(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Create voting event').click();await new Promise(r=>setTimeout(r,50));const select=document.querySelector('.voting-editor select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'SQUAD');select.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  assert.equal(await evaluate("document.querySelector('.voting-editor input[maxlength]').value"),'Cornerstone Award');
+  assert.equal(await evaluate("document.querySelectorAll('.voting-editor select').length"),1);
+  assert(!(await evaluate("!!document.querySelector('.voting-candidate-setup')")),'Squad mode must not require manual candidate selection');
+  assert(await evaluate("document.querySelector('.voting-editor').textContent.includes('ties share the award')"));
   const prepare="(async()=>{[...document.querySelectorAll('button')].find(b=>b.textContent==='Create voting event').click();await new Promise(r=>setTimeout(r,50));const select=document.querySelector('.voting-editor select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'MALE_FEMALE');select.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(r=>setTimeout(r,50));[...document.querySelectorAll('button')].find(b=>b.textContent==='Select all participants').click();})()";
   await check('category-voting-setup',setup,prepare);
   assert.equal(await evaluate("document.querySelector('.voting-editor input[maxlength]').value"),'Agents of the Night');
@@ -32,6 +38,7 @@ export async function categoryVotingBrowser({role,cookie,pg,event,evaluate,visit
   await wait(async()=>(await pg.query('SELECT count(*)::int AS n FROM "VotingBallot" WHERE "votingEventId"=$1',[id])).rows[0].n===1);
   await check('category-voting-receipt',url);assert.equal(await evaluate("document.querySelectorAll('.voting-receipt .category-choices>div').length"),2);assert(!(await evaluate("!!document.querySelector('.voting-results')")));
   await post({operation:'setEnabled',id,revision:2,enabled:false});await post({operation:'publish',id,revision:3});
+  await shareResult({origin:appOrigin,requestOrigin:origin,eventId:event.id,cookie:organizerCookie,key:'voting:'+id});
   await check('category-voting-published',url);assert.equal(await evaluate("document.querySelectorAll('.voting-result-category').length"),2);assert.equal(await evaluate("document.querySelectorAll('.voting-results li .voting-rank').length"),5);
  }
  console.log('PASS: '+role+' category voting setup/ballot/review, single atomic submission, private receipt, separate published results and mobile layouts.');

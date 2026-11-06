@@ -65,3 +65,19 @@ test('voting configuration rejects impossible schedules and incomplete eligibili
  assert.throws(()=>parseVotingInput({...input,config:{...config,voterMode:'PEOPLE'}}));
  assert.throws(()=>parseVotingInput({...input,config:{...config,candidateIds:['one']}}));
 });
+
+
+test('squad awards enforce own squad, assigned handlers, no self-vote and separate shared winners',()=>{
+ const red2={...one,id:'red2',name:'Red two'},blue2={...two,id:'blue2',name:'Blue two'},handler={...faci,squadHandlerTeamId:'red'};
+ const people=[one,red2,two,blue2,handler,faci];
+ const c:VotingConfig={...config,squadAward:true,candidateIds:['one','red2','two','blue2'],squadGroups:[{id:'red',name:'Red',candidateIds:['one','red2']},{id:'blue',name:'Blue',candidateIds:['two','blue2']}]};
+ assert(eligibleVoter(c,one));assert(eligibleVoter(c,handler));assert(!eligibleVoter(c,faci));assert(!eligibleVoter(c,{...one,teamId:null}));
+ assert.deepEqual(validateBallot(['red2'],c,one,people),['red2']);assert.deepEqual(validateBallot(['one'],c,handler,people),['one']);
+ for(const [voter,id] of [[one,'one'],[one,'two'],[handler,'two'],[one,'faci']] as const)assert.throws(()=>validateBallot([id],c,voter,people));
+ assert(!eligibleCandidate(c,one,{...red2,teamId:'blue'}));
+ const results=votingStandings(c,people,['one','red2','two','two'].map(candidateMembershipId=>({candidateMembershipId})));
+ assert.deepEqual(results.map(r=>[r.id,r.squadId,r.rank]),[['one','red',1],['red2','red',1],['two','blue',1],['blue2','blue',null]]);
+ const input={name:'Cornerstone',instructions:'',opensAt:'2026-10-20T10:00:00Z',closesAt:'2026-10-20T11:00:00Z',config:c};
+ assert.equal(parseVotingInput(input).config.squadAward,true);
+ for(const patch of [{allowSelf:true},{maxChoices:2},{allowSameTeam:false},{voterMode:'SQUAD_HANDLERS'},{squadAward:'yes'}])assert.throws(()=>parseVotingInput({...input,config:{...c,...patch}}));
+});

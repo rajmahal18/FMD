@@ -35,3 +35,10 @@ Participants choose one candidate in each of two sections, review both, then sub
 Organizer preview and published results rank Male and Female candidates independently. Positive equal totals share rank within their category; zero-vote candidates remain unranked. Published snapshots retain category, name, votes and rank. Generic polls and existing publications remain unchanged. No schema migration is needed; rules and snapshots use existing JSON fields.
 
 Validation: node tests/category-voting-integration.mjs checks combined ballots, partitions, frozen assignments, atomic retries and result snapshots. After building, set CATEGORY_VOTING_BROWSER_ONLY=1 and run node tests/theme-smoke.mjs for actual setup, voting, receipts and separate results at 320/390/768/1440px. Tests use isolated databases.
+
+
+## Per-squad awards (Cornerstone)
+
+Choose **Per squad - members and assigned handler vote** as the ballot format. One voting event automatically includes active squad members as candidates and voters, plus each assigned active squad handler as a voter. Each person chooses one member of their own squad. Self-votes are blocked. Each squad needs at least two active participants.
+
+The server saves candidate groups and squad names from event membership. Results rank independently per squad, with shared first place for tied positive totals and no placement for zero votes. Approval and audience sharing remain separate actions. Existing voting events are not modified, and no migration is needed.

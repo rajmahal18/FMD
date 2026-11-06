@@ -1,3 +1,4 @@
+import {verifyCornerstone} from './cornerstone-integration.mjs';
 import {shareResult} from './result-sharing-helpers.mjs';
 import {verifySquadHandlers} from "./squad-handlers-integration.mjs";
 import {verifyRaceFlows} from "./race-flow-integration.mjs";
@@ -574,6 +575,7 @@ try{
   return {e,a:a.targetId,b:b.targetId,c:c?.targetId,ma:ma.targetId,mb:mb.targetId,mc,mf:mf.targetId,s1:s1.targetId,s2:s2.targetId};
  };
  await verifySquadHandlers({pg,prepareRace,command,get,cookies,aliceCookie,origin});
+ await verifyCornerstone({prepareRace,command,get,postJson,cookies,aliceCookie});
  await verifyRaceFlows({pg,prepareRace,command,race,cookies,aliceCookie,get});
  // Assigned facilitator confirms the complement of non-playing members.
  {

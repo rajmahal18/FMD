@@ -46,6 +46,12 @@ export async function votingAction(actorId:string,eventId:string,value:unknown){
   if(operation!=='create'&&!p)throw new InputError('Voting event not found.',404);
   if(operation==='create'||operation==='update'){
    const input=parseVotingInput(v.input),c=input.config;
+   if(c.squadAward){
+    const squads=await tx.team.findMany({where:{eventId},select:{id:true,name:true},orderBy:{name:'asc'}});
+    c.squadGroups=squads.map(t=>({...t,candidateIds:people.filter(person=>person.active&&person.role==='PARTICIPANT'&&person.teamId===t.id).map(person=>person.id)}));
+    if(!c.squadGroups.length||c.squadGroups.some(g=>g.candidateIds.length<2))throw new InputError('Each squad needs at least two active participants for voting without self-votes.');
+    c.candidateIds=c.squadGroups.flatMap(g=>g.candidateIds);
+   }
    if(p&&(p.ballots.length||p.publishedAt||p.enabled))throw new InputError('Close voting before editing. Rules are locked after the first ballot.',409);
    if(p&&v.revision!==p.revision)throw new InputError('The voting configuration changed. Refresh before editing.',409);
    if(new Date(input.closesAt)<=now)throw new InputError('Choose a voting window that has not ended.');
