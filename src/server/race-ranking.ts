@@ -1,3 +1,4 @@
+import {settleFinalChallengeForEvent} from './final-challenge';
 import {rankStationRace,stationScoring,type StationRacePolicy} from '@/lib/station-ranking';
 import 'server-only';
 import type {Prisma} from '@/generated/prisma/client';
@@ -11,6 +12,7 @@ export async function raceStandings(tx:Prisma.TransactionClient,eventId:string){
  const teams=await tx.team.findMany({where:{eventId},include:{routeAssignment:true}});
  const outcomes=await tx.stationOutcome.findMany({where:{eventId},select:{teamId:true,stationId:true,durationSeconds:true,timePenaltySeconds:true,confirmedAt:true}});
  if(rule==='STATION_PLACEMENTS'){
+  await settleFinalChallengeForEvent(tx,eventId);
   const event=await tx.event.findUniqueOrThrow({where:{id:eventId},select:{finalStationId:true}});
   const settings=await tx.overallRanking.findUnique({where:{eventId},select:{config:true}});
   const policy=(settings?.config as {raceScoring?:StationRacePolicy})?.raceScoring??{...stationScoring,credits:[...stationScoring.credits]};

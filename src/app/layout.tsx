@@ -1,5 +1,6 @@
 import {ScreenAwakeProvider} from "@/components/ScreenAwake";
 import './record-lists.css';
+import './final-challenge.css';
 import './station-photos.css';
 import {ActionFeedbackProvider} from '@/components/ActionFeedback';
 import './action-feedback.css';

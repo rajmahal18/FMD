@@ -1,3 +1,4 @@
+import {settleFinalChallengeForEvent} from './final-challenge';
 import {passwordSetupRequired} from './password-setup';
 import 'server-only';
 import {db} from '@/lib/db';
@@ -16,7 +17,7 @@ async function scope(tx:Tx,actorId:string,eventId:string){
  return m;
 }
 export async function readRaceFinal(actorId:string,eventId:string){return db().$transaction(async tx=>{
- const m=await scope(tx,actorId,eventId),teams=await tx.team.findMany({where:{eventId},orderBy:{name:'asc'},select:{id:true,name:true,raceFinalResult:{select:{successful:true,version:true}}}});
+ const m=await scope(tx,actorId,eventId);await settleFinalChallengeForEvent(tx,eventId);const teams=await tx.team.findMany({where:{eventId},orderBy:{name:'asc'},select:{id:true,name:true,raceFinalResult:{select:{successful:true,version:true}}}});
  const settings=await tx.overallRanking.findUnique({where:{eventId},select:{config:true}});
  const policy=(settings?.config as {raceScoring?:StationRacePolicy})?.raceScoring??{...stationScoring,credits:[...stationScoring.credits]};
  return {policy,stations:await tx.station.findMany({where:{eventId},select:{id:true,name:true}}),eventId,runRevision:await runRevision(tx,eventId),editable:!m.event.archivedAt&&['LIVE','ENDED'].includes(m.event.state),teams:teams.map(t=>({id:t.id,name:t.name,successful:t.raceFinalResult?.successful??null,version:t.raceFinalResult?.version??0})),standings:(await raceStandings(tx,eventId)).rows};
@@ -33,6 +34,8 @@ export async function saveRaceFinal(actorId:string,eventId:string,value:unknown)
   const old=await tx.managementReceipt.findUnique({where:{actorId_requestKey:{actorId,requestKey}}});
   if(old){if(old.operation!=='setRaceFinal'||old.requestHash!==hash)throw new InputError('This request key was used for another result.',409);return {...old.responseJson as {message:string},replayed:true};}
   const team=await tx.team.findFirst({where:{id:teamId,eventId},select:{id:true,name:true}});if(!team)throw new InputError('Choose a team from this event.',404);
+  const pinChallenge=await tx.finalChallenge.findUnique({where:{eventId_runRevision:{eventId,runRevision:await runRevision(tx,eventId)}}});
+  if(pinChallenge?.enabled&&pinChallenge.startedAt&&!pinChallenge.endedAt)throw new InputError('Final Challenge is running. Its code/deadline determines results; refresh it before manual review.',409);
   const before=await tx.raceFinalResult.findUnique({where:{eventId_teamId:{eventId,teamId}}});
   if((before?.version??0)!==version)throw new InputError('This team result changed. Refresh and review it again.',409);
   await tx.raceFinalResult.upsert({where:{eventId_teamId:{eventId,teamId}},create:{eventId,teamId,actorId,successful},update:{actorId,successful,version:{increment:1}}});

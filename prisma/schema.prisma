@@ -19,6 +19,7 @@ enum EventState {
  FINALIZED
 }
 model User {
+ finalChallenges FinalChallenge[]
  raceFinalResults RaceFinalResult[]
  id String @id @default(cuid())
  email String @unique
@@ -75,6 +76,7 @@ model EmailOtp {
  @@index([expiresAt])
 }
 model Event {
+ finalChallenges FinalChallenge[]
  raceFinalResults RaceFinalResult[]
  resultSharing ResultSharing[]
  inboxAttachments InboxAttachment[]
@@ -321,6 +323,7 @@ model VotingChoice {
  @@id([ballotId,candidateMembershipId])
 }
 model Team {
+ finalChallengeTeams FinalChallengeTeam[]
  raceFinalResult RaceFinalResult?
  squadHandler SquadHandler?
  id String @id @default(cuid())
@@ -347,6 +350,34 @@ model RaceFinalResult {
  team Team @relation(fields:[eventId,teamId],references:[eventId,id],onDelete:Cascade)
  actor User @relation(fields:[actorId],references:[id],onDelete:Restrict)
  @@id([eventId,teamId])
+}
+model FinalChallenge {
+ id String @id @default(cuid())
+ eventId String
+ runRevision Int
+ ownerId String
+ enabled Boolean @default(false)
+ durationSeconds Int
+ revision Int @default(1)
+ startedAt DateTime?
+ deadlineAt DateTime?
+ endedAt DateTime?
+ event Event @relation(fields:[eventId],references:[id],onDelete:Restrict)
+ owner User @relation(fields:[ownerId],references:[id],onDelete:Restrict)
+ teams FinalChallengeTeam[]
+ @@unique([eventId,runRevision])
+}
+model FinalChallengeTeam {
+ challengeId String
+ teamId String
+ pinHash String
+ attempts Int @default(0)
+ lastAttemptAt DateTime?
+ defusedAt DateTime?
+ successful Boolean?
+ challenge FinalChallenge @relation(fields:[challengeId],references:[id],onDelete:Restrict)
+ team Team @relation(fields:[teamId],references:[id],onDelete:Restrict)
+ @@id([challengeId,teamId])
 }
 model SquadHandler {
  eventId String
