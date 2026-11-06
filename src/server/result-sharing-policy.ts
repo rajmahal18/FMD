@@ -11,5 +11,5 @@ export async function hideDependentSharing(tx:Prisma.TransactionClient,eventId:s
  if(!overall)return;
  const linked=resolveOverallJudging(overall.config as OverallConfig).events.some(e=>key==='race'?e.source==='SPY':e.source==='JUDGING'&&'judging:'+e.contestId===key);
  if(!linked)return;
- for(const audience of audiences)await tx.resultSharing.updateMany({where:{eventId,key:'overall'},data:{[audience]:'HIDDEN',revision:{increment:1}}});
+ for(const audience of audiences)await tx.resultSharing.updateMany({where:{eventId,key:{in:['overall','overall-breakdown']}},data:{[audience]:'HIDDEN',revision:{increment:1}}});
 }

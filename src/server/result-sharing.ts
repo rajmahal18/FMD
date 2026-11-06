@@ -1,3 +1,4 @@
+import {buildOverallBreakdown} from './overall-breakdown';
 import {formatScore} from '@/lib/score-format';
 import {passwordSetupRequired} from './password-setup';
 import 'server-only';
@@ -27,6 +28,8 @@ async function items(tx:Tx,eventId:string,state:string):Promise<ResultItem[]>{
  const raceApproved=state==='FINALIZED'&&!!race,combinedApproved=!!overall.finalized&&!overall.stale;
  const result:ResultItem[]=[{key:'race',name:'Amazing Race',kind:'race',status:raceApproved?'Approved':state==='ENDED'?'Ready for review':'In progress',approved:raceApproved,sourceRevision:race?.revision??0,...release('race',race?.revision??0,raceApproved),href:base+'/results?section=race',rows:((race?.teamStandingsJson??[]) as {name:string;value:number}[]).map(r=>({name:r.name,value:formatScore(r.value)})),fingerprint:tokenHash(JSON.stringify([state,race?.id,race?.teamStandingsJson]))},
   {key:'overall',name:'Combined results',kind:'overall',status:overall.stale?'Needs review':combinedApproved?'Approved':'Draft',approved:combinedApproved,sourceRevision:overall.revision,...release('overall',overall.revision,combinedApproved),href:base+'/overall',rows:((overall.finalized as {rows?:{name:string;value:number}[]}|null)?.rows??[]).map(r=>({name:r.name,value:formatScore(r.value)+'%'})),fingerprint:tokenHash(JSON.stringify([overall.revision,overall.stale,overall.finalized]))}];
+ const breakdown=await buildOverallBreakdown(tx,eventId,overall);
+ result.push({key:'overall-breakdown',name:'Detailed overall breakdown',kind:'overall',status:overall.stale?'Needs review':combinedApproved?'Approved':'Organizer preview',approved:combinedApproved,sourceRevision:overall.revision,...release('overall-breakdown',overall.revision,combinedApproved),href:base+'/overall/breakdown',rows:(breakdown.rows??[]).flatMap(r=>[{name:r.name,value:formatScore(r.total)+' overall points'},...(breakdown.activities??[]).flatMap(a=>a.judges.map((j,i)=>({name:r.name+' / '+a.name+' / '+j.name,value:r.values.find(v=>v.id===a.id)?.judgeScores[i]===null?'Not submitted':formatScore(r.values.find(v=>v.id===a.id)!.judgeScores[i]!)+' / '+a.maximum})))]),fingerprint:tokenHash(JSON.stringify([overall.revision,overall.stale,breakdown.activities,breakdown.rows]))});
  for(const c of contests){
   const config=c.config as JudgingConfig,approved=c.state==='PUBLISHED'&&!!c.publishedAt;
   const rows=approved?(c.publishedResults as {rows:{name:string;average:number|null;maximum:number}[]}).rows:judgingStandings(config.candidateIds.map(id=>({id,name:teams.find(t=>t.id===id)?.name??people.find(p=>p.id===id)?.user.name??'Unavailable entrant',active:true})),c.assignments.filter(a=>a.active).map(a=>a.membershipId),config.criteria,c.scores);
@@ -41,6 +44,8 @@ async function items(tx:Tx,eventId:string,state:string):Promise<ResultItem[]>{
    combined[audience]='HIDDEN';
   }
  }
+ const detailed=result.find(r=>r.key==='overall-breakdown')!;
+ for(const audience of ['facilitators','participants'] as const)if(combined[audience]==='HIDDEN'){detailed[audience]='HIDDEN';detailed.blocked='Share the combined summary and included activity results with this audience first.';}
  return result;
 }
 export async function readResultCenter(actorId:string,eventId:string):Promise<ResultCenterData>{return db().$transaction(async tx=>{
@@ -69,13 +74,16 @@ export async function changeResultSharing(actorId:string,eventId:string,value:un
  if(item.kind!=='judging'&&[v.facilitators,v.participants].includes('LIVE'))throw new InputError('Live scores are available only for judged activities.');
  if(!item.approved&&[v.facilitators,v.participants].includes('PUBLISHED'))throw new InputError('Approve these results before sharing them.');
  if(item.kind==='overall'&&exposing){const overall=await overallSnapshot(tx,eventId);for(const audience of ['facilitators','participants'] as const)if(v[audience]!=='HIDDEN'&&overall.config.events.some(e=>(e.source==='JUDGING'&&all.find(r=>r.key==='judging:'+e.contestId)?.[audience]==='HIDDEN')||(e.source==='SPY'&&all.find(r=>r.key==='race')?.[audience]==='HIDDEN')))throw new InputError(`Share the included activity results with ${audience} first. Combined results include their scores.`,409);}
+ if(item.key==='overall-breakdown'&&exposing)for(const audience of ['facilitators','participants'] as const)if(v[audience]!=='HIDDEN'&&all.find(r=>r.key==='overall')?.[audience]==='HIDDEN')throw new InputError(`Share combined results with ${audience} first. Detailed breakdown includes judge names and individual scores.`,409);
  const token=tokenHash(JSON.stringify({actorId,eventId,runRevision:v.runRevision,key:item.key,source:item.fingerprint,sharingRevision:item.sharingRevision,before:[item.facilitators,item.participants],after:[v.facilitators,v.participants],rows:item.rows}));
  const effects=[v.participants==='HIDDEN'?'Participants will not see these results.':v.participants==='LIVE'?'Participants will see submitted scores immediately, including partial results and future updates.':'Participants will see the approved results shown below.',v.facilitators==='HIDDEN'?'Facilitators will not see shared standings. Assigned judges keep access to their own score sheets.':v.facilitators==='LIVE'?'Facilitators will see submitted scores immediately, including partial results and future updates.':'Facilitators will see these approved results.', 'Scoring rules, saved scores and result approval stay unchanged.'];
+ if(item.key==='overall-breakdown')effects.unshift("This detailed sheet includes judge names and each judge's submitted score for every squad. Sharing the summary alone does not share these details.");
  if(v.operation==='preview')return {token,key:item.key,name:item.name,facilitators:v.facilitators,participants:v.participants,previous:{facilitators:item.facilitators,participants:item.participants},rows:item.rows,effects} satisfies SharingPreview;
  if(v.token!==token)throw new InputError('Results changed after review. Review sharing again; nothing was shared.',409);
  if(item.kind==='judging'){
   await tx.judgingContest.update({where:{id:item.key.slice(8)},data:{facilitatorVisibility:v.facilitators,participantVisibility:v.participants,visibilityRevision:{increment:1}}});
  }else await tx.resultSharing.upsert({where:{eventId_key:{eventId,key:item.key}},create:{eventId,key:item.key,sourceRevision:item.sourceRevision,facilitators:v.facilitators,participants:v.participants},update:{sourceRevision:item.sourceRevision,facilitators:v.facilitators,participants:v.participants,revision:{increment:1}}});
+ if(item.key==='overall')for(const audience of ['facilitators','participants'] as const)if(v[audience]==='HIDDEN')await tx.resultSharing.updateMany({where:{eventId,key:'overall-breakdown'},data:{[audience]:'HIDDEN',revision:{increment:1}}});
  if(item.kind==='judging'||item.kind==='race')await hideDependentSharing(tx,eventId,item.key,(['facilitators','participants'] as const).filter(a=>v[a]==='HIDDEN'));
  const response={message:`${item.name}: participants ${v.participants==='HIDDEN'?'hidden':v.participants==='LIVE'?'can see live scores':'can see approved results'}; facilitators ${v.facilitators==='HIDDEN'?'hidden':v.facilitators==='LIVE'?'can see live scores':'can see approved results'}.`};
  await tx.auditEntry.create({data:{eventId,actorId,action:'RESULTS_SHARING_CHANGED',targetId:item.key,detailsJson:{before:{facilitators:item.facilitators,participants:item.participants},after:{facilitators:v.facilitators,participants:v.participants},sourceRevision:item.sourceRevision,effects}}});

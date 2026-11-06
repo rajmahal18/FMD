@@ -46,3 +46,14 @@ Verification: overall unit tests cover actual weighted averages, different maxim
 ## Automatic judging previews
 
 Organizer draft standings use live averages of submitted judging sheets for linked activities and refresh every 10 seconds. A partial contribution uses the current submitted average, clearly marked partial; missing/draft sheets are not zero. Overall places remain pending until every activity is complete and weights total 100%. Complete unpublished contests appear in preview automatically, while official finalization continues to require publication. A visibility toggle never changes scoring or an immutable final snapshot. Member-facing final overall results are withheld if a linked judging component is hidden from that member's role, preventing indirect disclosure through totals/breakdowns.
+
+
+## Detailed overall breakdown
+
+Open Combined results > Open detailed score breakdown, or choose Detailed overall breakdown from Results. The sheet keeps squad names frozen at the left and contains its horizontal scrolling inside the table on phones. Grouped activity columns show submitted judge totals, sum, average, activity rank, placement credits where applicable, weighted contribution, total overall points and overall rank. A jump selector reaches an activity or the final totals; individual judge columns can be hidden. Display values use two decimal places, while canonical ranking precision is preserved.
+
+The organizer sees submitted-only partial previews and no overall rank until all components are complete. Draft sheets never appear as judge scores and missing values are not zeros. The sheet uses existing ranking formulas; special awards are excluded unless configured as championship components. It refreshes every ten seconds while visible.
+
+Detailed sharing uses the separate overall-breakdown key in ResultSharing, default Hidden for both audiences. Only approved, current combined results may be shared, after the included source results and combined summary are visible to that audience. The sharing preview explicitly includes judge names and per-judge totals. Sharing the summary alone never shares individual judge scores. Hiding sources or the summary withdraws detailed access; reopening, changed source revisions and stale combined results seal the sheet. Re-sharing a source does not silently restore detailed sharing. Member API responses contain no table data while hidden.
+
+No schema migration is needed. Verification: node tests/overall-breakdown-integration.mjs; OVERALL_BREAKDOWN_BROWSER_ONLY=1 node tests/theme-smoke.mjs; full integration and unit suites.

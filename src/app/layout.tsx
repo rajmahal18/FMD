@@ -1,3 +1,4 @@
+import './overall-breakdown.css';
 import {ScreenAwakeProvider} from "@/components/ScreenAwake";
 import './record-lists.css';
 import './final-challenge.css';

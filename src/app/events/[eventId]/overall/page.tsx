@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {formatScore} from '@/lib/score-format';
 import {ResultContext} from '@/components/ResultContext';
 import {requireMembership} from '@/lib/auth';
@@ -6,7 +7,7 @@ import {Shell} from '@/components/Shell';
 import {OverallRanking} from '@/components/OverallRanking';
 export default async function OverallPage({params}:{params:Promise<{eventId:string}>}){
  const {eventId}=await params;const {user,m}=await requireMembership(eventId);
- return <Shell name={user.name} title="Combined results" role={m.role} eventId={eventId}><ResultContext actorId={user.id} eventId={eventId} resultKey="overall"/>{m.role==='ORGANIZER'?<><OverallRanking eventId={eventId} initial={await readOverall(user.id,eventId)} archived={!!m.event.archivedAt}/></>:<PublishedOverall data={await readPublishedOverall(user.id,eventId)}/>}</Shell>;
+ return <Shell name={user.name} title="Combined results" role={m.role} eventId={eventId}><p><Link className="text-action" href={`/events/${eventId}/overall/breakdown`}>Open detailed score breakdown</Link></p><ResultContext actorId={user.id} eventId={eventId} resultKey="overall"/>{m.role==='ORGANIZER'?<><OverallRanking eventId={eventId} initial={await readOverall(user.id,eventId)} archived={!!m.event.archivedAt}/></>:<PublishedOverall data={await readPublishedOverall(user.id,eventId)}/>}</Shell>;
 }
 function PublishedOverall({data}:{data:Awaited<ReturnType<typeof readPublishedOverall>>}){
  if(!data.published)return <section><h2>Combined results have not been shared yet</h2><p>Results will appear here when your organizer shares them.</p></section>;
