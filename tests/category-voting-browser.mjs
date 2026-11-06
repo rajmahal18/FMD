@@ -30,8 +30,8 @@ export async function categoryVotingBrowser({role,cookie,pg,event,evaluate,visit
   await check('category-voting-ballot',url);
   assert.equal(await evaluate("document.querySelectorAll('.voting-category').length"),2);
   await evaluate("document.querySelector('.voting-category-male input').click()");
-  assert(await evaluate("document.querySelector('.category-ballot button[type=submit]').disabled"));
-  await check('category-voting-review',url,"document.querySelector('.voting-category-male input').click();document.querySelector('.voting-category-female input').click();document.querySelector('.category-ballot button[type=submit]').click()");
+  assert(await evaluate("!!document.querySelector('.voting-category-male .selected')"));
+  await check('category-voting-review',url,"(async()=>{document.querySelector('.voting-category-male input').click();await new Promise(r=>setTimeout(r,30));[...document.querySelectorAll('button')].find(b=>b.textContent==='Next: choose Female')?.click();await new Promise(r=>setTimeout(r,30));document.querySelector('.voting-category-female input').click();await new Promise(r=>setTimeout(r,30));document.querySelector('.category-ballot button[type=submit]').click();})()");
   assert.equal(await evaluate("document.querySelectorAll('.category-choices>div').length"),2);
   await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Submit final ballot').click()");
   const id=(await pg.query('SELECT id FROM "VotingEvent" WHERE "eventId"=$1',[event.id])).rows[0].id;

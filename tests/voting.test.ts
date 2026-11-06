@@ -81,3 +81,17 @@ test('squad awards enforce own squad, assigned handlers, no self-vote and separa
  assert.equal(parseVotingInput(input).config.squadAward,true);
  for(const patch of [{allowSelf:true},{maxChoices:2},{allowSameTeam:false},{voterMode:'SQUAD_HANDLERS'},{squadAward:'yes'}])assert.throws(()=>parseVotingInput({...input,config:{...c,...patch}}));
 });
+
+
+test('met-agent ballots require a mutual accepted meeting for each Male/Female choice',()=>{
+ const people=['m1','m2','f1','f2'].map(id=>({...two,id,role:'PARTICIPANT' as const}));
+ const c:VotingConfig={...config,metAgentsOnly:true,maxChoices:2,candidateIds:people.map(p=>p.id),categories:[{id:'MALE',name:'Male',candidateIds:['m1','m2']},{id:'FEMALE',name:'Female',candidateIds:['f1','f2']}]};
+ const voter={...one,metAgentIds:['m1','f1']};
+ assert.deepEqual(validateBallot(['m1','f1'],c,voter,people),['f1','m1']);
+ for(const choices of [['m2','f1'],['m1','f2'],['m1'],['f1','f2']])assert.throws(()=>validateBallot(choices,c,voter,people));
+ assert(!completeCandidatePool(c,{...voter,metAgentIds:['m1']},people));
+ assert(!eligibleCandidate(c,one,people[0]));assert(!eligibleCandidate(c,voter,{...people[0],role:'FACILITATOR'}));
+ const input={name:'Most Congenial',instructions:'',opensAt:'2026-10-20T10:00:00Z',closesAt:'2026-10-20T11:00:00Z',config:c};
+ assert.equal(parseVotingInput(input).config.metAgentsOnly,true);
+ for(const patch of [{metAgentsOnly:'yes'},{allowSelf:true},{allowSameTeam:false},{squadAward:true},{categories:undefined}])assert.throws(()=>parseVotingInput({...input,config:{...c,...patch}}));
+});

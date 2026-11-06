@@ -62,3 +62,38 @@
 .candidate-category-label select{min-width:0;width:100%;max-width:100%;min-height:44px;font:inherit}
 .category-ballot .voting-category input[type=radio]{accent-color:#247988}
 @media(max-width:480px){.voting-category .voting-candidates{max-height:280px}.voting-candidate-config>.check{flex-wrap:wrap}.voting-candidate-config>.check>.person-name{min-width:0}.voting-workspace .candidate-category-label{padding-left:0}}
+
+/* Participant and facilitator voting desk. Organizer tools keep their own workspace. */
+.voting-easy{max-width:880px;padding-bottom:calc(110px + env(safe-area-inset-bottom));font-size:17px}
+.voting-easy [hidden]{display:none!important}
+.easy-voting-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.voting-easy h2{font-size:28px;margin:12px 0;scroll-margin-top:20px}
+.award-options{border-top:1px solid var(--line);margin-top:20px}
+.voting-easy .award-option{display:flex;align-items:center;gap:14px;width:100%;min-height:88px;padding:18px 10px;background:transparent;color:var(--text);border:0;border-bottom:1px solid var(--line);border-radius:0;text-align:left}
+.award-option>.spy-icon{width:28px;height:28px;flex:none;color:var(--cyan)}
+.award-option-copy{display:grid;gap:5px;min-width:0;flex:1}
+.award-option-copy strong{font-size:19px;overflow-wrap:anywhere}.award-option-copy small{font-size:15px;font-weight:400;color:var(--muted)}
+.award-status{font-size:14px;max-width:110px;padding:6px 9px;background:#eaf4f5;color:#304e5d;border-radius:4px;text-align:center}
+.award-ready .award-status{background:#c9f2e0;color:#134b35}.award-done .award-status,.easy-submitted{background:#c9f2e0;color:#134b35}
+.voting-easy .award-option:hover{background:var(--panel)}
+.voting-easy .easy-awards-back{min-height:48px;margin:0 0 20px;justify-content:center}
+.easy-voting-empty{padding:26px 0;border-top:1px solid var(--line);margin-top:20px}.easy-voting-empty>.spy-icon{width:32px;height:32px;color:var(--cyan)}
+.easy-voting-empty h3{font-size:23px;color:var(--text)}
+.voting-easy .voting-receipt{margin-top:24px;padding:22px;border:0;border-left:5px solid #83d6b2;background:#12342d;color:#d4f0df}
+.voting-easy .voting-receipt :is(h3,p,li,dt,dd){color:#d4f0df}.voting-easy .voting-receipt>.spy-icon{width:32px;height:32px;color:#83d6b2}
+.voting-easy .voting-receipt button{background:#d4f0df;color:#12342d;border-color:#d4f0df;min-height:52px;width:100%;justify-content:center}
+.voting-easy .voting-ballot :is(legend,.voting-category h3){color:var(--text);font-size:23px}
+.voting-easy .voting-candidates{max-height:360px}.voting-easy .voting-candidate{min-height:76px;padding:15px 10px;font-size:18px;gap:12px}
+.voting-easy .voting-candidate>span{min-width:0;overflow-wrap:anywhere}.voting-easy .voting-candidate small{font-size:15px}
+.voting-easy input[type=radio],.voting-easy input[type=checkbox]{width:24px;height:24px;min-height:24px}
+.voting-easy .candidate-check{font-size:13px;font-weight:700;color:#164e3a;margin-left:auto}
+.voting-easy .easy-selected-names{border-left:4px solid #83d6b2;padding-left:14px;margin-top:16px}.easy-selected-names p{margin:4px 0;overflow-wrap:anywhere}
+.voting-easy .voting-ballot>fieldset>button,.voting-easy .voting-actions>button{width:100%;min-height:56px;justify-content:center;font-size:18px}
+.voting-steps{display:flex;gap:12px;margin:16px 0}
+.voting-easy .voting-steps button{flex:1;min-width:0;min-height:78px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 10px;padding:12px;background:var(--panel);color:var(--text);border-color:var(--line)}
+.voting-steps button>span{display:inline-grid;place-items:center;width:26px;height:26px;border:1px solid currentColor;border-radius:50%;font-size:15px}
+.voting-steps small{width:100%;font-size:14px;font-weight:400}
+.voting-easy .voting-steps button[aria-pressed=true]{background:#bdeaf0;color:#071426;border:2px solid #126576}
+.voting-easy .voting-category{margin-top:12px;padding-top:16px}.voting-easy .voting-category .voting-candidates{max-height:360px}
+.easy-award-instructions{margin-top:20px}.easy-award-instructions summary{cursor:pointer;padding:12px 0;font-weight:600}
+@media(max-width:480px){.award-status{max-width:88px;font-size:13px}.voting-easy .award-option{gap:10px;padding-inline:0}.award-option-copy strong{font-size:18px}.voting-easy .voting-candidates,.voting-easy .voting-category .voting-candidates{max-height:310px}.voting-easy .candidate-check{display:none}}

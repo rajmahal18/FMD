@@ -7,3 +7,11 @@ test('interaction is one unordered pair while commendation is directed',()=>{ass
 test('server-time contact windows use an inclusive opening and exclusive closing',()=>{assert(contactWindow(null,'LIVE',new Date()));assert(contactWindow({...policy,enabled:false},'LIVE',new Date(policy.opensAt)));assert(contactWindow(policy,'PAUSED',new Date(policy.opensAt)));assert(contactWindow(policy,'ENDED',new Date(policy.opensAt)));assert.equal(contactWindow(policy,'LIVE',new Date(policy.opensAt)),'');assert(contactWindow(policy,'LIVE',new Date(policy.closesAt)));assert(contactWindow(policy,'LIVE',new Date('2026-10-05T23:59:59Z')));});
 test('QR and rotating numeric fallback are event/origin scoped',()=>{const token='a'.repeat(43);assert.equal(contactCredential('1234-5678','event','https://race.test'),'12345678');assert.equal(contactCredential(`https://race.test/events/event/contact?token=${token}`,'event','https://race.test'),token);for(const c of ['1234567','ABCDEFGH','https://evil.test/events/event/contact?token='+token,'https://race.test/events/other/contact?token='+token,'https://race.test/events/event/check-in?code=ABCDEFGH'])assert.throws(()=>contactCredential(c,'event','https://race.test'));});
 test('contact login return accepts only the exact local credential path',()=>{assert.equal(safeReturnPath('/events/e/contact?token='+'a'.repeat(43)),'/events/e/contact?token='+'a'.repeat(43));assert.equal(safeReturnPath('/events/e/contact?code=12345678'),'/events/e/contact?code=12345678');for(const p of ['/events/e/contact?token=short','/events/e/contact?code=12345678&next=https://evil.test','//evil.test','/events/e/contact\n'])assert.equal(safeReturnPath(p),'');});
+
+
+test('meeting collection can continue after the race only when its explicit voting workflow exists',()=>{
+ for(const state of ['ENDED','FINALIZED'])assert.equal(contactWindow(policy,state,new Date(policy.opensAt),true),'');
+ for(const state of ['PREPARING','READY','PAUSED'])assert(contactWindow(policy,state,new Date(policy.opensAt),true));
+ assert(contactWindow({...policy,enabled:false},'FINALIZED',new Date(policy.opensAt),true));
+ assert(contactWindow(policy,'FINALIZED',new Date(policy.closesAt),true));
+});

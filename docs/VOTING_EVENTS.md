@@ -42,3 +42,12 @@ Validation: node tests/category-voting-integration.mjs checks combined ballots, 
 Choose **Per squad - members and assigned handler vote** as the ballot format. One voting event automatically includes active squad members as candidates and voters, plus each assigned active squad handler as a voter. Each person chooses one member of their own squad. Self-votes are blocked. Each squad needs at least two active participants.
 
 The server saves candidate groups and squad names from event membership. Results rank independently per squad, with shared first place for tied positive totals and no placement for zero votes. Approval and audience sharing remain separate actions. Existing voting events are not modified, and no migration is needed.
+
+
+## Simple voter screen
+
+Participants and facilitators use the same focused voting desk, separate from organizer controls. Only eligible awards, their own recorded ballots, or explicitly shared results appear. An award list shows Vote now, Submitted, Not open yet, or Results available. A single assigned award opens directly.
+
+Male/Female ballots show one category at a time: choose Male, continue to Female, review both choices, then submit. Single awards show the selected name before review. Switching awards preserves unsubmitted choices while the page remains mounted. Confirmed server ballots show a completed receipt rather than another voting form. An interrupted response offers Check submission using the saved request key. Candidate changes, closed voting, archive state and organizer sharing retain existing server rules.
+
+Validation: EASY_VOTING_BROWSER_ONLY=1 node tests/theme-smoke.mjs covers participant and facilitator eligibility, multi-award navigation, retained choices, category steps, review/edit and interrupted submission recovery.

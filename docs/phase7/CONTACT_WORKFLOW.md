@@ -41,3 +41,16 @@ Confirmations save the exact request in this tab before sending. Lost response â
 Camera permission is explicit, rear camera preferred, and tracks stop on successful decode, stop, hidden page and unmount. Manual entry uses the same validation. Short-lived credentials reduce delayed sharing; they do not prove presence, meaningful interaction or prevent live relays/collusion.
 
 Organizer review shows alphabetical individual counts and the latest 100 records; all records remain in the database. No contact deletion/reversal, mass export, award reveal, notifications or external messages are included.
+
+
+## Scan first, vote later (Agents I met)
+
+Create a voting event with ballot format **Agents I met - Male & Female**. An Interaction contact policy with its QR collection window must already exist. Set Male/Female profiles for all active participants; at least two candidates in each category are required. One such ballot is allowed per event. Existing pending requests must be resolved before activating it. Saving explicitly switches the contact policy to no recipient acceptance and own-list visibility, preserving its enabled setting, dates, same-team rule and contact limit. Existing accepted interactions are retained as mutual meetings.
+
+The participant confirms the scanned identity once. One accepted unordered pair then adds each participant to the other's private Agents I met list. Reverse scans and retries add nothing. Scanning never casts award votes. In this opted-in workflow only, QR collection can also run while the race is Ended or Finalized, within the saved contact window; Paused, archived, disabled and expired collection remain blocked. Closing scanning retains the lists and does not close the separate voting schedule.
+
+Each participant later submits one Male and one Female choice together from their own accepted meeting list. No self-votes, unscanned candidates, pending contacts, inactive candidates or facilitator candidates are accepted by the server. Scanning and voting have separate schedules. A final ballot cannot be changed. Results rank by actual votes independently in the two categories, with shared winners on ties. Approval and sharing remain explicit organizer actions. The old contact-count award is omitted from new race snapshots for this workflow; existing saved snapshots are preserved.
+
+This implementation reuses ContactRecord, VotingEvent configuration JSON and existing ballots. No schema migration or live data rewrite is needed. Configure the new format deliberately after deployment. Legacy contact policies and other ballot formats retain their behavior.
+
+Validation: meeting-voting-integration.mjs via the integration suite; MEETING_VOTING_BROWSER_ONLY=1 node tests/theme-smoke.mjs; contact/voting unit tests.
