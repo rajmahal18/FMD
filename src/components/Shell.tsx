@@ -1,3 +1,4 @@
+import {eventRecapFocused} from '@/server/event-recap';
 import {participantVotingFocused} from '@/lib/participant-navigation';
 import {judgingNavigation} from '@/server/judging-navigation';
 import {AccountSession} from "./AccountSession";
@@ -21,10 +22,11 @@ export async function Shell({name,title,role,children,eventId}:{name:string;titl
   const photo=avatarUrl(account?.avatarKey);
   const navigationEvent=eventId?await db().event.findUnique({where:{id:eventId},select:{screenPreviewEnabled:true,participantVotingOnly:true,state:true,archivedAt:true}}):null;
   const previewEnabled=navigationEvent?.screenPreviewEnabled??true;
+  const resultsOnly=!!eventId&&!!navigationEvent&&await eventRecapFocused(eventId,role,navigationEvent.state);
   children=<RunRevisionProvider revision={eventId?await runRevision(db(),eventId):0}>{children}</RunRevisionProvider>;
   const sessionBar=account?<AccountSession key={`${account.id}:${account.accountSwitch?.sessionId??"normal"}`} userId={account.id} name={account.name} switchId={account.accountSwitch?.sessionId} organizerName={account.accountSwitch?.organizerName}/>:null;
-  if(role==="FACILITATOR"){const judging=eventId&&account?await judgingNavigation(account.id,eventId):{judgingEnabled:false,focused:false};return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} previewEnabled={previewEnabled} judgingEnabled={judging.judgingEnabled} judgingFocused={judging.focused} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;}
-  if(role==="PARTICIPANT"||role==="AGENT")return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} votingOnly={!!navigationEvent&&participantVotingFocused(navigationEvent)} name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;
+  if(role==="FACILITATOR"){const judging=eventId&&account?await judgingNavigation(account.id,eventId):{judgingEnabled:false,focused:false};return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} previewEnabled={previewEnabled} judgingEnabled={judging.judgingEnabled} judgingFocused={judging.focused} resultsOnly={resultsOnly} mode="facilitator" name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;}
+  if(role==="PARTICIPANT"||role==="AGENT")return <>{sessionBar}<PlayerShell switching={!!account?.accountSwitch} avatarUrl={photo} resultsOnly={resultsOnly} votingOnly={!resultsOnly&&!!navigationEvent&&participantVotingFocused(navigationEvent)} name={name} title={title} eventId={eventId}>{children}</PlayerShell></>;
   const roleLabel=role.replaceAll("_"," ");
   return <>{sessionBar}<div className={`shell themed-shell ${role==="PARTICIPANT"?"participant-shell":role==="FACILITATOR"?"facilitator-shell":""}`}>
     <aside>

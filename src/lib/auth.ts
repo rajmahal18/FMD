@@ -1,3 +1,4 @@
+import {eventRecapFocused} from '@/server/event-recap';
 import {participantVotingFocused} from './participant-navigation';
 import "server-only";
 import { cookies } from "next/headers";
@@ -13,6 +14,7 @@ export async function defaultEntryPath(userId:string,client:Pick<Prisma.Transact
  const real=memberships.filter(m=>!m.event.isDemo),available=real.length?real:memberships;
  const only=available.length===1?available[0]:null;
  if(!only)return '/workspace';
+ if(await eventRecapFocused(only.eventId,only.role,only.event.state))return `/events/${only.eventId}/results`;
  if(only.role==='PARTICIPANT'&&participantVotingFocused(only.event))return `/events/${only.eventId}/voting`;
  return only.role==='FACILITATOR'&&only.judgingAssignments.length?`/events/${only.eventId}/judging`:`/events/${only.eventId}`;
 }

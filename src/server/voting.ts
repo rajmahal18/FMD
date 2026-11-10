@@ -1,4 +1,5 @@
 import {meetingConnections,meetingVotingEvent} from './meeting-voting';
+import {handlerAwardResults} from '@/lib/award-results';
 import {passwordSetupRequired} from './password-setup';
 import {snapshotShared} from './result-sharing-policy';
 import {avatarUrl} from "@/lib/avatar";
@@ -96,7 +97,11 @@ export async function votingAction(actorId:string,eventId:string,value:unknown){
     await tx.votingEvent.update({where:{id},data:{enabled:v.enabled,revision:{increment:1}}});message=v.enabled?'Voting enabled within its scheduled window.':'Voting closed. Recorded ballots are preserved.';
    }else{
     if(p!.enabled&&now<p!.closesAt)throw new InputError('Close voting or wait until its window ends before publishing.',409);
-    const results=votingStandings(p!.config as VotingConfig,people,p!.ballots.flatMap(b=>b.choices));
+    let results=votingStandings(p!.config as VotingConfig,people,p!.ballots.flatMap(b=>b.choices));
+    if(v.winnerBasis!==undefined&&v.winnerBasis!=='HANDLER_CHOICE')throw new InputError('Choose a valid award decision.');
+    if(v.winnerBasis==='HANDLER_CHOICE'){
+     results=handlerAwardResults(p!.config as VotingConfig,results,people.filter(person=>person.active&&person.role==='FACILITATOR'&&person.squadHandlerTeamId).map(person=>({teamId:person.squadHandlerTeamId!,choices:p!.ballots.find(b=>b.voterMembershipId===person.id)?.choices.map(c=>c.candidateMembershipId)??[]})));
+    }
     await tx.votingEvent.update({where:{id},data:{enabled:false,publishedAt:now,publishedResults:results,revision:{increment:1}}});message='Voting results approved. Share them from Results when ready.';
    }
    details={summary:message,name:p!.name};

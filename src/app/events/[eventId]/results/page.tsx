@@ -1,3 +1,5 @@
+import {EventRecap} from '@/components/EventRecap';
+import {readEventRecap,eventRecapFocused} from '@/server/event-recap';
 import {requireMembership} from '@/lib/auth';
 import {readResults} from '@/server/results';
 import {readResultCenter} from '@/server/result-sharing';
@@ -11,6 +13,8 @@ import {VotingResults} from '@/components/CategoryVoting';
 import Link from 'next/link';
 export default async function ResultsPage({params,searchParams}:{params:Promise<{eventId:string}>;searchParams:Promise<{section?:string;share?:string;poll?:string}>}){
  const {eventId}=await params,{section,share,poll}=await searchParams;const {user,m}=await requireMembership(eventId);
+ if(!section&&m.role!=='ORGANIZER'&&await eventRecapFocused(eventId,m.role,m.event.state))return <Shell name={user.name} title="Event Results" role={m.role} eventId={eventId}><EventRecap data={await readEventRecap(user.id,eventId)}/></Shell>;
+ if(!section&&share==='recap'&&m.role==='ORGANIZER')return <Shell name={user.name} title="Event Results" role={m.role} eventId={eventId}><p><Link href={`/events/${eventId}/results`}>Back to result controls</Link></p><EventRecap data={await readEventRecap(user.id,eventId)}/></Shell>;
  const vote=section==='voting'?(await readVoting(user.id,eventId)).polls.find(p=>p.id===poll):null;
  return <Shell name={user.name} title={section==='race'?'Amazing Race results':section==='voting'?'Voting results':'Results'} role={m.role} eventId={eventId}>{section==='race'?<><ResultContext actorId={user.id} eventId={eventId} resultKey="race"/>{m.role==='ORGANIZER'?<ResultsReview initial={await readResults(user.id,eventId)}/>:<FinalResults data={await readResults(user.id,eventId)}/>}</>:section==='voting'?<><ResultContext actorId={user.id} eventId={eventId} resultKey={'voting:'+poll}/>{vote?.results?<section className="voting-workspace"><h2>{vote.name}</h2>{m.role==='ORGANIZER'&&<p>{vote.publishedAt?'Approved voting results':'Voting results preview'} · <Link className="text-action" href={`/events/${eventId}/voting`}>Open voting controls</Link></p>}<VotingResults poll={vote}/></section>:<section><h2>Voting results have not been shared yet</h2><p>Results will appear here when your organizer shares them.</p></section>}</>:<ResultCenter initial={await readResultCenter(user.id,eventId)} share={share}/>}</Shell>;
 }
