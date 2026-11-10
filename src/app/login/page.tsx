@@ -2,10 +2,13 @@
 import {ErrorNotice} from '@/components/ErrorNotice';
 import {safeReturnPath} from "@/lib/race";
 import {EmailLogin} from "@/components/EmailLogin";
+import Link from 'next/link';
+import {publicResultsEntry} from '@/server/public-results';
 
 export default async function Login({searchParams}:{searchParams:Promise<{error?:string;changed?:string;returnTo?:string}>}){
   const {error,changed,returnTo:raw}=await searchParams;
   const returnTo=safeReturnPath(raw);
+  const results=await publicResultsEntry();
   return <main className="login spy-login">
     <section className="login-stage">
       <div className="login-brand-panel">
@@ -25,6 +28,7 @@ export default async function Login({searchParams}:{searchParams:Promise<{error?
         <span className="eyebrow">IDENTITY CHECK / 01</span>
         <h1>Agent access</h1>
         <p>Use the individual account issued by your organizer.</p>
+        {results&&<p><Link className="button secondary" href={results.href}>View results</Link></p>}
         {changed&&<div className="notice" role="status">Password saved. Sign in with your new password.</div>}
         {error&&<ErrorNotice>{error==="rate"?"Too many attempts. Wait 15 minutes, then try again.":"Unable to sign in. Check your email and password."}</ErrorNotice>}
         <EmailLogin returnTo={returnTo}/>

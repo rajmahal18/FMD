@@ -8,6 +8,21 @@ Cornerstone winners use the assigned handlers' recorded ballots when publication
 
 The opt-in `eventRecapEnabled` property is saved inside the existing overall approval JSON. With a Finalized event and shared overall approval, participants and facilitators enter Results and see one Event Results destination. Organizer navigation and controls remain available. Other events, live/reset workflows, unpublished results and existing deep links are preserved. Withdrawing source sharing still hides the affected result. No database migration is required.
 
+## Public results
+
+Public access is a separate, explicit publication. A sanitized `publicRecap` snapshot is stored in the existing overall approval JSON, together with additional organizer-confirmed awards. The homepage and login page show **View results** only when a current public release is available. `/results/[slug]` displays that snapshot without authentication; existing event pages and APIs retain their identity and role checks.
+
+The public snapshot includes only approved award recipients, vote totals, standings, activity weights, judge names/scores and station-point breakdowns. It excludes individual ballots, contact records, account data, private instructions, sessions and audit details. An explicit field projection is applied before saving and when reading. Public publication is independent of participant/facilitator sharing; changing member sharing does not silently withdraw an explicitly public release. Reopening overall results, reopening the race or changing a published source invalidates public access and removes the homepage CTA until reviewed and republished.
+
+The Operation Classified release additionally recognizes **Successful Double Agents**: Naim A. Abdulkadir (Task Force V) and Erica Jean S. Falcatan (Green Phantom). These are separate awards and do not change scores or voting.
+
+```powershell
+node --conditions=react-server --import tsx scripts/publish-public-results.ts EVENT_ID ORGANIZER_USER_ID
+# Add --confirm after reviewing the public projection.
+```
+
+The script validates the exact event, active organizer identity, approved sources and source revisions, then records an audit entry. It preserves the original overall approval and all recorded results. No schema change is needed.
+
 ## Publish an event
 
 Use an active event organizer's user ID and the exact event ID. Run a read-only review first:

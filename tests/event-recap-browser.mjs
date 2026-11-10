@@ -20,14 +20,16 @@ export async function eventRecapBrowser(db,eventId){
   const cmd=(method,params)=>send(method,params,sessionId);
   await cmd('Page.enable');await cmd('Runtime.enable');await cmd('Network.enable');
   const evaluate=async expression=>{const r=await cmd('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description??r.exceptionDetails.text);return r.result.value;};
-  for(const role of ['leader','handler','organizer']){
+  for(const role of ['anonymous','leader','handler','organizer']){
    const token=tokens[role];
-   await cmd('Network.setCookie',{url:origin,name:'__Host-spy-session',value:token,path:'/',secure:true,httpOnly:true,sameSite:'Lax'});
+   await cmd('Network.clearBrowserCookies');
+   if(token)await cmd('Network.setCookie',{url:origin,name:'__Host-spy-session',value:token,path:'/',secure:true,httpOnly:true,sameSite:'Lax'});
    for(const width of [320,390,768,1440]){
     await cmd('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<768});
-    await cmd('Page.navigate',{url:origin+`/events/${eventId}/results`+(role==='organizer'?'?share=recap':'')});
+    if(role==='anonymous'){await cmd('Page.navigate',{url:origin+'/'});for(let i=0;i<60;i++){if(await evaluate("!!document.querySelector('.hero-actions a[href^=\"/results/\"]')"))break;await new Promise(r=>setTimeout(r,150));}assert(await evaluate("!!document.querySelector('.hero-actions a[href^=\"/results/\"]')"),'Public View results CTA');assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Homepage has no page overflow');await evaluate("document.querySelector('.hero-actions a[href^=\"/results/\"]').click()");}else await cmd('Page.navigate',{url:origin+`/events/${eventId}/results`+(role==='organizer'?'?share=recap':'')});
     for(let i=0;i<60;i++){if(await evaluate("!!document.querySelector('.recap-tabs')"))break;await new Promise(r=>setTimeout(r,150));}
     assert(await evaluate("!!document.querySelector('.recap-tabs')"),'Event recap rendered for '+role+' '+await evaluate('location.pathname+" / "+document.body.innerText.slice(0,1800)'));
+    assert(await evaluate("document.body.textContent.includes('Naim A. Abdulkadir')&&document.body.textContent.includes('Erica Jean S. Falcatan')"),'Both Successful Double Agents appear');
     await evaluate('document.fonts.ready.then(()=>true)');
     for(let index=0;index<4;index++){
      await evaluate(`document.querySelectorAll('.recap-tabs button')[${index}].click()`);await new Promise(r=>setTimeout(r,100));
@@ -36,13 +38,17 @@ export async function eventRecapBrowser(db,eventId){
      assert(await evaluate("[...document.querySelectorAll('.recap-tabs button')].every(b=>b.getBoundingClientRect().height>=44)"),'44px section controls');
      if(width===320||width===1440&&index===0){const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(out,`${role}-${width}-${index}.png`),Buffer.from(shot.data,'base64'));}
     }
-    if(role!=='organizer')assert.equal(await evaluate("[...document.querySelectorAll('.player-bottom-nav a')].map(a=>a.textContent.trim()).join(',')"),'Event Results');
+    if(role!=='organizer'&&role!=='anonymous')assert.equal(await evaluate("[...document.querySelectorAll('.player-bottom-nav a')].map(a=>a.textContent.trim()).join(',')"),'Event Results');
    }
-   if(role!=='organizer'){
+   if(role!=='organizer'&&role!=='anonymous'){
     const r=await fetch(origin+`/events/${eventId}`,{headers:{cookie:'__Host-spy-session='+token},redirect:'manual'});assert.equal(r.headers.get('location'),`/events/${eventId}/results`);
+   }
+   if(role==='anonymous'){
+    assert.equal((await fetch(origin+`/api/events/${eventId}/voting`)).status,401,'Public results do not open protected voting APIs');
+    assert.equal((await fetch(origin+'/results/unknown-event')).status,404,'Unpublished event is unavailable');
    }
   }
   assert.deepEqual(errors,[],'No browser runtime errors');
-  console.log('PASS: Event recap browser — participant, facilitator and organizer; four sections at 320/390/768/1440px, expanded details, no page overflow, touch targets and result-only navigation.');
+  console.log('PASS: Event recap browser — anonymous homepage CTA, participant, facilitator and organizer; four sections at 320/390/768/1440px, expanded details, no page overflow, touch targets and result-only navigation.');
  }finally{browser?.kill();app.kill();await new Promise(r=>app.once('exit',r));}
 }

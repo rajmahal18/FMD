@@ -1,6 +1,9 @@
 import Link from "next/link";
+import {publicResultsEntry} from '@/server/public-results';
+export const dynamic='force-dynamic';
 
-export default function Home(){
+export default async function Home(){
+  const results=await publicResultsEntry();
   return <main className="entry entry-themed">
     <div className="entry-backdrop" aria-hidden="true"/>
     <div className="classification classification-lockup">
@@ -13,7 +16,8 @@ export default function Home(){
         <h1>SPY<br/><span>CHASE.</span></h1>
         <p>Real-world challenges.<br/>One coordinated operation.</p>
         <div className="hero-actions">
-          <Link className="button" href="/login">Enter operation <span aria-hidden="true">↗</span></Link>
+          {results&&<Link className="button" href={results.href}>View results <span aria-hidden="true">↗</span></Link>}
+          <Link className={`button${results?' secondary':''}`} href="/login">Enter operation <span aria-hidden="true">↗</span></Link>
         </div>
       </div>
       <aside className="hero-aside" aria-label="Operation visuals">
